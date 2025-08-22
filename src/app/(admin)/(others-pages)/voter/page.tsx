@@ -8,8 +8,6 @@ const page = async () => {
         fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/colony`, { cache: 'no-store' }),
         fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/colonyentry`, { cache: 'no-store' }),
         fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/voterentry`, { cache: 'no-store' }),
-        // fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/district`, { cache: 'no-store' }),
-
     ]);
 
     const [colonydata, colonyentrydata, voterentrydata] = await Promise.all([
