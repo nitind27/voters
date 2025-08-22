@@ -84,10 +84,12 @@ export default async function Ecommerce() {
         <div className="col-span-12 space-y-0 xl:col-span-7 ">
 
           <Suspense fallback={<Loader />}>
-        
-         
 
-            <EcommerceMetrics metrics={metrics} />
+
+            {
+              false &&
+              <EcommerceMetrics metrics={metrics} />
+            }
             {/* <Dashboardtabfilter metrics={metrics} /> */}
 
 
