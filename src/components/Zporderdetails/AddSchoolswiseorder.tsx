@@ -143,7 +143,7 @@ const AddSchoolswiseorder = ({ users }: Props) => {
     { key: 'username', label: 'User Name', accessor: 'username', render: (row) => <span>{row.username}</span> },
     { key: 'password', label: 'Password', accessor: 'password', render: (row) => <span>{row.password}</span> },
     { key: 'contact_no', label: 'Contact No', accessor: 'contact_no', render: (row) => <span>{row.contact_no}</span> },
-    { key: 'address', label: 'Address', accessor: 'address', render: (row) => <span>{row.address}</span> },
+    // { key: 'address', label: 'Address', accessor: 'address', render: (row) => <span>{row.address}</span> },
     { key: 'taluka_id', label: 'Taluka', accessor: 'taluka_id', render: (row) => <span>{row.taluka_name}</span> },
     { key: 'village_id', label: 'Village', accessor: 'village_id', render: (row) => <span>{row.village_name}</span> },
     { key: 'status', label: 'Status', accessor: 'status', render: (row) => <span>{row.status}</span> },

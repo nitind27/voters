@@ -8,48 +8,59 @@ import Label from "../form/Label";
 import { ReusableTable } from "../tables/BasicTableOne";
 import { Column } from "../tables/tabletype";
 
-
 import { toast } from 'react-toastify';
 
 import { UserData } from './Userdata';
 import { useToggleContext } from '@/context/ToggleContext';
 import { UserCategory } from '../usercategory/userCategory';
-import { Taluka } from '../Taluka/Taluka';
-import { Village } from '../Village/village';
+
 import DefaultModal from '../example/ModalExample/DefaultModal';
 import { FaEdit } from 'react-icons/fa';
 // import { Grampanchayattype } from '../grampanchayat/gptype';
 
+// Update Colony interface to match database schema
+interface Colony {
+  colony_id: number;
+  colony_name: string;
+  first_name: string;
+  middle_name: string;
+  last_name: string;
+  full_name: string;
+  booth_number: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
 type Props = {
   users: UserData[];
-  datavillage: Village[];
-  datataluka: Taluka[];
   datausercategorycrud: UserCategory[];
+  colonies: Colony[]; // Add colonies prop
   // grampanchayat: Grampanchayattype[];
 };
-type FormErrors = {
 
+type FormErrors = {
   usercategory?: string;
   name?: string;
   Contact?: string;
   Username?: string;
   Password?: string;
-  address?: string;
+  colonies?: string; // Changed from address to colonies
   Taluka?: string;
   Village?: string;
   gp?: string;
-
 };
-const Usersdatas = ({ users, datausercategorycrud }: Props) => {
 
+const Usersdatas = ({ users, datausercategorycrud, colonies }: Props) => {
   const [data, setData] = useState<UserData[]>(users || []);
   const [usercategory, setUsercategory] = useState(0);
-
   const [name, setName] = useState('');
   const [Contact, setContact] = useState('');
   const [Username, setUsername] = useState('');
   const [Password, setPassword] = useState('');
-  const [address, setaddress] = useState('');
+  const [selectedColonies, setSelectedColonies] = useState<number[]>([]); // Changed from address to colonies
+  // Remove the colonies state since it's now passed as prop
+  // const [colonies, setColonies] = useState<Colony[]>([]);
   // const [Taluka, setTaluka] = useState(0);
   // const [Village, setVillage] = useState(0);
   const [gp, setgp] = useState(0);
@@ -58,10 +69,21 @@ const Usersdatas = ({ users, datausercategorycrud }: Props) => {
   const [loading, setLoading] = useState(false);
   const [error, setErrors] = useState<FormErrors>({});
 
+  // Remove the fetchColonies function since colonies are now passed as props
+  // const fetchColonies = async () => {
+  //   try {
+  //     const response = await fetch('/api/colony');
+  //     const result = await response.json();
+  //     setColonies(result);
+  //   } catch (error) {
+  //     console.error('Error fetching colonies:', error);
+  //   }
+  // };
+
   const fetchData = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/users');
+      const response = await fetch('/api/users/insert');
       const result = await response.json();
       setData(result);
     } catch (error) {
@@ -71,22 +93,24 @@ const Usersdatas = ({ users, datausercategorycrud }: Props) => {
     }
   };
 
+  // Remove the useEffect that calls fetchColonies
+  // useEffect(() => {
+  //   fetchColonies(); // Fetch colonies when component mounts
+  // }, []);
+
   useEffect(() => {
-
     if (!isvalidation) {
-
       setErrors({})
     }
   }, [isvalidation])
 
   const reset = () => {
     setUsercategory(Number(""))
-
     setName("")
     setContact("")
     setUsername("")
     setPassword("")
-    setaddress("")
+    setSelectedColonies([]) // Changed from setaddress
     // setTaluka(Number(""))
     // setVillage(Number(""))
     setgp(Number(""))
@@ -98,6 +122,17 @@ const Usersdatas = ({ users, datausercategorycrud }: Props) => {
       reset()
     }
   }, [isEditMode]);
+
+  // Handle colony checkbox changes
+  const handleColonyChange = (colonyId: number) => {
+    setSelectedColonies(prev => {
+      if (prev.includes(colonyId)) {
+        return prev.filter(id => id !== colonyId);
+      } else {
+        return [...prev, colonyId];
+      }
+    });
+  };
 
   const validateInputs = () => {
     const newErrors: FormErrors = {};
@@ -120,21 +155,28 @@ const Usersdatas = ({ users, datausercategorycrud }: Props) => {
     if (!Password || Password.length === 0) {
       newErrors.Password = "Password is required";
     }
-    if (!address || address.length === 0) {
-      newErrors.address = "Address is required";
+    if (selectedColonies.length === 0) { // Changed from address validation
+      newErrors.colonies = "At least one colony is required";
     }
-  
- 
-
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
+
   const handleSave = async () => {
     if (!validateInputs()) return;
     setLoading(true);
     const apiUrl = isEditMode ? `/api/users/insert` : '/api/users/insert';
     const method = isEditMode ? 'PUT' : 'POST';
+
+    // Convert selected colonies to comma-separated string of IDs (no spaces)
+    const coloniesString = selectedColonies
+      .map(id => {
+        const colony = colonies.find(c => c.colony_id === id);
+        return colony ? colony.colony_id : '';
+      })
+      .filter(Boolean)
+      .join(',');
 
     try {
       const response = await fetch(apiUrl, {
@@ -143,14 +185,13 @@ const Usersdatas = ({ users, datausercategorycrud }: Props) => {
         body: JSON.stringify({
           user_id: editId,
           name: name,
-          user_category_id: usercategory,
+          category_id: usercategory,
           username: Username,
           password: Password,
           contact_no: Contact,
-          address: address,
+          colony_id: coloniesString,
           gp_id: gp,
           status: "Active"
-
         })
       });
 
@@ -161,7 +202,6 @@ const Usersdatas = ({ users, datausercategorycrud }: Props) => {
       toast.success(editId
         ? 'updated successfully!'
         : 'Inserted successfully!');
-
 
       reset()
       setEditId(null);
@@ -177,25 +217,40 @@ const Usersdatas = ({ users, datausercategorycrud }: Props) => {
     }
   };
 
-
-
-
   const handleEdit = (item: UserData) => {
+
     setIsActive(!isActive)
     setIsmodelopen(true);
     setIsEditmode(true);
-    setUsercategory(Number(item.user_category_id))
+    setUsercategory(Number(item.category_id))
     setEditId(item.user_id)
     setName(item.name)
     setContact(item.contact_no)
     setUsername(item.username)
     setPassword(item.password)
-    setaddress(item.address)
+    
+    // Prefer parsing IDs if present; fallback to names
+    const rawIds = item.colony_id;
+    if (rawIds && rawIds.length > 0) {
+      const ids = rawIds
+        .split(',')
+        .map(s => Number(String(s).trim()))
+        .filter(n => Number.isFinite(n));
+      setSelectedColonies(ids);
+    } else if (item.colony_names) {
+      const colonyNames = item.colony_names.split(',').map(name => name.trim());
+      const colonyIds = colonies
+        .filter(colony => colonyNames.includes(colony.colony_name))
+        .map(colony => colony.colony_id);
+      setSelectedColonies(colonyIds);
+    } else {
+      setSelectedColonies([]);
+    }
+    
     // setTaluka(item.taluka_id)
     // setVillage(item.village_id)
     setgp(Number(item.gp_id))
   };
-
   // const handleDownloadExcel = () => {
   //   // Prepare data for Excel (remove unwanted fields if needed)
   //   const exportData = data.map(({ ...rest }) => rest); // Example: exclude password
@@ -216,7 +271,6 @@ const Usersdatas = ({ users, datausercategorycrud }: Props) => {
   // };
 
   const columns: Column<UserData>[] = [
-
     {
       key: 'name',
       label: 'Name',
@@ -226,8 +280,8 @@ const Usersdatas = ({ users, datausercategorycrud }: Props) => {
     {
       key: 'user_category_id',
       label: 'User Category',
-      accessor: 'user_category_id',
-      render: (data) => <span>{data.user_category_name}</span>
+      accessor: 'category_name',
+      render: (data) => <span>{data.category_name}</span>
     },
     {
       key: 'username',
@@ -248,12 +302,11 @@ const Usersdatas = ({ users, datausercategorycrud }: Props) => {
       render: (data) => <span>{data.contact_no}</span>
     },
     {
-      key: 'address',
-      label: 'Address',
-      accessor: 'address',
-      render: (data) => <span>{data.address}</span>
+      key: 'colonies', // Changed from address to colonies
+      label: 'Colonies',
+      accessor: 'colony_names',
+      render: (data) => <span>{data.colony_names}</span>
     },
-    
     {
       key: 'status',
       label: 'Status',
@@ -297,23 +350,19 @@ const Usersdatas = ({ users, datausercategorycrud }: Props) => {
         classname={"h-[550px] overflow-y-auto scrollbar-hide"}
         inputfiled={
           <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-1">
-
             <div className="col-span-1">
               <Label>Category</Label>
-
-
               <select
                 name=""
                 id=""
-                className={`h-11 w-full rounded-lg border appearance-none px-4 py-2.5 text-sm shadow-theme-xs placeholder:text-gray-400 dark:placeholder:text-white/30 bg-transparent text-gray-800 border-gray-300 focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:focus:border-brand-800 ${error.usercategory ? "border-red-500" : ""
-                  }`}
+                className={`h-11 w-full rounded-lg border appearance-none px-4 py-2.5 text-sm shadow-theme-xs placeholder:text-gray-400 dark:placeholder:text-white/30 bg-transparent text-gray-800 border-gray-300 focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:focus:border-brand-800 ${error.usercategory ? "border-red-500" : ""}`}
                 value={usercategory}
                 onChange={(e) => setUsercategory(Number(e.target.value))}
               >
                 <option value="">Category</option>
                 {datausercategorycrud.map((category) => (
-                  <option key={category.user_category_id} value={category.user_category_id}>
-                    {category.category_name}
+                  <option key={category.category_id} value={category.category_id}>
+                    {category.name}
                   </option>
                 ))}
               </select>
@@ -323,14 +372,13 @@ const Usersdatas = ({ users, datausercategorycrud }: Props) => {
                 </div>
               )}
             </div>
+            
             <div>
               <Label>Name</Label>
               <input
                 type="text"
                 placeholder="Enter Name"
-                className={`h-11 w-full rounded-lg border appearance-none px-4 py-2.5 text-sm shadow-theme-xs placeholder:text-gray-400 dark:placeholder:text-white/30 bg-transparent text-gray-800 border-gray-300 focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:focus:border-brand-800 ${error.name ? "border-red-500" : ""
-                  }`}
-
+                className={`h-11 w-full rounded-lg border appearance-none px-4 py-2.5 text-sm shadow-theme-xs placeholder:text-gray-400 dark:placeholder:text-white/30 bg-transparent text-gray-800 border-gray-300 focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:focus:border-brand-800 ${error.name ? "border-red-500" : ""}`}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
               />
@@ -340,14 +388,13 @@ const Usersdatas = ({ users, datausercategorycrud }: Props) => {
                 </div>
               )}
             </div>
+            
             <div>
               <Label>Contact</Label>
               <input
                 type="text"
                 placeholder="Enter Contact"
-                className={`h-11 w-full rounded-lg border appearance-none px-4 py-2.5 text-sm shadow-theme-xs placeholder:text-gray-400 dark:placeholder:text-white/30 bg-transparent text-gray-800 border-gray-300 focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:focus:border-brand-800 ${error.Contact ? "border-red-500" : ""
-                  }`}
-
+                className={`h-11 w-full rounded-lg border appearance-none px-4 py-2.5 text-sm shadow-theme-xs placeholder:text-gray-400 dark:placeholder:text-white/30 bg-transparent text-gray-800 border-gray-300 focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:focus:border-brand-800 ${error.Contact ? "border-red-500" : ""}`}
                 value={Contact}
                 onChange={(e) => setContact(e.target.value)}
               />
@@ -357,31 +404,36 @@ const Usersdatas = ({ users, datausercategorycrud }: Props) => {
                 </div>
               )}
             </div>
+            
+            {/* Replace Address field with Colonies checkboxes */}
             <div>
-              <Label>Address</Label>
-              <input
-                type="text"
-                placeholder="Enter Address"
-                className={`h-11 w-full rounded-lg border appearance-none px-4 py-2.5 text-sm shadow-theme-xs placeholder:text-gray-400 dark:placeholder:text-white/30 bg-transparent text-gray-800 border-gray-300 focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:focus:border-brand-800 ${error.address ? "border-red-500" : ""
-                  }`}
-
-                value={address}
-                onChange={(e) => setaddress(e.target.value)}
-              />
+              <Label>Colonies</Label>
+              <div className="max-h-32 overflow-y-auto border rounded-lg p-3 space-y-2">
+                {colonies.map((colony) => (
+                  <label key={colony.colony_id} className="flex items-center space-x-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={selectedColonies.includes(colony.colony_id)}
+                      onChange={() => handleColonyChange(colony.colony_id)}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span className="text-sm text-gray-700">{colony.colony_name}</span>
+                  </label>
+                ))}
+              </div>
               {error && (
                 <div className="text-red-500 text-sm mt-1 pl-1">
-                  {error.address}
+                  {error.colonies}
                 </div>
               )}
             </div>
+            
             <div>
               <Label>Username</Label>
               <input
                 type="text"
                 placeholder="Enter Username"
-                className={`h-11 w-full rounded-lg border appearance-none px-4 py-2.5 text-sm shadow-theme-xs placeholder:text-gray-400 dark:placeholder:text-white/30 bg-transparent text-gray-800 border-gray-300 focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:focus:border-brand-800 ${error.Username ? "border-red-500" : ""
-                  }`}
-
+                className={`h-11 w-full rounded-lg border appearance-none px-4 py-2.5 text-sm shadow-theme-xs placeholder:text-gray-400 dark:placeholder:text-white/30 bg-transparent text-gray-800 border-gray-300 focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:focus:border-brand-800 ${error.Username ? "border-red-500" : ""}`}
                 value={Username}
                 onChange={(e) => setUsername(e.target.value)}
               />
@@ -391,14 +443,13 @@ const Usersdatas = ({ users, datausercategorycrud }: Props) => {
                 </div>
               )}
             </div>
+            
             <div>
               <Label>Password</Label>
               <input
                 type="text"
                 placeholder="Enter Password"
-                className={`h-11 w-full rounded-lg border appearance-none px-4 py-2.5 text-sm shadow-theme-xs placeholder:text-gray-400 dark:placeholder:text-white/30 bg-transparent text-gray-800 border-gray-300 focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:focus:border-brand-800 ${error.Password ? "border-red-500" : ""
-                  }`}
-
+                className={`h-11 w-full rounded-lg border appearance-none px-4 py-2.5 text-sm shadow-theme-xs placeholder:text-gray-400 dark:placeholder:text-white/30 bg-transparent text-gray-800 border-gray-300 focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:focus:border-brand-800 ${error.Password ? "border-red-500" : ""}`}
                 value={Password}
                 onChange={(e) => setPassword(e.target.value)}
               />
@@ -408,16 +459,11 @@ const Usersdatas = ({ users, datausercategorycrud }: Props) => {
                 </div>
               )}
             </div>
-        
-          
-
           </div>
         }
-
         columns={columns}
         title="Users"
         filterOptions={[]}
-        // filterKey="role"
         submitbutton={
           <button
             type='button'
@@ -429,7 +475,6 @@ const Usersdatas = ({ users, datausercategorycrud }: Props) => {
           </button>
         }
         searchKey="username"
-      // 
       />
     </div>
   );

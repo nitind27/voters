@@ -59,6 +59,11 @@ const allNavItems: NavItem[] = [
   // },
   {
     icon: <TbCategoryPlus />,
+    name: "Users",
+    path: "/users",
+  },
+  {
+    icon: <TbCategoryPlus />,
     name: "Voter",
     path: "/voter",
   },
