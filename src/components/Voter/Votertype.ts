@@ -34,6 +34,7 @@ export interface voterdayatype {
     aadhaar_number: string;
     booth_number: string;
     photo: string;
+    colony_name: string;
     mobile: string;
     user_id: string;
     status: string;
