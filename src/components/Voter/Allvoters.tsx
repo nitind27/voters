@@ -26,11 +26,11 @@ type FormErrors = {
 };
 
 type Props = {
-    colony: Voterdatatye[];
-    colonyentry: colonyentrydatatype[];
-    voterentry: voterdayatype[];
-  };
-  
+  colony: Voterdatatye[];
+  colonyentry: colonyentrydatatype[];
+  voterentry: voterdayatype[];
+};
+
 const Allvoters: React.FC<Props> = ({ voterentry }: Props) => {
   const [data, setData] = useState<voterdayatype[]>(voterentry || []);
   const [filteredData, setFilteredData] = useState<voterdayatype[]>(voterentry || []);
@@ -64,7 +64,7 @@ const Allvoters: React.FC<Props> = ({ voterentry }: Props) => {
   // Filter data based on colony name
   useEffect(() => {
     if (colonyFilter) {
-      const filtered = data.filter(item => 
+      const filtered = data.filter(item =>
         item.colony_name && item.colony_name.toLowerCase().includes(colonyFilter.toLowerCase())
       );
       setFilteredData(filtered);
@@ -162,7 +162,12 @@ const Allvoters: React.FC<Props> = ({ voterentry }: Props) => {
 
 
   const columns: Column<voterdayatype>[] = [
-   
+    {
+      key: 'colony_entry_id',
+      label: 'Colony Entry ID',
+      accessor: 'colony_name',
+      render: (data) => <span className="text-sm">{data.colony_name}</span>,
+    },
     {
       key: 'full_name',
       label: 'Full Name',
@@ -170,7 +175,7 @@ const Allvoters: React.FC<Props> = ({ voterentry }: Props) => {
       render: (data) => (
         <div className="flex flex-col">
           <span className="font-medium">{data.full_name}</span>
-     
+
         </div>
       ),
     },
@@ -232,12 +237,7 @@ const Allvoters: React.FC<Props> = ({ voterentry }: Props) => {
         </span>
       ),
     },
-    {
-      key: 'colony_entry_id',
-      label: 'Colony Entry ID',
-      accessor: 'colony_name',
-      render: (data) => <span className="text-sm">{data.colony_name}</span>,
-    },
+
     {
       key: 'photo',
       label: 'Photo',
@@ -245,9 +245,9 @@ const Allvoters: React.FC<Props> = ({ voterentry }: Props) => {
       render: (data) => (
         <div className="flex items-center">
           {data.photo ? (
-            <img 
-              src={data.photo} 
-              alt="Voter Photo" 
+            <img
+              src={data.photo}
+              alt="Voter Photo"
               className="w-10 h-10 rounded-full object-cover border-2 border-gray-200"
               onError={(e) => {
                 e.currentTarget.src = '/images/user/default-avatar.png';
@@ -266,27 +266,26 @@ const Allvoters: React.FC<Props> = ({ voterentry }: Props) => {
       label: 'Status',
       accessor: 'status',
       render: (data) => (
-        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-          data.status === 'Active' ? 'bg-green-100 text-green-800' : 
-          data.status === 'Inactive' ? 'bg-red-100 text-red-800' : 
-          'bg-gray-100 text-gray-800'
-        }`}>
+        <span className={`px-2 py-1 rounded-full text-xs font-medium ${data.status === 'Active' ? 'bg-green-100 text-green-800' :
+            data.status === 'Inactive' ? 'bg-red-100 text-red-800' :
+              'bg-gray-100 text-gray-800'
+          }`}>
           {data.status}
         </span>
       ),
     },
-    
+
   ];
 
   return (
     <div className="">
       {loading && <Loader />}
-      
+
       {/* Colony Filter */}
       <div className="mb-4 p-4 bg-white rounded-lg shadow-sm border">
         <div className="flex flex-col sm:flex-row gap-4 items-center">
           <div className="flex-1 min-w-0">
-      
+
             <select
               value={colonyFilter}
               onChange={(e) => setColonyFilter(e.target.value)}
@@ -296,7 +295,7 @@ const Allvoters: React.FC<Props> = ({ voterentry }: Props) => {
               <option value="">
                 {loadingColonies ? 'Loading colonies...' : 'All Colonies'}
               </option>
-              {colonyList.map((colony,index) => (
+              {colonyList.map((colony, index) => (
                 <option key={colony.colony_id} value={colony.colony_name}>
                   {index + 1} ) {colony.colony_name}
                 </option>
@@ -311,7 +310,7 @@ const Allvoters: React.FC<Props> = ({ voterentry }: Props) => {
             >
               Clear Filter
             </button>
-            
+
           </div>
         </div>
       </div>
