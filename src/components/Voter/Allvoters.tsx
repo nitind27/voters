@@ -159,8 +159,6 @@ const Allvoters: React.FC<Props> = ({ voterentry }: Props) => {
     }
   };
 
-
-
   const columns: Column<voterdayatype>[] = [
     {
       key: 'colony_entry_id',
