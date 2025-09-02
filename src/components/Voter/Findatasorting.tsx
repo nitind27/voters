@@ -124,10 +124,10 @@ const Findatasorting: React.FC<Props> = ({ voterentry }) => {
   
   // Columns definition
   const columns: Column<voterdayatype>[] = [
-    { key: 'voter_id', label: 'Voter ID', accessor: 'voter_id' },
+      { key: 'colony_name', label: 'Colony Name', accessor: 'colony_name' },
+    // { key: 'voter_id', label: 'Voter ID', accessor: 'voter_id' },
     { key: 'full_name', label: 'Full Name', accessor: 'full_name' },
     { key: 'voter_number', label: 'Voter Number', accessor: 'voter_number' },
-    { key: 'colony_name', label: 'Colony Name', accessor: 'colony_name' },
     { key: 'booth_number', label: 'Booth Number', accessor: 'booth_number' },
     {
       key: 'findatasorting',
