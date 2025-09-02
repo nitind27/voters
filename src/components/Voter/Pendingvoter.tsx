@@ -225,19 +225,19 @@ const Pendingvoter: React.FC<Props> = ({ voterentry,colonyentry }: Props) => {
         </div>
       ),
     },
-    {
-      key: 'status',
-      label: 'Status',
-      accessor: 'status',
-      render: (data) => (
-        <span className={`px-2 py-1 rounded-full text-xs font-medium ${data.status === 'Active' ? 'bg-green-100 text-green-800' :
-            data.status === 'Inactive' ? 'bg-red-100 text-red-800' :
-              'bg-gray-100 text-gray-800'
-          }`}>
-          {data.status}
-        </span>
-      ),
-    },
+    // {
+    //   key: 'status',
+    //   label: 'Status',
+    //   accessor: 'status',
+    //   render: (data) => (
+    //     <span className={`px-2 py-1 rounded-full text-xs font-medium ${data.status === 'Active' ? 'bg-green-100 text-green-800' :
+    //         data.status === 'Inactive' ? 'bg-red-100 text-red-800' :
+    //           'bg-gray-100 text-gray-800'
+    //       }`}>
+    //       {data.status}
+    //     </span>
+    //   ),
+    // },
 
   ];
 
@@ -290,12 +290,12 @@ const Pendingvoter: React.FC<Props> = ({ voterentry,colonyentry }: Props) => {
                   const count = colonyMemberCounts[String(col.colony_id)] || 0;
                   return (
                     <tr key={col.colony_id} className="hover:bg-gray-50">
-                      <td className="px-3 py-2 border align-top">{idx + 1}</td>
+                      <td className="px-3 py-2 border align-top w-6">{idx + 1}</td>
                       <td className="px-3 py-2 border align-top">{col.colony_name}</td>
                       <td className="px-3 py-2 border align-top">
                         <button
                           type="button"
-                          className="text-blue-600 underline"
+                          className="text-blue-600 underline text-[16px]"
                           onClick={() => openModalForColony(String(col.colony_id), col.colony_name)}
                         >
                           {count}

@@ -1,7 +1,5 @@
 import Breadcrumbs from '@/components/common/BreadcrumbItem';
-// import Allvoters from '@/components/Voter/Allvoters';
 import Pendingvoter from '@/components/Voter/Pendingvoter';
-// import Voterdata from '@/components/Voter/Voterdata';
 import React from 'react'
 
 
