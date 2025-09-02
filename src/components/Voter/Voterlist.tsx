@@ -22,17 +22,17 @@ type Props = {
   voterentry: voterdayatype[];
 };
 
-const Findatasorting: React.FC<Props> = ({ voterentry,colonyentry }) => {
-  const [data, setData] = useState<voterdayatype[]>(voterentry || []);
-  const [filteredData, setFilteredData] = useState<voterdayatype[]>(voterentry || []);
-  const [colonyFilter, setColonyFilter] = useState('');
-  const [colonyList, setColonyList] = useState<ColonyData[]>([]);
-  const [loadingColonies, setLoadingColonies] = useState(false);
-//   const { isEditMode, setIsmodelopen, isvalidation, } = useToggleContext();
-  const [loading, setLoading] = useState(false);
-  const [radioSelections, setRadioSelections] = useState<{ [key: number]: number }>({});
-  const [submitting, setSubmitting] = useState(false);
-  const [yesNoFilter, setYesNoFilter] = useState<string>(''); // '' | '1' | '0'
+const Voterlist: React.FC<Props> = ({ voterentry,colonyentry }) => {
+    const [data, setData] = useState<voterdayatype[]>(voterentry || []);
+    const [filteredData, setFilteredData] = useState<voterdayatype[]>(voterentry || []);
+    const [colonyFilter, setColonyFilter] = useState('');
+    const [colonyList, setColonyList] = useState<ColonyData[]>([]);
+    const [loadingColonies, setLoadingColonies] = useState(false);
+  //   const { isEditMode, setIsmodelopen, isvalidation, } = useToggleContext();
+    const [loading, setLoading] = useState(false);
+    const [radioSelections, setRadioSelections] = useState<{ [key: number]: number }>({});
+    const [submitting, setSubmitting] = useState(false);
+    const [yesNoFilter, setYesNoFilter] = useState<string>(''); // '' | '1' | '0'
   // Fetch colony data for filter dropdown
   const fetchColonies = async () => {
     setLoadingColonies(true);
@@ -65,8 +65,7 @@ const Findatasorting: React.FC<Props> = ({ voterentry,colonyentry }) => {
   }, [voterentry, colonyEntryToColony]);
 
 
-  // Filter logic for colonies
-  // Filter logic for colonies + Yes/No (Findatasorting)
+  // Filter logic for colonies + Yes/No (Voterlist)
   useEffect(() => {
     let filtered = data;
 
@@ -82,7 +81,7 @@ const Findatasorting: React.FC<Props> = ({ voterentry,colonyentry }) => {
         const current =
           radioSelections[row.voter_id] !== undefined
             ? radioSelections[row.voter_id]
-            : (row.Findatasorting ?? 0);
+            : (row.Voterlist ?? 0);
         return Number(current) === target;
       });
     }
@@ -97,7 +96,7 @@ const Findatasorting: React.FC<Props> = ({ voterentry,colonyentry }) => {
   const fetchVoterData = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/voter?includeFindatasorting=true');
+      const response = await fetch('/api/voterlist?Voterlist=true');
       if (!response.ok) throw new Error('Failed to fetch voter data');
       const result = await response.json();
       setData(result);
@@ -116,12 +115,12 @@ const Findatasorting: React.FC<Props> = ({ voterentry,colonyentry }) => {
   useEffect(() => {
     const initialSelections: { [key: number]: number } = {};
     data.forEach(item => {
-      // Use Findatasorting value (0 or 1)
-      initialSelections[item.voter_id] = item.Findatasorting !== undefined ? item.Findatasorting : 0;
+      // Use numeric item.Voterlist or default 0
+      initialSelections[item.voter_id] = item.Voterlist !== undefined ? Number(item.Voterlist) : 0;
     });
     setRadioSelections(initialSelections);
   }, [data]);
-
+  
   // Handle radio changing
   const handleRadioChange = (voterId: number, value: number) => {
     setRadioSelections(prev => ({ ...prev, [voterId]: value }));
@@ -134,13 +133,13 @@ const Findatasorting: React.FC<Props> = ({ voterentry,colonyentry }) => {
     }
     setSubmitting(true);
     try {
-      const response = await fetch('/api/voter', {
+      const response = await fetch('/api/voterlist', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           updates: Object.entries(radioSelections).map(([voterId, value]) => ({
             voter_id: Number(voterId),
-            findatasorting: value   // changed from Findatasorting to findatasorting
+            voterlist: value,  // use lowercase here for API field consistency
           })),
         }),
       });
@@ -154,6 +153,7 @@ const Findatasorting: React.FC<Props> = ({ voterentry,colonyentry }) => {
     }
   };
   
+  
   // Columns definition
   const columns: Column<voterdayatype>[] = [
       { key: 'colony_name', label: 'Colony Name', accessor: 'colony_name' },
@@ -162,38 +162,41 @@ const Findatasorting: React.FC<Props> = ({ voterentry,colonyentry }) => {
     { key: 'voter_number', label: 'Voter Number', accessor: 'voter_number' },
     { key: 'booth_number', label: 'Booth Number', accessor: 'booth_number' },
     {
-      key: 'findatasorting',
-      label: 'Action',
-      accessor: 'Findatasorting',
-      render: (row) => {
-        const voterId = row.voter_id;
-        const value = radioSelections[voterId] !== undefined ? radioSelections[voterId] : row.Findatasorting || 0;
-        return (
-          <div className="flex space-x-3">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="radio"
-                name={`findatasorting_${voterId}`}
-                checked={value === 1}
-                onChange={() => handleRadioChange(voterId, 1)}
-                className="w-4 h-4 text-blue-600"
-              />
-              <span className="text-sm">Yes</span>
-            </label>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="radio"
-                name={`findatasorting_${voterId}`}
-                checked={value === 0}
-                onChange={() => handleRadioChange(voterId, 0)}
-                className="w-4 h-4 text-blue-600"
-              />
-              <span className="text-sm">No</span>
-            </label>
-          </div>
-        );
+        key: 'Voterlist',
+        label: 'Action',
+        accessor: 'Voterlist',
+        render: (row) => {
+          const voterId = row.voter_id;
+          // Use radioSelections if available else fallback to row.Voterlist, ensure numeric 0 or 1
+          const value = radioSelections[voterId] !== undefined ? radioSelections[voterId] : (row.Voterlist ?? 0);
+      
+          return (
+            <div className="flex space-x-3">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name={`voterlist_${voterId}`}
+                  checked={value === 1}
+                  onChange={() => handleRadioChange(voterId, 1)}
+                  className="w-4 h-4 text-blue-600"
+                />
+                <span className="text-sm">Yes</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name={`voterlist_${voterId}`}
+                  checked={value === 0}
+                  onChange={() => handleRadioChange(voterId, 0)}
+                  className="w-4 h-4 text-blue-600"
+                />
+                <span className="text-sm">No</span>
+              </label>
+            </div>
+          );
+        }
       }
-    }
+      
   ];
 
   return (
@@ -206,43 +209,43 @@ const Findatasorting: React.FC<Props> = ({ voterentry,colonyentry }) => {
         filterOptions={[]}
         searchKey="full_name"
         inputfiled={
-          <div className="inline-flex items-center gap-2 w-full md:w-auto">
-            <select
-              value={colonyFilter}
-              onChange={e => setColonyFilter(e.target.value)}
-              disabled={loadingColonies}
-              className="h-11 w-full md:w-64 rounded-lg border px-4 py-2 text-sm"
-            >
-              <option value="">
-                {loadingColonies ? 'Loading colonies...' : 'All Colonies'}
-              </option>
-              {colonyList.map((colony, index) => (
-                <option key={colony.colony_id} value={colony.colony_name}>
-                  {index + 1}) {colony.colony_name}({colonyMemberCounts[String(colony.colony_id)] || 0})
+            <div className="inline-flex items-center gap-2 w-full md:w-auto">
+              <select
+                value={colonyFilter}
+                onChange={e => setColonyFilter(e.target.value)}
+                disabled={loadingColonies}
+                className="h-11 w-full md:w-64 rounded-lg border px-4 py-2 text-sm"
+              >
+                <option value="">
+                  {loadingColonies ? 'Loading colonies...' : 'All Colonies'}
                 </option>
-              ))}
-            </select>
-
-            <select
-              value={yesNoFilter}
-              onChange={e => setYesNoFilter(e.target.value)}
-              className="h-11 w-full md:w-40 rounded-lg border px-4 py-2 text-sm"
-            >
-              <option value="">All</option>
-              <option value="1">Yes</option>
-              <option value="0">No</option>
-            </select>
-
-            <button
-              type="button"
-              className="px-4 py-2 text-sm text-gray-700 bg-gray-100 border border-gray-300 rounded hover:bg-gray-200 text-nowrap"
-              onClick={() => { setColonyFilter(''); setYesNoFilter(''); }}
-              disabled={loadingColonies}
-            >
-              Clear Filter
-            </button>
-          </div>
-        }
+                {colonyList.map((colony, index) => (
+                  <option key={colony.colony_id} value={colony.colony_name}>
+                    {index + 1}) {colony.colony_name}({colonyMemberCounts[String(colony.colony_id)] || 0})
+                  </option>
+                ))}
+              </select>
+  
+              <select
+                value={yesNoFilter}
+                onChange={e => setYesNoFilter(e.target.value)}
+                className="h-11 w-full md:w-40 rounded-lg border px-4 py-2 text-sm"
+              >
+                <option value="">All</option>
+                <option value="1">Yes</option>
+                <option value="0">No</option>
+              </select>
+  
+              <button
+                type="button"
+                className="px-4 py-2 text-sm text-gray-700 bg-gray-100 border border-gray-300 rounded hover:bg-gray-200 text-nowrap"
+                onClick={() => { setColonyFilter(''); setYesNoFilter(''); }}
+                disabled={loadingColonies}
+              >
+                Clear Filter
+              </button>
+            </div>
+          }
         submitbutton={
           <button
             type="button"
@@ -257,4 +260,4 @@ const Findatasorting: React.FC<Props> = ({ voterentry,colonyentry }) => {
     </div>
   );
 }
-export default Findatasorting;
+export default Voterlist;

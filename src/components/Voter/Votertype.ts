@@ -36,6 +36,7 @@ export interface voterdayatype {
     mobile: string;
     user_id: string;
     findatasorting: string;
+    Voterlist: number;
     status: string;
     Findatasorting?: number; // Add this field for the radio button values
   
