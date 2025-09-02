@@ -88,6 +88,7 @@ const Voterdata = ({ colony, colonyentry, voterentry }: Props) => {
     return counts;
   }, [voterentry, colonyEntryToColony]);
 
+  
   const tableRows = useMemo(() => {
     const toBool = (v: string) => v === 'true' || v === '1';
     return voterCheckboxData.map((r, idx) => {
@@ -448,9 +449,9 @@ const Voterdata = ({ colony, colonyentry, voterentry }: Props) => {
                 onChange={(e) => setSelectedColonyId(e.target.value)}
               >
                 <option value="">Select Colony</option>
-                {colony.map((category) => (
+                {colony.map((category, i) => (
                   <option key={category.colony_id} value={category.colony_id}>
-                    {category.colony_name} ({colonyMemberCounts[String(category.colony_id)] || 0})
+                    {i + 1}) {category.colony_name} ({colonyMemberCounts[String(category.colony_id)] || 0})
                   </option>
                 ))}
               </select>

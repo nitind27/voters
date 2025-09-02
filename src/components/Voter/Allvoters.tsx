@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-toastify';
 import { useToggleContext } from '@/context/ToggleContext';
 import Label from "../form/Label";
@@ -31,7 +31,7 @@ type Props = {
   voterentry: voterdayatype[];
 };
 
-const Allvoters: React.FC<Props> = ({ voterentry }: Props) => {
+const Allvoters: React.FC<Props> = ({ voterentry,colonyentry }: Props) => {
   const [data, setData] = useState<voterdayatype[]>(voterentry || []);
   const [filteredData, setFilteredData] = useState<voterdayatype[]>(voterentry || []);
   const [inputValue, setInputValue] = useState('');
@@ -42,6 +42,32 @@ const Allvoters: React.FC<Props> = ({ voterentry }: Props) => {
   const [editId, setEditId] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setErrors] = useState<FormErrors>({});
+
+  // const colonyCounts = useMemo(() => {
+  //   const map: Record<string, number> = {};
+  //   (data || []).forEach(v => {
+  //     const name = (v.colony_name || '').trim();
+  //     if (!name) return;
+  //     map[name] = (map[name] || 0) + 1;
+  //   });
+  //   return map;
+  // }, [data]);
+  const colonyEntryToColony = useMemo(() => {
+    const m = new Map<string, string>();
+    colonyentry.forEach((ce) => {
+      m.set(String(ce.colony_entry_id), String(ce.colony_id));
+    });
+    return m;
+  }, [colonyentry]);
+
+  const colonyMemberCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    voterentry.forEach((v) => {
+      const cid = colonyEntryToColony.get(String(v.colony_entry_id));
+      if (cid) counts[cid] = (counts[cid] || 0) + 1;
+    });
+    return counts;
+  }, [voterentry, colonyEntryToColony]);
 
   // Fetch colony data from API
   const fetchColonies = async () => {
@@ -290,12 +316,12 @@ const Allvoters: React.FC<Props> = ({ voterentry }: Props) => {
               disabled={loadingColonies}
               className="h-11 w-full rounded-lg border appearance-none px-4 py-2.5 text-sm shadow-theme-xs bg-transparent text-gray-800 border-gray-300 focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:focus:border-brand-800 disabled:bg-gray-100 disabled:cursor-not-allowed"
             >
-              <option value="">
+                         <option value="">
                 {loadingColonies ? 'Loading colonies...' : 'All Colonies'}
               </option>
               {colonyList.map((colony, index) => (
                 <option key={colony.colony_id} value={colony.colony_name}>
-                  {index + 1} ) {colony.colony_name}
+                  {index + 1}) {colony.colony_name} ({colonyMemberCounts[String(colony.colony_id)] || 0})
                 </option>
               ))}
             </select>

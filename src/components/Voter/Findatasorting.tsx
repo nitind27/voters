@@ -1,5 +1,5 @@
 "use client"
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-toastify';
 // import { useToggleContext } from '@/context/ToggleContext';
 // import Label from "../form/Label";
@@ -22,7 +22,7 @@ type Props = {
   voterentry: voterdayatype[];
 };
 
-const Findatasorting: React.FC<Props> = ({ voterentry }) => {
+const Findatasorting: React.FC<Props> = ({ voterentry,colonyentry }) => {
   const [data, setData] = useState<voterdayatype[]>(voterentry || []);
   const [filteredData, setFilteredData] = useState<voterdayatype[]>(voterentry || []);
   const [colonyFilter, setColonyFilter] = useState('');
@@ -46,6 +46,24 @@ const Findatasorting: React.FC<Props> = ({ voterentry }) => {
       setLoadingColonies(false);
     }
   };
+
+  const colonyEntryToColony = useMemo(() => {
+    const m = new Map<string, string>();
+    colonyentry.forEach((ce) => {
+      m.set(String(ce.colony_entry_id), String(ce.colony_id));
+    });
+    return m;
+  }, [colonyentry]);
+
+  const colonyMemberCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    voterentry.forEach((v) => {
+      const cid = colonyEntryToColony.get(String(v.colony_entry_id));
+      if (cid) counts[cid] = (counts[cid] || 0) + 1;
+    });
+    return counts;
+  }, [voterentry, colonyEntryToColony]);
+
 
   // Filter logic for colonies
   useEffect(() => {
@@ -175,11 +193,11 @@ const Findatasorting: React.FC<Props> = ({ voterentry }) => {
           className="h-11 w-full mr-4 rounded-lg border px-4 py-2 text-sm"
         >
           <option value="">{loadingColonies ? 'Loading colonies...' : 'All Colonies'}</option>
-          {colonyList.map((colony, i) => (
-            <option key={colony.colony_id} value={colony.colony_name}>
-              {i + 1}) {colony.colony_name}
-            </option>
-          ))}
+          {colonyList.map((colony, index) => (
+                <option key={colony.colony_id} value={colony.colony_name}>
+                  {index + 1}) {colony.colony_name}({colonyMemberCounts[String(colony.colony_id)] || 0})
+                </option>
+              ))}
         </select>
         <button
           type="button"
