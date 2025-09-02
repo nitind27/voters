@@ -1,4 +1,4 @@
-// app/api/taluka/route.ts
+// app/api/colonyentry/route.ts
 import { NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import type { RowDataPacket } from 'mysql2';
@@ -16,7 +16,7 @@ export async function GET() {
     } catch (error) {
         console.error('Database query failed (GET):', error);
         return NextResponse.json(
-            { message: 'Failed to fetch district' },
+            { message: 'Failed to fetch colony entries' },
             { status: 500 }
         );
     } finally {

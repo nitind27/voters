@@ -7,8 +7,6 @@ export interface Voterdatatye {
     full_name: string;
     booth_number: string;
     status: string;
-
-
 }
 export interface colonyentrydatatype {
     colony_entry_id  : number;
@@ -37,8 +35,9 @@ export interface voterdayatype {
     colony_name: string;
     mobile: string;
     user_id: string;
+    findatasorting: string;
     status: string;
-    // last_name: string;
+    Findatasorting?: number; // Add this field for the radio button values
   
 
 

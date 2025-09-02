@@ -248,7 +248,7 @@ const Allvoters: React.FC<Props> = ({ voterentry }: Props) => {
               alt="Voter Photo"
               className="w-10 h-10 rounded-full object-cover border-2 border-gray-200"
               onError={(e) => {
-                e.currentTarget.src = '/images/user/default-avatar.png';
+                e.currentTarget.src = '/images/user/npimg.jpg';
               }}
             />
           ) : (

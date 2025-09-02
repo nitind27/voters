@@ -67,6 +67,13 @@ const allNavItems: NavItem[] = [
     name: "Voter",
     path: "/voter",
   },
+
+  
+  {
+    icon: <TbCategoryPlus />,
+    name: "Financial Data Sorting",
+    path: "/findatasorting",
+  },
   // {
   //   icon: <TbCategoryPlus />,
   //   name: "ZP Order Details",
