@@ -163,7 +163,7 @@ const Findatasorting: React.FC<Props> = ({ voterentry,colonyentry }) => {
     { key: 'booth_number', label: 'Booth Number', accessor: 'booth_number' },
     {
       key: 'findatasorting',
-      label: 'Action',
+      label: 'Finance Done',
       accessor: 'Findatasorting',
       render: (row) => {
         const voterId = row.voter_id;

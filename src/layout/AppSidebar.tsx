@@ -76,7 +76,7 @@ const allNavItems: NavItem[] = [
   },
   {
     icon: <TbCategoryPlus />,
-    name: "Voter's List",
+    name: "Election Day Sorting",
     path: "/voterlist",
   },
   // {

@@ -20,7 +20,7 @@ const page = async () => {
     ])
     const breadcrumbItems = [
         { label: 'Home', href: '/' },
-        { label: 'Voter', href: '/voter' },
+        { label: 'Financial Data', href: '/voter' },
     ];
 
     return (

@@ -163,7 +163,7 @@ const Voterlist: React.FC<Props> = ({ voterentry,colonyentry }) => {
     { key: 'booth_number', label: 'Booth Number', accessor: 'booth_number' },
     {
         key: 'Voterlist',
-        label: 'Action',
+        label: 'Voting Done',
         accessor: 'Voterlist',
         render: (row) => {
           const voterId = row.voter_id;

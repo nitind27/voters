@@ -21,14 +21,14 @@ const page = async () => {
     ])
     const breadcrumbItems = [
         { label: 'Home', href: '/' },
-        { label: 'Voter List', href: '/voterlist' },
+        { label: 'Election Day Sorting', href: '/voterlist' },
     ];
 
     return (
         <div className="grid grid-cols-6 gap-4 md:gap-6">
             <div className="col-span-12 space-y-6 xl:col-span-7">
 
-                <Breadcrumbs title="Voter's List" breadcrumbs={breadcrumbItems} />
+                <Breadcrumbs title="Election Day Sorting" breadcrumbs={breadcrumbItems} />
                 <Voterlist colony={colonydata} colonyentry={colonyentrydata} voterentry={voterentrydata} />
             </div>
         </div>
