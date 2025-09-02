@@ -125,42 +125,7 @@ const Allvoters: React.FC<Props> = ({ voterentry,colonyentry }: Props) => {
       accessor: 'voter_number',
       render: (data) => <span className="font-mono">{data.voter_number}</span>,
     },
-    {
-      key: 'gender',
-      label: 'Gender',
-      accessor: 'gender',
-      render: (data) => (
-        <span>
-          {data.gender}
-        </span>
-      ),
-    },
-    {
-      key: 'relation',
-      label: 'Relation',
-      accessor: 'relation',
-      render: (data) => <span>{data.relation}</span>,
-    },
-    {
-      key: 'dob',
-      label: 'Date of Birth',
-      accessor: 'dob',
-      render: (data) => (
-        <span className="text-sm">
-          {new Date(data.dob).toLocaleDateString('en-IN')}
-        </span>
-      ),
-    },
-    {
-      key: 'aadhaar_number',
-      label: 'Aadhaar Number',
-      accessor: 'aadhaar_number',
-      render: (data) => (
-        <span className="font-mono text-sm">
-          {data.aadhaar_number ? `****${data.aadhaar_number.slice(-4)}` : 'N/A'}
-        </span>
-      ),
-    },
+   
     {
       key: 'booth_number',
       label: 'Booth Number',

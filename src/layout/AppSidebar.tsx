@@ -79,6 +79,11 @@ const allNavItems: NavItem[] = [
     name: "Election Day Sorting",
     path: "/voterlist",
   },
+  {
+    icon: <TbCategoryPlus />,
+    name: "Pending Voting Data",
+    path: "/voterpending",
+  },
   // {
   //   icon: <TbCategoryPlus />,
   //   name: "ZP Order Details",
