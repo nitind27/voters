@@ -25,7 +25,7 @@ type Props = {
   voterentry: voterdayatype[];
 };
 
-const Allvoters: React.FC<Props> = ({ voterentry,colonyentry }: Props) => {
+const Allvoters: React.FC<Props> = ({ voterentry, colonyentry }: Props) => {
   const [data] = useState<voterdayatype[]>(voterentry || []);
   const [filteredData, setFilteredData] = useState<voterdayatype[]>(voterentry || []);
   // const [inputValue, setInputValue] = useState('');
@@ -35,6 +35,8 @@ const Allvoters: React.FC<Props> = ({ voterentry,colonyentry }: Props) => {
   // const { isEditMode } = useToggleContext();
   // const [editId, setEditId] = useState<number | null>(null);
   // const [loading, setLoading] = useState(false);
+
+  const [previewImg, setPreviewImg] = useState<string | null>(null);
 
   // const colonyCounts = useMemo(() => {
   //   const map: Record<string, number> = {};
@@ -99,7 +101,7 @@ const Allvoters: React.FC<Props> = ({ voterentry,colonyentry }: Props) => {
 
 
 
- 
+
 
   const columns: Column<voterdayatype>[] = [
     {
@@ -119,7 +121,7 @@ const Allvoters: React.FC<Props> = ({ voterentry,colonyentry }: Props) => {
         </div>
       ),
     },
-    
+
     {
       key: 'mobile',
       label: 'Mobile',
@@ -137,76 +139,116 @@ const Allvoters: React.FC<Props> = ({ voterentry,colonyentry }: Props) => {
       accessor: 'photo',
       render: (data) => (
         <div className="flex items-center">
+
           {data.photo ? (
             <img
-              src={data.photo}
+              src={`https://vishalnawle.in/vishalnavle/flutter_api_voters/voter_photos/${data.photo}`}
               alt="Voter Photo"
-              className="w-10 h-10 rounded-full object-cover border-2 border-gray-200"
+              className="w-10 h-10 rounded-full object-cover border-2 border-gray-200 cursor-pointer"
+              title="Click to preview"
+              onClick={() =>
+                setPreviewImg(`https://vishalnawle.in/vishalnavle/flutter_api_voters/voter_photos/${data.photo}`)
+              }
               onError={(e) => {
                 e.currentTarget.src = '/images/user/npimg.jpg';
               }}
             />
-          ) : (
-            <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
-              <span className="text-gray-500 text-xs">No Photo</span>
-            </div>
-          )}
+          )
+
+            : (
+              <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
+                <span className="text-gray-500 text-xs">No Photo</span>
+              </div>
+            )}
         </div>
       ),
     },
-    
+
 
   ];
 
   return (
     <div className="">
-    
-     
+
+
       <Withoutbtn
         data={filteredData}
         inputfiled={
           <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-1">
-                  <div className="flex flex-col sm:flex-row gap-4 items-center">
-          <div className="flex-1 min-w-0">
+            <div className="flex flex-col sm:flex-row gap-4 items-center">
+              <div className="flex-1 min-w-0">
 
-            <select
-              value={colonyFilter}
-              onChange={(e) => setColonyFilter(e.target.value)}
-              disabled={loadingColonies}
-              className="h-11 w-full rounded-lg border appearance-none px-4 py-2.5 text-sm shadow-theme-xs bg-transparent text-gray-800 border-gray-300 focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:focus:border-brand-800 disabled:bg-gray-100 disabled:cursor-not-allowed"
-            >
-                         <option value="">
-                {loadingColonies ? 'Loading colonies...' : 'All Colonies'}
-              </option>
-              {colonyList.map((colony, index) => (
-                <option key={colony.colony_id} value={colony.colony_name}>
-                  {index + 1}) {colony.colony_name} ({colonyMemberCounts[String(colony.colony_id)] || 0})
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setColonyFilter('')}
-              disabled={loadingColonies}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Clear Filter
-            </button>
+                <select
+                  value={colonyFilter}
+                  onChange={(e) => setColonyFilter(e.target.value)}
+                  disabled={loadingColonies}
+                  className="h-11 w-full rounded-lg border appearance-none px-4 py-2.5 text-sm shadow-theme-xs bg-transparent text-gray-800 border-gray-300 focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:focus:border-brand-800 disabled:bg-gray-100 disabled:cursor-not-allowed"
+                >
+                  <option value="">
+                    {loadingColonies ? 'Loading colonies...' : 'All Colonies'}
+                  </option>
+                  {colonyList.map((colony, index) => (
+                    <option key={colony.colony_id} value={colony.colony_name}>
+                      {index + 1}) {colony.colony_name} ({colonyMemberCounts[String(colony.colony_id)] || 0})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setColonyFilter('')}
+                  disabled={loadingColonies}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Clear Filter
+                </button>
 
-          </div>
-        </div>
+              </div>
+            </div>
           </div>
         }
         columns={columns}
         title="User Category"
         filterOptions={[]}
-       
+
         searchKey="category_name"
 
       />
+      {/* Image Preview Modal */}
+            {/* Image Preview Modal */}
+            {previewImg && (
+        <div
+          className="fixed inset-0 z-9999 flex items-center justify-center bg-black"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setPreviewImg(null)}
+        >
+          <div
+            className="relative w-[90vw] max-w-[900px] h-[80vh] px-0"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              className="absolute -top-12 right-0 text-white bg-white/20 hover:bg-white/30 rounded-full p-2"
+              aria-label="Close"
+              onClick={() => setPreviewImg(null)}
+            >
+              ✕
+            </button>
+            <img
+              src={previewImg}
+              alt="Voter Photo Preview"
+              className="w-full h-full object-contain rounded-lg shadow-2xl bg-black/10"
+              onError={(e) => {
+                (e.currentTarget as HTMLImageElement).src = '/images/user/npimg.jpg';
+              }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };
+
 
 export default Allvoters;
