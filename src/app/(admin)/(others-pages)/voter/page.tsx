@@ -26,7 +26,7 @@ const page = async () => {
         <div className="grid grid-cols-6 gap-4 md:gap-6">
             <div className="col-span-12 space-y-6 xl:col-span-7">
 
-                <Breadcrumbs title="Voter Data Management" breadcrumbs={breadcrumbItems} />
+                <Breadcrumbs title="Corporation Data Matching" breadcrumbs={breadcrumbItems} />
                 <Voterdata colony={colonydata} colonyentry={colonyentrydata} voterentry={voterentrydata} />
             </div>
         </div>

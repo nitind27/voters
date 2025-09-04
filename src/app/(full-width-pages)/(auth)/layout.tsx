@@ -16,30 +16,27 @@ export default function AuthLayout({
       <ThemeProvider>
         <div className="relative flex lg:flex-row w-full h-screen justify-center flex-col  dark:bg-gray-900 sm:p-0">
 
-          <div className="lg:w-1/2 w-full h-full bg-brand-950 dark:bg-white/5 lg:grid items-center hidden">
+          <div className="lg:w-1/2 w-full h-full bg-[#EA7929] dark:bg-white/5 lg:grid items-center hidden">
             <div className="relative items-center justify-center  flex z-1">
               {/* <!-- ===== Common Grid Shape Start ===== --> */}
               <GridShape />
               <div className="flex flex-col items-center max-w-xs">
-                <div className="text-white text-[30px]">
+                {/* <div className="text-white text-[30px]">
                   MDM
-                </div>
+                </div> */}
                 <div className="text-white text-[30px] md:whitespace-nowrap">
 
-                  (Voters)
+                  Voters
                 </div>
 
                 <img
                   width={500}
                   height={50}
-                  src="./images/login/logo.png"
+                  src="./images/login/img.jpeg"
                   alt="Logo"
                 />
 
-                <p className="text-center text-gray-400 dark:text-white/60 text-2xl">
-                  Voters Schemes
-                </p>
-                <p className="text-center text-gray-400 dark:text-white/60 text-sm fixed bottom-10">
+                <p className="text-center text-white dark:text-white/60 text-sm fixed bottom-10 font-[Righteous]">
                   Developed by WeClocks Technology Pvt Ltd
                 </p>
               </div>

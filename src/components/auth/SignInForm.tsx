@@ -166,7 +166,7 @@ export default function SignInForm() {
 
                 <div>
                   <Button
-                    className="w-full"
+                    className="w-full bg-orange-500 hover:bg-orange-400 "
                     size="sm"
                     disabled={isLoading}
                   >
