@@ -119,19 +119,7 @@ const Allvoters: React.FC<Props> = ({ voterentry,colonyentry }: Props) => {
         </div>
       ),
     },
-    {
-      key: 'voter_number',
-      label: 'Voter Number',
-      accessor: 'voter_number',
-      render: (data) => <span className="font-mono">{data.voter_number}</span>,
-    },
-   
-    {
-      key: 'booth_number',
-      label: 'Booth Number',
-      accessor: 'booth_number',
-      render: (data) => <span className="font-medium">{data.booth_number}</span>,
-    },
+    
     {
       key: 'mobile',
       label: 'Mobile',
@@ -166,19 +154,7 @@ const Allvoters: React.FC<Props> = ({ voterentry,colonyentry }: Props) => {
         </div>
       ),
     },
-    {
-      key: 'status',
-      label: 'Status',
-      accessor: 'status',
-      render: (data) => (
-        <span className={`px-2 py-1 rounded-full text-xs font-medium ${data.status === 'Active' ? 'bg-green-100 text-green-800' :
-            data.status === 'Inactive' ? 'bg-red-100 text-red-800' :
-              'bg-gray-100 text-gray-800'
-          }`}>
-          {data.status}
-        </span>
-      ),
-    },
+    
 
   ];
 
