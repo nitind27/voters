@@ -17,7 +17,7 @@ type ColonyData = {
 const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
   const [colonyList, setColonyList] = useState<ColonyData[]>([]);
   const [loading, setLoading] = useState(false);
-
+  const [previewImg, setPreviewImg] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedColonyName, setSelectedColonyName] = useState("");
   const [colonyVoters, setColonyVoters] = useState<voterdayatype[]>([]);
@@ -180,7 +180,8 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
                     <th className="px-3 py-2 border text-left">Voter No.</th>
                     <th className="px-3 py-2 border text-left">Mobile</th>
                     <th className="px-3 py-2 border text-left">Booth</th>
-     
+                    <th className="px-3 py-2 border text-left">Photo</th>
+
                   </tr>
                 </thead>
                 <tbody>
@@ -207,7 +208,19 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
                         {v.mobile || "N/A"}
                       </td>
                       <td className="px-3 py-2 border align-top">{v.booth_number}</td>
-                      
+                      <td className="px-3 py-2 border align-top">   <img
+                        src={`https://vishalnawle.in/vishalnavle/flutter_api_voters/voter_photos/${v.photo}`}
+                        alt="Voter Photo"
+                        className="w-10 h-10 rounded-full object-cover border-2 border-gray-200 cursor-pointer"
+                        title="Click to preview"
+                        onClick={() =>
+                          setPreviewImg(`https://vishalnawle.in/vishalnavle/flutter_api_voters/voter_photos/${v.photo}`)
+                        }
+                        onError={(e) => {
+                          e.currentTarget.src = '/images/user/npimg.jpg';
+                        }}
+                      /></td>
+
                     </tr>
                   ))}
                 </tbody>
@@ -222,6 +235,36 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
                 Close
               </button>
             </div>
+          </div>
+        </div>
+      )}
+         {previewImg && (
+        <div
+          className="fixed inset-0 z-9999 flex items-center justify-center bg-black"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setPreviewImg(null)}
+        >
+          <div
+            className="relative w-[90vw] max-w-[900px] h-[80vh] px-0"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              className="absolute -top-12 right-0 text-white bg-white/20 hover:bg-white/30 rounded-full p-2"
+              aria-label="Close"
+              onClick={() => setPreviewImg(null)}
+            >
+              ✕
+            </button>
+            <img
+              src={previewImg}
+              alt="Voter Photo Preview"
+              className="w-full h-full object-contain rounded-lg shadow-2xl bg-black/10"
+              onError={(e) => {
+                (e.currentTarget as HTMLImageElement).src = '/images/user/npimg.jpg';
+              }}
+            />
           </div>
         </div>
       )}
