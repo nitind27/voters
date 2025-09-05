@@ -180,7 +180,7 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
                     <th className="px-3 py-2 border text-left">Voter No.</th>
                     <th className="px-3 py-2 border text-left">Mobile</th>
                     <th className="px-3 py-2 border text-left">Booth</th>
-                    <th className="px-3 py-2 border text-left">Status</th>
+     
                   </tr>
                 </thead>
                 <tbody>
@@ -207,7 +207,7 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
                         {v.mobile || "N/A"}
                       </td>
                       <td className="px-3 py-2 border align-top">{v.booth_number}</td>
-                      <td className="px-3 py-2 border align-top">{v.status}</td>
+                      
                     </tr>
                   ))}
                 </tbody>

@@ -151,7 +151,7 @@ const Allvoters: React.FC<Props> = ({ voterentry, colonyentry }: Props) => {
         </div>
       ),
     },
-    
+
 
     {
       key: 'mobile',
@@ -195,7 +195,7 @@ const Allvoters: React.FC<Props> = ({ voterentry, colonyentry }: Props) => {
       ),
     },
 
-    
+
     {
       key: 'member',
       label: 'Number of Family Member',
@@ -251,6 +251,7 @@ const Allvoters: React.FC<Props> = ({ voterentry, colonyentry }: Props) => {
                 <table className="w-full text-sm border border-gray-200 rounded-lg">
                   <thead className="bg-gray-50">
                     <tr className="text-left">
+                      <th className="p-2 border">Sr No.</th>
                       <th className="p-2 border">Name</th>
                       <th className="p-2 border">Relation</th>
                       <th className="p-2 border">Mobile</th>
@@ -260,8 +261,9 @@ const Allvoters: React.FC<Props> = ({ voterentry, colonyentry }: Props) => {
                     </tr>
                   </thead>
                   <tbody>
-                    {memberModalRows.map((m) => (
+                    {memberModalRows.map((m, index) => (
                       <tr key={m.voter_id}>
+                        <td className="p-2 border">{index + 1}</td>
                         <td className="p-2 border">{m.full_name} ({m.full_name_mr})</td>
                         <td className="p-2 border">{m.relation}</td>
                         <td className="p-2 border">{m.mobile || 'N/A'}</td>
@@ -321,8 +323,8 @@ const Allvoters: React.FC<Props> = ({ voterentry, colonyentry }: Props) => {
 
       />
       {/* Image Preview Modal */}
-            {/* Image Preview Modal */}
-            {previewImg && (
+      {/* Image Preview Modal */}
+      {previewImg && (
         <div
           className="fixed inset-0 z-9999 flex items-center justify-center bg-black"
           role="dialog"
