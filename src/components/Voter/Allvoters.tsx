@@ -11,6 +11,7 @@ import { Column } from "../tables/tabletype";
 
 import { colonyentrydatatype, Voterdatatye, voterdayatype } from './Votertype';
 import { Withoutbtn } from '../tables/Withoutbtn';
+import { formatDate } from '@/lib/utils';
 
 // Colony type for API response
 interface ColonyData {
@@ -32,6 +33,9 @@ const Allvoters: React.FC<Props> = ({ voterentry, colonyentry }: Props) => {
   const [colonyFilter, setColonyFilter] = useState('');
   const [colonyList, setColonyList] = useState<ColonyData[]>([]);
   const [loadingColonies, setLoadingColonies] = useState(false);
+  const [memberModalOpen, setMemberModalOpen] = useState(false);
+  const [memberModalTitle, setMemberModalTitle] = useState('');
+  const [memberModalRows, setMemberModalRows] = useState<voterdayatype[]>([]);
   // const { isEditMode } = useToggleContext();
   // const [editId, setEditId] = useState<number | null>(null);
   // const [loading, setLoading] = useState(false);
@@ -99,28 +103,55 @@ const Allvoters: React.FC<Props> = ({ voterentry, colonyentry }: Props) => {
     fetchColonies();
   }, []);
 
+  // Group non-primary members by colony_entry_id
+  const membersByColonyEntryId = useMemo(() => {
+    const map = new Map<string, voterdayatype[]>();
+    (voterentry || []).forEach(v => {
+      if ((v.relation || '').toLowerCase() === 'primary person') return;
+      const key = String(v.colony_entry_id);
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(v);
+    });
+    return map;
+  }, [voterentry]);
 
+
+
+  const openMembersModal = (row: voterdayatype) => {
+    const key = String(row.colony_entry_id);
+    const members = membersByColonyEntryId.get(key) || [];
+    setMemberModalRows(members);
+    setMemberModalTitle(`Family Members (${members.length}) - ${row.colony_name}`);
+    setMemberModalOpen(true);
+  };
+
+  const closeMembersModal = () => {
+    setMemberModalOpen(false);
+    setMemberModalRows([]);
+    setMemberModalTitle('');
+  };
 
 
 
   const columns: Column<voterdayatype>[] = [
     {
       key: 'colony_entry_id',
-      label: 'Colony Entry ID',
+      label: 'Name of Colony',
       accessor: 'colony_name',
       render: (data) => <span className="text-sm">{data.colony_name}</span>,
     },
     {
       key: 'full_name',
-      label: 'Full Name',
+      label: 'Primary Person',
       accessor: 'full_name',
       render: (data) => (
         <div className="flex flex-col">
-          <span className="font-medium">{data.full_name}</span>
+          <span className="font-medium">{data.full_name} ({data.full_name_mr})</span>
 
         </div>
       ),
     },
+    
 
     {
       key: 'mobile',
@@ -164,13 +195,88 @@ const Allvoters: React.FC<Props> = ({ voterentry, colonyentry }: Props) => {
       ),
     },
 
+    
+    {
+      key: 'member',
+      label: 'Number of Family Member',
+      accessor: 'relation',
+      render: (data) => {
+        const count = membersByColonyEntryId.get(String(data.colony_entry_id))?.length || 0;
+        return (
+          <button
+            type="button"
+            className="px-3 py-1 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 text-sm"
+            onClick={() => openMembersModal(data)}
+            disabled={count === 0}
+            title={count === 0 ? 'No family members' : 'View members'}
+          >
+            {count}
+          </button>
+        );
+      },
+    },
 
   ];
 
   return (
     <div className="">
 
-
+      {/* Members Modal */}
+      {memberModalOpen && (
+        <div
+          className="fixed inset-0 z-9999 flex items-center justify-center bg-black/50"
+          role="dialog"
+          aria-modal="true"
+          onClick={closeMembersModal}
+        >
+          <div
+            className="relative w-[95vw] max-w-4xl max-h-[80vh] overflow-hidden rounded-xl bg-white shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-4 py-3 border-b">
+              <h3 className="text-lg font-semibold">{memberModalTitle}</h3>
+              <button
+                type="button"
+                className="px-2 py-1 rounded hover:bg-gray-100"
+                onClick={closeMembersModal}
+                aria-label="Close"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="p-4 overflow-auto">
+              {memberModalRows.length === 0 ? (
+                <div className="text-sm text-gray-500">No members found.</div>
+              ) : (
+                <table className="w-full text-sm border border-gray-200 rounded-lg">
+                  <thead className="bg-gray-50">
+                    <tr className="text-left">
+                      <th className="p-2 border">Name</th>
+                      <th className="p-2 border">Relation</th>
+                      <th className="p-2 border">Mobile</th>
+                      <th className="p-2 border">Gender</th>
+                      <th className="p-2 border">DOB</th>
+                      <th className="p-2 border">Voter No.</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {memberModalRows.map((m) => (
+                      <tr key={m.voter_id}>
+                        <td className="p-2 border">{m.full_name} ({m.full_name_mr})</td>
+                        <td className="p-2 border">{m.relation}</td>
+                        <td className="p-2 border">{m.mobile || 'N/A'}</td>
+                        <td className="p-2 border">{m.gender || '-'}</td>
+                        <td className="p-2 border">{formatDate(m.dob || '-')}</td>
+                        <td className="p-2 border">{m.voter_number || '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
       <Withoutbtn
         data={filteredData}
         inputfiled={

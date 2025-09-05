@@ -1,5 +1,5 @@
 import Breadcrumbs from '@/components/common/BreadcrumbItem';
-import Allvoters from '@/components/Voter/Allvoters';
+import VoterTabs from '@/components/Voter/VoterTabs';
 // import Voterdata from '@/components/Voter/Voterdata';
 import React from 'react'
 
@@ -28,7 +28,7 @@ const page = async () => {
             <div className="col-span-12 space-y-6 xl:col-span-7">
 
                 <Breadcrumbs title="Voter Data" breadcrumbs={breadcrumbItems} />
-                <Allvoters colony={colonydata} colonyentry={colonyentrydata} voterentry={voterentrydata} />
+                <VoterTabs colony={colonydata} colonyentry={colonyentrydata} voterentry={voterentrydata} />
             </div>
         </div>
     )

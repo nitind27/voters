@@ -33,9 +33,11 @@ export interface voterdayatype {
     booth_number: string;
     photo: string;
     colony_name: string;
+   
     mobile: string;
     user_id: string;
     findatasorting: string;
+    full_name_mr: string;
     Voterlist: number;
     status: string;
     Findatasorting?: number; // Add this field for the radio button values

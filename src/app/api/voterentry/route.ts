@@ -9,13 +9,16 @@ export async function GET() {
     try {
         connection = await pool.getConnection();
         const [rows] = await connection.query<RowDataPacket[]>(`
-            SELECT 
-                ve.*,
-                c.colony_name
-            FROM voter_entry ve
-            LEFT JOIN colony_entry ce ON ve.colony_entry_id = ce.colony_entry_id
-            LEFT JOIN colony c ON ce.colony_id = c.colony_id
-            WHERE ve.status = "Active"
+      SELECT 
+    ve.*,
+    c.colony_name
+FROM voter_entry ve
+LEFT JOIN colony_entry ce ON ve.colony_entry_id = ce.colony_entry_id
+LEFT JOIN colony c ON ce.colony_id = c.colony_id
+WHERE ve.status = "Active"
+ORDER BY ve.voter_id DESC;
+
+  
         `);
 
         return NextResponse.json(rows);
