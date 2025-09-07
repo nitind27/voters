@@ -64,7 +64,7 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
     if (!searchTerm.trim()) return colonyVoters;
     const term = searchTerm.toLowerCase();
     return colonyVoters.filter((voter) => {
-      const fullName = (voter.full_name || 
+      const fullName = (voter.full_name ||
         [voter.first_name, voter.middle_name, voter.last_name].filter(Boolean).join(" ")).toLowerCase();
       const fullNameMr = (voter.full_name_mr || "").toLowerCase();
       const houseNumber = (voter.house_number || "").toLowerCase();
@@ -72,7 +72,7 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
       const mobile = (voter.mobile || "").toLowerCase();
       const boothNumber = (voter.booth_number || "").toLowerCase();
       return fullName.includes(term) || fullNameMr.includes(term) || houseNumber.includes(term) ||
-             voterNumber.includes(term) || mobile.includes(term) || boothNumber.includes(term);
+        voterNumber.includes(term) || mobile.includes(term) || boothNumber.includes(term);
     });
   }, [colonyVoters, searchTerm]);
 
@@ -84,8 +84,8 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
       h.voters.some(v => {
         const fullName = (v.full_name || [v.first_name, v.middle_name, v.last_name].filter(Boolean).join(" ")).toLowerCase();
         return fullName.includes(term) ||
-               (v.mobile || "").toLowerCase().includes(term) ||
-               (v.booth_number || "").toLowerCase().includes(term);
+          (v.mobile || "").toLowerCase().includes(term) ||
+          (v.booth_number || "").toLowerCase().includes(term);
       })
     );
   }, [houseData, houseSearchTerm]);
@@ -96,11 +96,11 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
     return houseVoters.filter(v => {
       const fullName = (v.full_name || [v.first_name, v.middle_name, v.last_name].filter(Boolean).join(" ")).toLowerCase();
       return fullName.includes(term) ||
-             (v.voter_number || "").toLowerCase().includes(term) ||
-             (v.mobile || "").toLowerCase().includes(term) ||
-             (v.booth_number || "").toLowerCase().includes(term) ||
-             (v.gender || "").toLowerCase().includes(term) ||
-             (v.relation || "").toLowerCase().includes(term);
+        (v.voter_number || "").toLowerCase().includes(term) ||
+        (v.mobile || "").toLowerCase().includes(term) ||
+        (v.booth_number || "").toLowerCase().includes(term) ||
+        (v.gender || "").toLowerCase().includes(term) ||
+        (v.relation || "").toLowerCase().includes(term);
     });
   }, [houseVoters, houseModalSearchTerm]);
   // Load colonies from /api/colony
@@ -131,7 +131,7 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
     setActiveTab('individual');
     setHouseSearchTerm("");
     // ... existing houseData prep ...
-  
+
 
     // Prepare house data for family tab
     const houseMap = new Map<string, voterdayatype[]>();
@@ -192,16 +192,23 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
   }, [colonyList, selectedColonyId]);
 
   // Export to Excel function
+  // Export to Excel function
   const exportToExcel = async () => {
     try {
       // Prepare data for export
       const exportData = visibleColonies.map((col, idx) => {
         const cid = String(col.colony_id);
-        const count = votersByColonyId.get(cid)?.length || 0;
+        const votersList = votersByColonyId.get(cid) || [];
+        const count = votersList.length || 0;
+        const totalHouses = new Set(
+          votersList.map(v => v.house_number || 'No House Number')
+        ).size;
+
         return {
           'Sr No': idx + 1,
           'Colony Name': col.colony_name,
-          'Voter Count': count
+          'Voter Count': count,
+          'Total Houses': totalHouses
         };
       });
 
@@ -213,7 +220,8 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
       ws['!cols'] = [
         { wch: 8 },  // Sr No
         { wch: 30 }, // Colony Name
-        { wch: 15 }  // Voter Count
+        { wch: 15 }, // Voter Count
+        { wch: 15 }  // Total Houses
       ];
 
       // Add worksheet to workbook
@@ -233,7 +241,7 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
       toast.error('Failed to export Excel file');
     }
   };
-
+  // Export to PDF function
   // Export to PDF function
   const exportToPDF = async () => {
     try {
@@ -243,8 +251,13 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
 
       const tableData = visibleColonies.map((col, idx) => {
         const cid = String(col.colony_id);
-        const count = votersByColonyId.get(cid)?.length || 0;
-        return `<tr><td>${idx + 1}</td><td>${col.colony_name}</td><td>${count}</td></tr>`;
+        const votersList = votersByColonyId.get(cid) || [];
+        const count = votersList.length || 0;
+        const totalHouses = new Set(
+          votersList.map(v => v.house_number || 'No House Number')
+        ).size;
+
+        return `<tr><td>${idx + 1}</td><td>${col.colony_name}</td><td>${count}</td><td>${totalHouses}</td></tr>`;
       }).join('');
 
       printWindow.document.write(`
@@ -258,7 +271,8 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
                 <tr style="background-color: #f3f4f6;">
                   <th style="padding: 8px;">Sr No</th>
                   <th style="padding: 8px;">Colony Name</th>
-                  <th style="padding: 8px;">Voter jjjCount</th>
+                  <th style="padding: 8px;">Voter Count</th>
+                  <th style="padding: 8px;">Total Houses</th>
                 </tr>
               </thead>
               <tbody>${tableData}</tbody>
@@ -276,7 +290,6 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
       toast.error('Failed to export PDF file');
     }
   };
-
   // Export detailed voter data to Excel
   const exportDetailedVotersToExcel = async () => {
     try {
@@ -669,32 +682,34 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
   return (
     <div className="bg-white rounded-2xl shadow-md border p-4">
       {/* Filter */}
-      <div className="mb-4">
-        <label className="block text-sm font-medium text-gray-700 mb-1">Colony</label>
-        <select
-          value={selectedColonyId}
-          onChange={(e) => setSelectedColonyId(e.target.value)}
-          disabled={loading}
-          className="h-11 w-full rounded-lg border appearance-none px-4 py-2.5 text-sm bg-white text-gray-800 border-gray-300 focus:border-blue-400 focus:ring-3 focus:ring-blue-500/10 disabled:bg-gray-100 disabled:cursor-not-allowed"
-        >
-          <option value="">{loading ? "Loading colonies..." : "All Colonies"}</option>
-          {colonyList.map((col, i) => {
-            const cid = String(col.colony_id);
-            const count = votersByColonyId.get(cid)?.length || 0;
-            return (
-              <option key={col.colony_id} value={cid}>
-                {i + 1}) {col.colony_name} ({count})
-              </option>
-            );
-          })}
-        </select>
-      </div>
+
 
       {/* Export Buttons */}
-      <div className="mb-4 flex gap-2">
+      <div className="mb-4 flex items-center gap-4 w-full">
+        <div className="flex-grow min-w-0">
+
+          <select
+            value={selectedColonyId}
+            onChange={(e) => setSelectedColonyId(e.target.value)}
+            disabled={loading}
+            className="h-11 w-full rounded-lg border appearance-none px-4 py-2.5 text-sm bg-white text-gray-800 border-gray-300 focus:border-blue-400 focus:ring-3 focus:ring-blue-500/10 disabled:bg-gray-100 disabled:cursor-not-allowed"
+          >
+            <option value="">{loading ? "Loading colonies..." : "All Colonies"}</option>
+            {colonyList.map((col, i) => {
+              const cid = String(col.colony_id);
+              const count = votersByColonyId.get(cid)?.length || 0;
+              return (
+                <option key={col.colony_id} value={cid}>
+                  {i + 1}) {col.colony_name} ({count})
+                </option>
+              );
+            })}
+          </select>
+        </div>
+
         <button
           onClick={exportToExcel}
-          className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+          className="flex-shrink-0 flex items-center gap-2 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
           title="Export to Excel"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -702,9 +717,10 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
           </svg>
           Excel
         </button>
+
         <button
           onClick={exportToPDF}
-          className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
+          className="flex-shrink-0 flex items-center gap-2 px-4 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
           title="Export to PDF"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -720,7 +736,8 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
             <tr className="bg-gray-50">
               <th className="px-3 py-2 border text-left">Sr</th>
               <th className="px-3 py-2 border text-left">Colony</th>
-              <th className="px-3 py-2 border text-left">Count</th>
+              <th className="px-3 py-2 border text-left">Total  Houses</th>
+              <th className="px-3 py-2 border text-left">Total Voters</th>
               <th className="px-3 py-2 border text-left">Export</th>
             </tr>
           </thead>
@@ -742,7 +759,12 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
             {!loading &&
               visibleColonies.map((col, idx) => {
                 const cid = String(col.colony_id);
-                const count = votersByColonyId.get(cid)?.length || 0;
+                const votersList = votersByColonyId.get(cid) || [];
+                const voterCount = votersList.length;
+                const houseCount = new Set(
+                  votersList.map(v => v.house_number || 'No House Number')
+                ).size;
+
                 return (
                   <tr key={col.colony_id} className="hover:bg-gray-50">
                     <td className="px-3 py-2 border align-top w-6">{idx + 1}</td>
@@ -750,9 +772,17 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
                       <button
                         type="button"
                         className=" text-[16px]"
-                        
                       >
                         {col.colony_name}
+                      </button>
+                    </td>
+                    <td className="px-3 py-2 border align-top">
+                      <button
+                        type="button"
+                        className="text-[16px]"
+
+                      >
+                        {houseCount}
                       </button>
                     </td>
                     <td className="px-3 py-2 border align-top">
@@ -761,9 +791,11 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
                         className="text-blue-600 underline text-[16px]"
                         onClick={() => openModalForColony(cid, col.colony_name)}
                       >
-                        {count}
+                        {voterCount}
                       </button>
                     </td>
+                    {/* total house */}
+
                     <td className="px-3 py-2 border align-top">
                       <div className="flex gap-1">
                         <button
@@ -905,8 +937,8 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
               <button
                 onClick={() => setActiveTab('individual')}
                 className={`col-span-6 w-full py-3 text-sm font-medium transition ${activeTab === 'individual'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   } rounded-tl-lg`}
               >
                 Individual Wise
@@ -914,8 +946,8 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
               <button
                 onClick={() => setActiveTab('family')}
                 className={`col-span-6 w-full py-3 text-sm font-medium transition ${activeTab === 'family'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                   } rounded-tr-lg`}
               >
                 Family Wise
@@ -1047,72 +1079,72 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
               )}
 
               {activeTab === 'family' && (
-             <div className="h-full flex flex-col">
-             {/* Search Box */}
-             <div className="p-4 border-b">
-               <div className="flex items-center gap-2">
-                 <div className="relative flex-1">
-                      <input
-                        ref={familySearchRef}
-                        type="text"
-                        placeholder="Search by house no, name, mobile, booth..."
-                        value={houseSearchTerm}
-                        onChange={(e) => setHouseSearchTerm(e.target.value)}
-                        className="w-full h-10 px-4 pr-16 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      />
-                      {houseSearchTerm && (
-                        <button
-                          type="button"
-                          onClick={() => setHouseSearchTerm("")}
-                          className="absolute inset-y-0 right-8 my-auto h-6 w-6 rounded-full text-gray-500 hover:bg-gray-200 flex items-center justify-center"
-                          aria-label="Clear"
-                        >
-                          ×
-                        </button>
-                      )}
-                      <div className="absolute inset-y-0 right-0 flex items-center pr-3">
-                        <svg
-                          className="w-4 h-4 text-gray-400"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                          />
-                        </svg>
-                    
-                    </div>
-                    {houseSearchTerm && (
-                      <p className="text-sm text-gray-600 mt-2">
-                        Showing {filteredHouseData.length} of {houseData.length} houses
-                      </p>
-                    )}
-                  </div>
-                    <button
-                      onClick={exportHouseDataToExcel}
-                      className="flex items-center gap-2 px-3 py-2 bg-green-600 text-white rounded text-xs font-medium hover:bg-green-700 transition-colors"
-                    >
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                      Excel
-                    </button>
-                    <button
-                      onClick={exportHouseDataToPDF}
-                      className="flex items-center gap-2 px-3 py-2 bg-red-600 text-white rounded text-xs font-medium hover:bg-red-700 transition-colors"
-                    >
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                      </svg>
-                      PDF
-                    </button>
+                <div className="h-full flex flex-col">
+                  {/* Search Box */}
+                  <div className="p-4 border-b">
+                    <div className="flex items-center gap-2">
+                      <div className="relative flex-1">
+                        <input
+                          ref={familySearchRef}
+                          type="text"
+                          placeholder="Search by house no, name, mobile, booth..."
+                          value={houseSearchTerm}
+                          onChange={(e) => setHouseSearchTerm(e.target.value)}
+                          className="w-full h-10 px-4 pr-16 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
+                        {houseSearchTerm && (
+                          <button
+                            type="button"
+                            onClick={() => setHouseSearchTerm("")}
+                            className="absolute inset-y-0 right-8 my-auto h-6 w-6 rounded-full text-gray-500 hover:bg-gray-200 flex items-center justify-center"
+                            aria-label="Clear"
+                          >
+                            ×
+                          </button>
+                        )}
+                        <div className="absolute inset-y-0 right-0 flex items-center pr-3">
+                          <svg
+                            className="w-4 h-4 text-gray-400"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                            />
+                          </svg>
 
-                    
-                  </div>
+                        </div>
+                        {houseSearchTerm && (
+                          <p className="text-sm text-gray-600 mt-2">
+                            Showing {filteredHouseData.length} of {houseData.length} houses
+                          </p>
+                        )}
+                      </div>
+                      <button
+                        onClick={exportHouseDataToExcel}
+                        className="flex items-center gap-2 px-3 py-2 bg-green-600 text-white rounded text-xs font-medium hover:bg-green-700 transition-colors"
+                      >
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        Excel
+                      </button>
+                      <button
+                        onClick={exportHouseDataToPDF}
+                        className="flex items-center gap-2 px-3 py-2 bg-red-600 text-white rounded text-xs font-medium hover:bg-red-700 transition-colors"
+                      >
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                        </svg>
+                        PDF
+                      </button>
+
+
+                    </div>
                   </div>
 
                   {/* House Data Grid */}
@@ -1258,70 +1290,74 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
               </button>
             </div>
 
-            {/* Search Box */}
-            <div className="p-4 border-b">
-              <div className="relative">
-                <input
-                  ref={houseModalSearchRef}
-                  type="text"
-                  placeholder="Search by name, voter no, mobile, booth..."
-                  value={houseModalSearchTerm}
-                  onChange={(e) => setHouseModalSearchTerm(e.target.value)}
-                  className="w-full h-10 px-4 pr-16 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-                {houseModalSearchTerm && (
-                  <button
-                    type="button"
-                    onClick={() => setHouseModalSearchTerm("")}
-                    className="absolute inset-y-0 right-8 my-auto h-6 w-6 rounded-full text-gray-500 hover:bg-gray-200 flex items-center justify-center"
-                    aria-label="Clear"
-                  >
-                    ×
-                  </button>
-                )}
-                <div className="absolute inset-y-0 right-0 flex items-center pr-3">
-                  <svg
-                    className="w-4 h-4 text-gray-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                    />
-                  </svg>
-                </div>
-              </div>
-              {houseModalSearchTerm && (
-                <p className="text-sm text-gray-600 mt-2">
-                  Showing {filteredHouseModalVoters.length} of {houseVoters.length} voters
-                </p>
-              )}
-            </div>
 
             {/* Export buttons for house modal */}
-            <div className="p-4 border-b flex gap-2">
-              <button
-                onClick={exportHouseVotersToExcel}
-                className="flex items-center gap-2 px-3 py-1.5 bg-green-600 text-white rounded text-xs font-medium hover:bg-green-700 transition-colors"
-              >
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                Excel
-              </button>
-              <button
-                onClick={exportHouseVotersToPDF}
-                className="flex items-center gap-2 px-3 py-1.5 bg-red-600 text-white rounded text-xs font-medium hover:bg-red-700 transition-colors"
-              >
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                </svg>
-                PDF
-              </button>
+                       {/* Export buttons for house modal */}
+                       <div className="h flex flex-col">
+              {/* Search Box */}
+              <div className="p-4 border-b flex items-center gap-3 w-full">
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  <div className="relative flex-1">
+                    <input
+                      ref={houseModalSearchRef}
+                      type="text"
+                      placeholder="Search by name, voter no, mobile, booth..."
+                      value={houseModalSearchTerm}
+                      onChange={(e) => setHouseModalSearchTerm(e.target.value)}
+                      className="w-full h-10 px-4 pr-16 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                    {houseModalSearchTerm && (
+                      <button
+                        type="button"
+                        onClick={() => setHouseModalSearchTerm("")}
+                        className="absolute inset-y-0 right-8 my-auto h-6 w-6 rounded-full text-gray-500 hover:bg-gray-200 flex items-center justify-center"
+                        aria-label="Clear"
+                      >
+                        ×
+                      </button>
+                    )}
+                    <div className="absolute inset-y-0 right-0 flex items-center pr-3">
+                      <svg
+                        className="w-4 h-4 text-gray-400"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                        />
+                      </svg>
+                    </div>
+                  </div>
+                  {houseModalSearchTerm && (
+                    <p className="text-sm text-gray-600 ml-2 whitespace-nowrap">
+                      Showing {filteredHouseModalVoters.length} of {houseVoters.length} voters
+                    </p>
+                  )}
+                </div>
+
+                <button
+                  onClick={exportHouseVotersToExcel}
+                  className="shrink-0 flex items-center gap-2 px-3 py-3 bg-green-600 text-white rounded text-xs font-medium hover:bg-green-700 transition-colors"
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  Excel
+                </button>
+                <button
+                  onClick={exportHouseVotersToPDF}
+                  className="shrink-0 flex items-center gap-2 px-3 py-3 bg-red-600 text-white rounded text-xs font-medium hover:bg-red-700 transition-colors"
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                  </svg>
+                  PDF
+                </button>
+              </div>
             </div>
 
             <div className="flex-1 overflow-auto p-4">
