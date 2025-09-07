@@ -28,6 +28,7 @@ export interface voterdayatype {
     voter_number: string;
     gender: string;
     relation: string;
+    house_number: string;
     dob: string;
     aadhaar_number: string;
     booth_number: string;

@@ -22,6 +22,7 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
   const [selectedColonyName, setSelectedColonyName] = useState("");
   const [colonyVoters, setColonyVoters] = useState<voterdayatype[]>([]);
   const [selectedColonyId, setSelectedColonyId] = useState<string>("");
+  const [searchTerm, setSearchTerm] = useState("");
 
   // Map colony_entry_id -> colony_id (string keys for safety)
   const colonyEntryToColony = useMemo(() => {
@@ -43,6 +44,31 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
     });
     return map;
   }, [voterentry, colonyEntryToColony]);
+
+  // Filter voters based on search term
+  const filteredColonyVoters = useMemo(() => {
+    if (!searchTerm.trim()) return colonyVoters;
+    
+    const term = searchTerm.toLowerCase();
+    return colonyVoters.filter((voter) => {
+      const fullName = (voter.full_name || 
+        [voter.first_name, voter.middle_name, voter.last_name]
+          .filter(Boolean)
+          .join(" ")).toLowerCase();
+      const fullNameMr = (voter.full_name_mr || "").toLowerCase();
+      const houseNumber = (voter.house_number || "").toLowerCase();
+      const voterNumber = (voter.voter_number || "").toLowerCase();
+      const mobile = (voter.mobile || "").toLowerCase();
+      const boothNumber = (voter.booth_number || "").toLowerCase();
+      
+      return fullName.includes(term) ||
+             fullNameMr.includes(term) ||
+             houseNumber.includes(term) ||
+             voterNumber.includes(term) ||
+             mobile.includes(term) ||
+             boothNumber.includes(term);
+    });
+  }, [colonyVoters, searchTerm]);
 
   // Load colonies from /api/colony
   const fetchColonies = async () => {
@@ -68,6 +94,7 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
     setSelectedColonyName(colonyName);
     const list = votersByColonyId.get(colonyId) || [];
     setColonyVoters(list);
+    setSearchTerm(""); // Reset search when opening modal
     setIsModalOpen(true);
   };
 
@@ -75,6 +102,7 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
     setIsModalOpen(false);
     setSelectedColonyName("");
     setColonyVoters([]);
+    setSearchTerm(""); // Reset search when closing modal
   };
 
   // Filter colonies by selected id
@@ -171,28 +199,62 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
                 ✕
               </button>
             </div>
+            
+            {/* Search Box */}
+            <div className="p-4 border-b">
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Search voters by name, house number, voter number, mobile, booth..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full h-10 px-4 pr-10 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+                <div className="absolute inset-y-0 right-0 flex items-center pr-3">
+                  <svg
+                    className="w-4 h-4 text-gray-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                    />
+                  </svg>
+                </div>
+              </div>
+              {searchTerm && (
+                <p className="text-sm text-gray-600 mt-2">
+                  Showing {filteredColonyVoters.length} of {colonyVoters.length} voters
+                </p>
+              )}
+            </div>
+
             <div className="p-4 overflow-x-auto">
               <table className="min-w-full text-sm">
                 <thead>
                   <tr className="bg-gray-50">
                     <th className="px-3 py-2 border text-left">Sr</th>
                     <th className="px-3 py-2 border text-left">Full Name</th>
+                    <th className="px-3 py-2 border text-left">House No</th>
                     <th className="px-3 py-2 border text-left">Voter No.</th>
                     <th className="px-3 py-2 border text-left">Mobile</th>
                     <th className="px-3 py-2 border text-left">Booth</th>
                     <th className="px-3 py-2 border text-left">Photo</th>
-
                   </tr>
                 </thead>
                 <tbody>
-                  {colonyVoters.length === 0 && (
+                  {filteredColonyVoters.length === 0 && (
                     <tr>
-                      <td className="px-3 py-2 border" colSpan={6}>
-                        No voters found
+                      <td className="px-3 py-2 border" colSpan={7}>
+                        {searchTerm ? "No voters found matching your search" : "No voters found"}
                       </td>
                     </tr>
                   )}
-                  {colonyVoters.map((v, i) => (
+                  {filteredColonyVoters.map((v, i) => (
                     <tr key={v.voter_id} className="hover:bg-gray-50">
                       <td className="px-3 py-2 border align-top">{i + 1}</td>
                       <td className="px-3 py-2 border align-top">
@@ -200,6 +262,11 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
                           [v.first_name, v.middle_name, v.last_name]
                             .filter(Boolean)
                             .join(" ")}
+                            {" "}
+                            ({v.full_name_mr})
+                      </td>
+                      <td className="px-3 py-2 border align-top">
+                        {v.house_number}
                       </td>
                       <td className="px-3 py-2 border align-top">
                         {v.voter_number}
@@ -208,19 +275,20 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
                         {v.mobile || "N/A"}
                       </td>
                       <td className="px-3 py-2 border align-top">{v.booth_number}</td>
-                      <td className="px-3 py-2 border align-top">   <img
-                        src={`https://vishalnawle.in/vishalnavle/flutter_api_voters/voter_photos/${v.photo}`}
-                        alt="Voter Photo"
-                        className="w-10 h-10 rounded-full object-cover border-2 border-gray-200 cursor-pointer"
-                        title="Click to preview"
-                        onClick={() =>
-                          setPreviewImg(`https://vishalnawle.in/vishalnavle/flutter_api_voters/voter_photos/${v.photo}`)
-                        }
-                        onError={(e) => {
-                          e.currentTarget.src = '/images/user/npimg.jpg';
-                        }}
-                      /></td>
-
+                      <td className="px-3 py-2 border align-top">   
+                        <img
+                          src={`https://vishalnawle.in/vishalnavle/flutter_api_voters/voter_photos/${v.photo}`}
+                          alt="Voter Photo"
+                          className="w-10 h-10 rounded-full object-cover border-2 border-gray-200 cursor-pointer"
+                          title="Click to preview"
+                          onClick={() =>
+                            setPreviewImg(`https://vishalnawle.in/vishalnavle/flutter_api_voters/voter_photos/${v.photo}`)
+                          }
+                          onError={(e) => {
+                            e.currentTarget.src = '/images/user/npimg.jpg';
+                          }}
+                        />
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -238,7 +306,7 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
           </div>
         </div>
       )}
-         {previewImg && (
+      {previewImg && (
         <div
           className="fixed inset-0 z-9999 flex items-center justify-center bg-black"
           role="dialog"

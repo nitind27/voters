@@ -27,8 +27,15 @@ type Props = {
 };
 
 const Allvoters: React.FC<Props> = ({ voterentry, colonyentry }: Props) => {
-  const [data] = useState<voterdayatype[]>(voterentry || []);
-  const [filteredData, setFilteredData] = useState<voterdayatype[]>(voterentry || []);
+  // Filter to show only primary persons in the main table
+  const primaryPersonsData = useMemo(() => {
+    return (voterentry || []).filter(v =>
+      (v.relation || '').toLowerCase() === 'primary person'
+    );
+  }, [voterentry]);
+
+  const [data] = useState<voterdayatype[]>(primaryPersonsData);
+  const [filteredData, setFilteredData] = useState<voterdayatype[]>(primaryPersonsData);
   // const [inputValue, setInputValue] = useState('');
   const [colonyFilter, setColonyFilter] = useState('');
   const [colonyList, setColonyList] = useState<ColonyData[]>([]);
@@ -103,11 +110,10 @@ const Allvoters: React.FC<Props> = ({ voterentry, colonyentry }: Props) => {
     fetchColonies();
   }, []);
 
-  // Group non-primary members by colony_entry_id
-  const membersByColonyEntryId = useMemo(() => {
+  // Group ALL family members (including primary person) by colony_entry_id
+  const allMembersByColonyEntryId = useMemo(() => {
     const map = new Map<string, voterdayatype[]>();
     (voterentry || []).forEach(v => {
-      if ((v.relation || '').toLowerCase() === 'primary person') return;
       const key = String(v.colony_entry_id);
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(v);
@@ -115,13 +121,11 @@ const Allvoters: React.FC<Props> = ({ voterentry, colonyentry }: Props) => {
     return map;
   }, [voterentry]);
 
-
-
   const openMembersModal = (row: voterdayatype) => {
     const key = String(row.colony_entry_id);
-    const members = membersByColonyEntryId.get(key) || [];
+    const members = allMembersByColonyEntryId.get(key) || [];
     setMemberModalRows(members);
-    setMemberModalTitle(`Family Members (${members.length}) - ${row.colony_name}`);
+    setMemberModalTitle(`Family Members (${members.length}) - ${row.colony_name} - House No : ${row.house_number}`);
     setMemberModalOpen(true);
   };
 
@@ -131,8 +135,6 @@ const Allvoters: React.FC<Props> = ({ voterentry, colonyentry }: Props) => {
     setMemberModalTitle('');
   };
 
-
-
   const columns: Column<voterdayatype>[] = [
     {
       key: 'colony_entry_id',
@@ -140,6 +142,18 @@ const Allvoters: React.FC<Props> = ({ voterentry, colonyentry }: Props) => {
       accessor: 'colony_name',
       render: (data) => <span className="text-sm">{data.colony_name}</span>,
     },
+    {
+      key: 'house_number',
+      label: 'House No',
+      accessor: 'house_number',
+      render: (data) => (
+        <div className="flex flex-col">
+          <span className="font-medium">{data.house_number}</span>
+
+        </div>
+      ),
+    },
+
     {
       key: 'full_name',
       label: 'Primary Person',
@@ -151,7 +165,7 @@ const Allvoters: React.FC<Props> = ({ voterentry, colonyentry }: Props) => {
         </div>
       ),
     },
-
+   
 
     {
       key: 'mobile',
@@ -201,7 +215,8 @@ const Allvoters: React.FC<Props> = ({ voterentry, colonyentry }: Props) => {
       label: 'Number of Family Member',
       accessor: 'relation',
       render: (data) => {
-        const count = membersByColonyEntryId.get(String(data.colony_entry_id))?.length || 0;
+        // Count ALL family members including primary person
+        const count = allMembersByColonyEntryId.get(String(data.colony_entry_id))?.length || 0;
         return (
           <button
             type="button"
@@ -253,6 +268,7 @@ const Allvoters: React.FC<Props> = ({ voterentry, colonyentry }: Props) => {
                     <tr className="text-left">
                       <th className="p-2 border">Sr No.</th>
                       <th className="p-2 border">Name</th>
+                      <th className="p-2 border">Photo</th>
                       <th className="p-2 border">Relation</th>
                       <th className="p-2 border">Mobile</th>
                       <th className="p-2 border">Gender</th>
@@ -265,6 +281,26 @@ const Allvoters: React.FC<Props> = ({ voterentry, colonyentry }: Props) => {
                       <tr key={m.voter_id}>
                         <td className="p-2 border">{index + 1}</td>
                         <td className="p-2 border">{m.full_name} ({m.full_name_mr})</td>
+                        <td>          {m.photo ? (
+                          <img
+                            src={`https://vishalnawle.in/vishalnavle/flutter_api_voters/voter_photos/${m.photo}`}
+                            alt="Voter Photo"
+                            className="w-10 h-10 rounded-full object-cover border-2 border-gray-200 cursor-pointer"
+                            title="Click to preview"
+                            onClick={() =>
+                              setPreviewImg(`https://vishalnawle.in/vishalnavle/flutter_api_voters/voter_photos/${m.photo}`)
+                            }
+                            onError={(e) => {
+                              e.currentTarget.src = '/images/user/npimg.jpg';
+                            }}
+                          />
+                        )
+
+                          : (
+                            <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
+                              <span className="text-gray-500 text-xs">No Photo</span>
+                            </div>
+                          )}</td>
                         <td className="p-2 border">{m.relation}</td>
                         <td className="p-2 border">{m.mobile || 'N/A'}</td>
                         <td className="p-2 border">{m.gender || '-'}</td>

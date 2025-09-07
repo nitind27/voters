@@ -9,8 +9,9 @@ export async function GET() {
     try {
         connection = await pool.getConnection();
         const [rows] = await connection.query<RowDataPacket[]>(`
-      SELECT 
+   SELECT 
     ve.*,
+    ce.house_number,
     c.colony_name
 FROM voter_entry ve
 LEFT JOIN colony_entry ce ON ve.colony_entry_id = ce.colony_entry_id
