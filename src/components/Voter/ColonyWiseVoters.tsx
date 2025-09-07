@@ -258,7 +258,7 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
                 <tr style="background-color: #f3f4f6;">
                   <th style="padding: 8px;">Sr No</th>
                   <th style="padding: 8px;">Colony Name</th>
-                  <th style="padding: 8px;">Voter Count</th>
+                  <th style="padding: 8px;">Voter jjjCount</th>
                 </tr>
               </thead>
               <tbody>${tableData}</tbody>
@@ -749,8 +749,8 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
                     <td className="px-3 py-2 border align-top">
                       <button
                         type="button"
-                        className="text-blue-600 underline text-[16px]"
-                        onClick={() => openModalForColony(cid, col.colony_name)}
+                        className=" text-[16px]"
+                        
                       >
                         {col.colony_name}
                       </button>
@@ -759,12 +759,7 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
                       <button
                         type="button"
                         className="text-blue-600 underline text-[16px]"
-                        onClick={() => {
-                          setSelectedColonyName(col.colony_name);
-                          const list = votersByColonyId.get(cid) || [];
-                          setColonyVoters(list);
-                          exportDetailedVotersToExcel();
-                        }}
+                        onClick={() => openModalForColony(cid, col.colony_name)}
                       >
                         {count}
                       </button>

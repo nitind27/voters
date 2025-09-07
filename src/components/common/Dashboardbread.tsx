@@ -1,14 +1,11 @@
-import Link from 'next/link';
+
 import React from 'react';
 
-interface BreadcrumbItem {
-  label: string;
-  href: string;
-}
+
 
 interface BreadcrumbsProps {
   title: string;
-  breadcrumbs: BreadcrumbItem[];
+  breadcrumbs: string[];
 }
 
 const Dashboardbread: React.FC<BreadcrumbsProps> = ({ title, breadcrumbs }) => {
@@ -23,10 +20,10 @@ const Dashboardbread: React.FC<BreadcrumbsProps> = ({ title, breadcrumbs }) => {
           className="object-contain"
         />
         <h1 className="flex-1 text-3xl font-bold text-white text-center ml-4">
-          {title}: 560
+          {title}: {breadcrumbs}
         </h1>
       </div>
-      <nav className="flex space-x-2 text-gray-600 mt-2">
+      {/* <nav className="flex space-x-2 text-gray-600 mt-2">
         {breadcrumbs.map((item, index) => (
           <React.Fragment key={index}>
             <Link
@@ -42,7 +39,7 @@ const Dashboardbread: React.FC<BreadcrumbsProps> = ({ title, breadcrumbs }) => {
             {index < breadcrumbs.length - 1 && <span className="text-gray-400">/</span>}
           </React.Fragment>
         ))}
-      </nav>
+      </nav> */}
     </div>
   );
 };
