@@ -1,4 +1,5 @@
-import Breadcrumbs from '@/components/common/BreadcrumbItem';
+
+import Dashboardbread from '@/components/common/Dashboardbread';
 import VoterTabs from '@/components/Voter/VoterTabs';
 // import Voterdata from '@/components/Voter/Voterdata';
 import React from 'react'
@@ -18,16 +19,12 @@ const page = async () => {
         // distdata.json(),
 
     ])
-    const breadcrumbItems = [
-        { label: 'Home', href: '/' },
-        // { label: 'Voter', href: '/voter' },
-    ];
 
     return (
         <div className="grid grid-cols-6 gap-4 md:gap-6">
             <div className="col-span-12 space-y-6 xl:col-span-7">
 
-                <Breadcrumbs title="Voter Data" breadcrumbs={breadcrumbItems} />
+                <Dashboardbread title="Total Voters" breadcrumbs={[]} />
                 <VoterTabs colony={colonydata} colonyentry={colonyentrydata} voterentry={voterentrydata} />
             </div>
         </div>
