@@ -59,20 +59,41 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
     return map;
   }, [voterentry, colonyEntryToColony]);
 
-  // Filter voters based on search term
+  // Filter voters based on search term and sort by house number
   const filteredColonyVoters = useMemo(() => {
-    if (!searchTerm.trim()) return colonyVoters;
-    const term = searchTerm.toLowerCase();
-    return colonyVoters.filter((voter) => {
-      const fullName = (voter.full_name ||
-        [voter.first_name, voter.middle_name, voter.last_name].filter(Boolean).join(" ")).toLowerCase();
-      const fullNameMr = (voter.full_name_mr || "").toLowerCase();
-      const houseNumber = (voter.house_number || "").toLowerCase();
-      const voterNumber = (voter.voter_number || "").toLowerCase();
-      const mobile = (voter.mobile || "").toLowerCase();
-      const boothNumber = (voter.booth_number || "").toLowerCase();
-      return fullName.includes(term) || fullNameMr.includes(term) || houseNumber.includes(term) ||
-        voterNumber.includes(term) || mobile.includes(term) || boothNumber.includes(term);
+    let filtered = colonyVoters;
+    
+    // Apply search filter if search term exists
+    if (searchTerm.trim()) {
+      const term = searchTerm.toLowerCase();
+      filtered = colonyVoters.filter((voter) => {
+        const fullName = (voter.full_name ||
+          [voter.first_name, voter.middle_name, voter.last_name].filter(Boolean).join(" ")).toLowerCase();
+        const fullNameMr = (voter.full_name_mr || "").toLowerCase();
+        const houseNumber = (voter.house_number || "").toLowerCase();
+        const voterNumber = (voter.voter_number || "").toLowerCase();
+        const mobile = (voter.mobile || "").toLowerCase();
+        const boothNumber = (voter.booth_number || "").toLowerCase();
+        return fullName.includes(term) || fullNameMr.includes(term) || houseNumber.includes(term) ||
+          voterNumber.includes(term) || mobile.includes(term) || boothNumber.includes(term);
+      });
+    }
+    
+    // Sort by house number in ascending order
+    return filtered.sort((a, b) => {
+      const aHouseNum = a.house_number || '';
+      const bHouseNum = b.house_number || '';
+      
+      // Try to parse as numbers first
+      const aNum = parseInt(aHouseNum);
+      const bNum = parseInt(bHouseNum);
+      
+      if (!isNaN(aNum) && !isNaN(bNum)) {
+        return aNum - bNum;
+      }
+      
+      // If not numbers, sort alphabetically
+      return aHouseNum.localeCompare(bHouseNum);
     });
   }, [colonyVoters, searchTerm]);
 
