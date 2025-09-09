@@ -12,6 +12,7 @@ import { Column } from "../tables/tabletype";
 import { colonyentrydatatype, Voterdatatye, voterdayatype } from './Votertype';
 import { Withoutbtn } from '../tables/Withoutbtn';
 import { formatDate } from '@/lib/utils';
+import VoterEditModal from './VoterEditModal';
 
 // Colony type for API response
 interface ColonyData {
@@ -34,7 +35,7 @@ const Allvoters: React.FC<Props> = ({ voterentry, colonyentry }: Props) => {
     );
   }, [voterentry]);
 
-  const [data] = useState<voterdayatype[]>(primaryPersonsData);
+  const [data, setData] = useState<voterdayatype[]>(primaryPersonsData);
   const [filteredData, setFilteredData] = useState<voterdayatype[]>(primaryPersonsData);
   // const [inputValue, setInputValue] = useState('');
   const [colonyFilter, setColonyFilter] = useState('');
@@ -48,6 +49,12 @@ const Allvoters: React.FC<Props> = ({ voterentry, colonyentry }: Props) => {
   // const [loading, setLoading] = useState(false);
 
   const [previewImg, setPreviewImg] = useState<string | null>(null);
+
+  // Edit and Delete states
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [selectedVoter, setSelectedVoter] = useState<voterdayatype | null>(null);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [voterToDelete, setVoterToDelete] = useState<voterdayatype | null>(null);
 
   // const colonyCounts = useMemo(() => {
   //   const map: Record<string, number> = {};
@@ -135,6 +142,67 @@ const Allvoters: React.FC<Props> = ({ voterentry, colonyentry }: Props) => {
     setMemberModalTitle('');
   };
 
+  // Handle Edit
+  const handleEdit = (voter: voterdayatype) => {
+    setSelectedVoter(voter);
+    setEditModalOpen(true);
+  };
+
+  const handleEditClose = () => {
+    setEditModalOpen(false);
+    setSelectedVoter(null);
+  };
+
+  const handleEditUpdate = () => {
+    // Refresh the data after update
+    // You might want to refetch from API or update local state
+    toast.success('Voter updated successfully!');
+  };
+
+  // Handle Delete
+  const handleDelete = (voter: voterdayatype) => {
+    setVoterToDelete(voter);
+    setDeleteModalOpen(true);
+  };
+
+  const handleDeleteClose = () => {
+    setDeleteModalOpen(false);
+    setVoterToDelete(null);
+  };
+
+  const confirmDelete = async () => {
+    if (!voterToDelete) return;
+
+    try {
+      const response = await fetch('/api/voterdetails', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          voter_id: voterToDelete.voter_id
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to delete voter');
+      }
+
+      toast.success('Voter deleted successfully!');
+
+      // Remove from local state
+      setData(prev => prev.filter(v => v.voter_id !== voterToDelete.voter_id));
+      setFilteredData(prev => prev.filter(v => v.voter_id !== voterToDelete.voter_id));
+
+      handleDeleteClose();
+    } catch (error) {
+      console.error('Error deleting voter:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to delete voter');
+    }
+  };
+
   const columns: Column<voterdayatype>[] = [
     {
       key: 'colony_entry_id',
@@ -165,7 +233,7 @@ const Allvoters: React.FC<Props> = ({ voterentry, colonyentry }: Props) => {
         </div>
       ),
     },
-   
+
 
     {
       key: 'mobile',
@@ -231,6 +299,36 @@ const Allvoters: React.FC<Props> = ({ voterentry, colonyentry }: Props) => {
       },
     },
 
+    // Add Actions column
+    {
+      key: 'actions',
+      label: 'Actions',
+      render: (data) => (
+        <div className="flex gap-2">
+          <button
+            type="button"
+            className="px-2 py-1 text-xs rounded bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            onClick={() => handleEdit(data)}
+            title="Edit voter"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            className="px-2 py-1 text-xs rounded bg-red-600 text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+            onClick={() => handleDelete(data)}
+            title="Delete voter"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+          </button>
+        </div>
+      ),
+    },
+
   ];
 
   return (
@@ -277,8 +375,11 @@ const Allvoters: React.FC<Props> = ({ voterentry, colonyentry }: Props) => {
                     </tr>
                   </thead>
                   <tbody>
-                    {memberModalRows.map((m, index) => (
-                      <tr key={m.voter_id}>
+                  {memberModalRows.map((m, index) => (
+  <tr
+    key={m.voter_id}
+    className={`${Number(m.edited) === 1 ? 'bg-green-50' : ''}`}
+  >
                         <td className="p-2 border">{index + 1}</td>
                         <td className="p-2 border">{m.full_name} ({m.full_name_mr})</td>
                         <td>          {m.photo ? (
@@ -315,6 +416,56 @@ const Allvoters: React.FC<Props> = ({ voterentry, colonyentry }: Props) => {
           </div>
         </div>
       )}
+
+      {/* Edit Modal */}
+      <VoterEditModal
+        isOpen={editModalOpen}
+        onClose={handleEditClose}
+        voter={selectedVoter}
+        onUpdate={handleEditUpdate}
+      />
+
+      {/* Delete Confirmation Modal */}
+      {deleteModalOpen && voterToDelete && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="relative w-[95vw] max-w-md rounded-xl bg-white shadow-2xl">
+            <div className="p-6">
+              <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 bg-red-100 rounded-full">
+                <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 text-center mb-2">
+                Delete Voter
+              </h3>
+              <p className="text-sm text-gray-600 text-center mb-6">
+                Are you sure you want to delete <strong>{voterToDelete.full_name}</strong>? This action cannot be undone.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={handleDeleteClose}
+                  className="flex-1 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmDelete}
+                  className="flex-1 px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <Withoutbtn
         data={filteredData}
         inputfiled={
