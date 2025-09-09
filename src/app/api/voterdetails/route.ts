@@ -121,9 +121,12 @@ export async function PUT(request: NextRequest) {
 		const {
 			voter_id,
 			first_name, middle_name, last_name,
-			first_name_mr = '', middle_name_mr = '', last_name_mr = '',
+			first_name_mr,
+			middle_name_mr ='',
+			last_name_mr,
 			voter_number = '',
 			gender = '',
+
 			relation = '',
 			dob = '',
 			aadhaar_number = '',
@@ -179,6 +182,7 @@ export async function PUT(request: NextRequest) {
 			middle_name = ?,
 			last_name = ?,
 			full_name = ?,
+			middle_name_mr = ?,
 			full_name_mr = ?,
 			voter_number = ?,
 			gender = ?,
@@ -195,7 +199,7 @@ export async function PUT(request: NextRequest) {
 		`;
 
 		const [result] = await connection.execute<ResultSetHeader>(updateQuery, [
-			first_name || '', middle_name || '', last_name || '', full_name, full_name_mr,
+			first_name || '', middle_name || '', last_name || '', full_name,  middle_name_mr, full_name_mr,
 			voter_number, gender, relation, dob, aadhaar_number, booth_number, mobile, availability,
 			newColonyEntryId ?? null,
 			voter_id

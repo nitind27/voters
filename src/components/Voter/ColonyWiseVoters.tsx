@@ -227,6 +227,7 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
 
   // NEW: open edit modal for a voter
   const handleOpenEdit = (v: voterdayatype) => {
+
     setEditVoter(v);
     setIsEditOpen(true);
   };
@@ -1110,11 +1111,11 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
                             </td>
                           </tr>
                         )}
-                 {filteredColonyVoters.map((v, i) => (
-  <tr
-    key={v.voter_id}
-    className={`${Number(v.edited) === 1 ? 'bg-green-50' : ''} hover:bg-gray-50`}
-  >
+                        {filteredColonyVoters.map((v, i) => (
+                          <tr
+                            key={v.voter_id}
+                            className={`${Number(v.edited) === 1 ? 'bg-green-50' : ''} hover:bg-gray-50`}
+                          >
                             <td className="px-3 py-2 border align-top">{i + 1}</td>
                             <td className="px-3 py-2 border align-top">
                               {v.full_name ||
@@ -1464,11 +1465,11 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
                       </td>
                     </tr>
                   )}
-             {filteredHouseModalVoters.map((voter, i) => (
-  <tr
-    key={voter.voter_id}
-    className={`${Number(voter.edited) === 1 ? 'bg-green-50' : ''} hover:bg-gray-50`}
-  >
+                  {filteredHouseModalVoters.map((voter, i) => (
+                    <tr
+                      key={voter.voter_id}
+                      className={`${Number(voter.edited) === 1 ? 'bg-green-50' : ''} hover:bg-gray-50`}
+                    >
                       <td className="px-3 py-2 border align-top">{i + 1}</td>
                       <td className="px-3 py-2 border align-top">
 

@@ -177,7 +177,7 @@ const VoterEditModal: React.FC<VoterEditModalProps> = ({
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
 		if (!validate()) return;
-
+			console.log("checkdata",e)
 		setSaving(true);
 		try {
 			const method = mode === 'edit' ? 'PUT' : 'POST';
