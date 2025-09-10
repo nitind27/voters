@@ -25,6 +25,7 @@ const page = async () => {
             <div className="col-span-12 space-y-6 xl:col-span-7">
 
                 <Dashboardbread title="Total Voters" breadcrumbs={voterentrydata.length} />
+               
                 <VoterTabs colony={colonydata} colonyentry={colonyentrydata} voterentry={voterentrydata} />
             </div>
         </div>

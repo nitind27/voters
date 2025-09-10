@@ -3,16 +3,25 @@ import { NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import type { RowDataPacket } from 'mysql2';
 
+// Define proper types
+interface Colony {
+    colony_id: number;
+    colony_name: string;
+    status: string;
+    created_at: string;
+    updated_at: string;
+}
+
 // -------------------- GET Method --------------------
 export async function GET() {
     let connection;
     try {
         connection = await pool.getConnection();
         const [rows] = await connection.query<RowDataPacket[]>(
-            'SELECT * FROM colony WHERE status = "Active"'
+            'SELECT colony_id, colony_name, status, created_at, updated_at FROM colony WHERE status = "Active" ORDER BY colony_name'
         );
 
-        return NextResponse.json(rows);
+        return NextResponse.json(rows as Colony[]);
     } catch (error) {
         console.error('Database query failed (GET):', error);
         return NextResponse.json(
@@ -29,9 +38,9 @@ export async function POST(request: Request) {
     let connection;
     try {
         const body = await request.json();
-        const { name = "Active" } = body;
+        const { colony_name } = body;
 
-        if (!name) {
+        if (!colony_name || colony_name.trim() === '') {
             return NextResponse.json(
                 { message: 'Colony name is required' },
                 { status: 400 }
@@ -39,13 +48,27 @@ export async function POST(request: Request) {
         }
 
         connection = await pool.getConnection();
-        // const [result] = await connection.query(
-        //     'INSERT INTO colony (name, status) VALUES (?, ?)',
-        //     [name, status]
-        // );
+
+        // Check if colony already exists
+        const [existing] = await connection.query<RowDataPacket[]>(
+            'SELECT colony_id FROM colony WHERE colony_name = ? AND status = "Active"',
+            [colony_name.trim()]
+        );
+
+        if (existing.length > 0) {
+            return NextResponse.json(
+                { message: 'Colony with this name already exists' },
+                { status: 409 }
+            );
+        }
+
+        const [result] = await connection.query(
+            'INSERT INTO colony (colony_name, status) VALUES (?, ?)',
+            [colony_name.trim(), 'Active']
+        );
 
         return NextResponse.json(
-            { message: 'Colony created successfully' },
+            { message: 'Colony created successfully', colony_id: (result as unknown as { insertId: number }).insertId },
             { status: 201 }
         );
     } catch (error) {
@@ -64,9 +87,9 @@ export async function PUT(request: Request) {
     let connection;
     try {
         const body = await request.json();
-        const { colony_id, name, status } = body;
+        const { colony_id, colony_name, status } = body;
 
-        if (!colony_id || !name) {
+        if (!colony_id || !colony_name) {
             return NextResponse.json(
                 { message: 'Colony ID and name are required' },
                 { status: 400 }
@@ -74,9 +97,23 @@ export async function PUT(request: Request) {
         }
 
         connection = await pool.getConnection();
+
+        // Check if colony name already exists (excluding current colony)
+        const [existing] = await connection.query<RowDataPacket[]>(
+            'SELECT colony_id FROM colony WHERE colony_name = ? AND colony_id != ? AND status = "Active"',
+            [colony_name.trim(), colony_id]
+        );
+
+        if (existing.length > 0) {
+            return NextResponse.json(
+                { message: 'Colony with this name already exists' },
+                { status: 409 }
+            );
+        }
+
         await connection.query(
-            'UPDATE colony SET name = ?, status = ? WHERE colony_id = ?',
-            [name, status, colony_id]
+            'UPDATE colony SET colony_name = ?, status = ? WHERE colony_id = ?',
+            [colony_name.trim(), status || 'Active', colony_id]
         );
 
         return NextResponse.json(
@@ -94,37 +131,26 @@ export async function PUT(request: Request) {
     }
 }
 
-// -------------------- DELETE Method --------------------
-export async function DELETE(request: Request) {
-    let connection;
+
+
+export async function PATCH(request: Request) {
+    const { colony_id, status } = await request.json();
+
+    if (!colony_id || !status) {
+        return NextResponse.json(
+            { message: 'Colony ID is required' },
+            { status: 400 }
+        );
+    }
+
     try {
-        const { searchParams } = new URL(request.url);
-        const colony_id = searchParams.get('id');
-
-        if (!colony_id) {
-            return NextResponse.json(
-                { message: 'Colony ID is required' },
-                { status: 400 }
-            );
-        }
-
-        connection = await pool.getConnection();
-        await connection.query(
-            'UPDATE colony SET status = "Inactive" WHERE colony_id = ?',
-            [colony_id]
+        await pool.query(
+            'UPDATE colony SET status = ? WHERE colony_id = ?',
+            [status, colony_id]
         );
-
-        return NextResponse.json(
-            { message: 'Colony deleted successfully' },
-            { status: 200 }
-        );
+        return NextResponse.json({ message: `documents ${status === 'active' ? 'Active' : 'Inactive'}` });
     } catch (error) {
-        console.error('Database query failed (DELETE):', error);
-        return NextResponse.json(
-            { message: 'Failed to delete colony' },
-            { status: 500 }
-        );
-    } finally {
-        if (connection) connection.release();
+        console.error('Status update error:', error);
+        return NextResponse.json({ error: 'Failed to update status' }, { status: 500 });
     }
 }

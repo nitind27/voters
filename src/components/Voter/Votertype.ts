@@ -21,6 +21,7 @@ export interface colonyentrydatatype {
 export interface voterdayatype {
     voter_id   : number;
     colony_entry_id: string;
+    // user_id: string;
     first_name : string;
     middle_name: string;
     last_name: string;
