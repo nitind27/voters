@@ -44,6 +44,37 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
   const [houseSearchTerm, setHouseSearchTerm] = useState("");
   const [houseModalSearchTerm, setHouseModalSearchTerm] = useState("");
 
+  // NEW: transient highlight state for house cards (flash on add/update)
+  const [flashHouses, setFlashHouses] = useState<Set<string>>(new Set());
+  const flashTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+
+  const triggerHouseFlash = (houseNumber: string, duration = 2000) => {
+    if (!houseNumber) return;
+    setFlashHouses(prev => {
+      const next = new Set(prev);
+      next.add(houseNumber);
+      return next;
+    });
+    if (flashTimersRef.current[houseNumber]) {
+      clearTimeout(flashTimersRef.current[houseNumber]);
+    }
+    flashTimersRef.current[houseNumber] = setTimeout(() => {
+      setFlashHouses(prev => {
+        const next = new Set(prev);
+        next.delete(houseNumber);
+        return next;
+      });
+      delete flashTimersRef.current[houseNumber];
+    }, duration);
+  };
+
+  useEffect(() => {
+    return () => {
+      Object.values(flashTimersRef.current).forEach(clearTimeout);
+      flashTimersRef.current = {};
+    };
+  }, []);
+
   // NEW: edit modal state
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editVoter, setEditVoter] = useState<voterdayatype | null>(null);
@@ -235,11 +266,50 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
   };
 
   // NEW: when a voter is updated, reflect in both tables if present
+  // NEW: when a voter is updated, reflect in both tables if present
+  // NEW: when a voter is updated, reflect everywhere and flash the card
   const handleVoterUpdated = (updated: voterdayatype) => {
-    setColonyVoters(prev => prev.map(x => x.voter_id === updated.voter_id ? { ...x, ...updated } : x));
-    setHouseVoters(prev => prev.map(x => x.voter_id === updated.voter_id ? { ...x, ...updated } : x));
-  };
+    // normalize: 'edited' must be string
+    const upd: voterdayatype = {
+      ...(updated),
+      edited: String((updated)?.edited ?? '1'),
+    } as voterdayatype;
 
+    setColonyVoters(prev =>
+      prev.map(x => x.voter_id === upd.voter_id ? { ...x, ...upd } as voterdayatype : x)
+    );
+    setHouseVoters(prev =>
+      prev.map(x => x.voter_id === upd.voter_id ? { ...x, ...upd } as voterdayatype : x)
+    );
+
+    setHouseData(prev => {
+      let changed = false;
+      const next = prev.map(h => {
+        const voters = h.voters.map(v => {
+          if (v.voter_id === upd.voter_id) {
+            changed = true;
+            return { ...v, ...upd } as voterdayatype;
+          }
+          return v;
+        });
+        const hadVoter = h.voters.some(v => v.voter_id === upd.voter_id);
+        const isTargetHouse = h.house_number === upd.house_number;
+        if (hadVoter && !isTargetHouse) {
+          const removed = h.voters.filter(v => v.voter_id !== upd.voter_id);
+          return { ...h, voters: removed, count: removed.length };
+        }
+        if (!hadVoter && isTargetHouse) {
+          const added = [...h.voters, upd] as voterdayatype[];
+          changed = true;
+          return { ...h, voters: added, count: added.length };
+        }
+        return { ...h, voters, count: voters.length };
+      });
+      return changed ? next : prev;
+    });
+
+    triggerHouseFlash(upd.house_number || selectedHouseNumber);
+  };
   // NEW: delete voter via API and update lists
   const handleDelete = async (v: voterdayatype) => {
     if (!v.voter_id) return;
@@ -780,6 +850,7 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
     // If same colony, append to Individual list
     const newCid = colonyEntryToColony.get(String(newVoter.colony_entry_id));
     if (String(newCid || "") === String(selectedColonyId || "")) {
+      newVoter = { ...(newVoter), edited: String((newVoter)?.edited ?? '1') } as voterdayatype;
       setColonyVoters(prev => [...prev, newVoter]);
     }
     // If house modal open for the same house, append there too
@@ -795,7 +866,9 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
       copy[idx] = { ...target, count: target.count + 1, voters: [...target.voters, newVoter] };
       return copy;
     });
-  
+
+    // NEW: flash the house card where the voter was added
+    triggerHouseFlash(newVoter.house_number || selectedHouseNumber);
   };
 
   return (
@@ -1293,7 +1366,7 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
                           return (
                             <div
                               key={house.house_number}
-                              className={`${Number(primaryPerson.edited) === 1 ? 'bg-green-50' : ''} hover:bg-gray-50 border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-pointer relative`}
+                              className={`${flashHouses.has(house.house_number) ? 'bg-yellow-100 ring-2 ring-yellow-300' : (Number(primaryPerson.edited) === 1 ? 'bg-green-50' : '')} hover:bg-gray-50 border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-pointer relative`}
                               onClick={() => openHouseModal(house.house_number, house.voters)}
                             >
 

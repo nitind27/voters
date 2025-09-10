@@ -526,8 +526,8 @@ const VoterAddModal: React.FC<VoterAddModalProps> = ({
                             className="w-full p-2 border rounded border-gray-300"
                         >
                             <option value="">Select</option>
-                            <option value="Male">Male</option>
-                            <option value="Female">Female</option>
+                            <option value="male">Male</option>
+                            <option value="female">Female</option>
                             <option value="Transgender">Transgender</option>
                         </select>
                     </div>
