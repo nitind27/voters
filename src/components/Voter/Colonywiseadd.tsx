@@ -18,7 +18,7 @@ const Colonywiseadd = () => {
             {/* Filter */}
             <button
                 onClick={() => handleOpenAddModal()}
-                className="shrink-0 flex items-center gap-2 px-3 py-3 bg-blue-600 text-white rounded text-xs font-medium hover:bg-blue-700 transition-colors"
+                className="shrink-0 flex items-center gap-1 px-3 py-3 bg-blue-600 text-white rounded text-xs font-bold hover:bg-blue-700 transition-colors"
                 title="Add voter to this house"
             >
                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
