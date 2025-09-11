@@ -60,7 +60,7 @@ const toDateOnly = (val: unknown): string => {
 			const dd = `${d.getDate()}`.padStart(2, '0');
 			return `${y}-${m}-${dd}`;
 		}
-	} catch {}
+	} catch { }
 	return '';
 };
 
@@ -154,6 +154,11 @@ const VoterEditModal: React.FC<VoterEditModalProps> = ({
 		})();
 	}, [isOpen]);
 
+	const ddMmYyyyToIso = (ddmmyyyy: string): string => {
+		const parts = ddmmyyyy.split('-');
+		if (parts.length !== 3) return '';
+		return `${parts[2]}-${parts[1]}-${parts[0]}`;
+	};
 	useEffect(() => {
 		if (mode === 'edit' && voter) {
 			setFormData({
@@ -165,22 +170,24 @@ const VoterEditModal: React.FC<VoterEditModalProps> = ({
 				middle_name: voter.middle_name || '',
 				last_name: voter.last_name || '',
 				first_name_mr: voter.first_name_mr || '',
+
 				middle_name_mr: voter.middle_name_mr || '',
 				last_name_mr: voter.last_name_mr || '',
 				voter_number: voter.voter_number || '',
 				gender: voter.gender || '',
 				relation: voter.relation || '',
 				availability: voter.availability || '',
-				dob: toDateOnly(voter.dob),
+				dob: ddMmYyyyToIso(toDateOnly(voter.dob)),
 				aadhaar_number: voter.aadhaar_number || '',
 				booth_number: voter.booth_number || '',
 				mobile: voter.mobile || '',
 			});
+			// setDob(ddMmYyyyToIso(toDateOnly(voter.dob)));
 			setErrors({});
 		}
 
 
-		
+
 	}, [voter, mode]);
 
 	// After colonies load, backfill colony_id if missing by matching colony_name
@@ -197,8 +204,8 @@ const VoterEditModal: React.FC<VoterEditModalProps> = ({
 	const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
 		const { name, value } = e.target;
 		setFormData((prev) => ({ ...prev, [name]: value }));
-		console.log("formData",name)
-		console.log("value",e)
+		console.log("formData", name)
+		console.log("value", e)
 		if (name === 'first_name' || name === 'middle_name' || name === 'last_name') {
 			setActiveField(name);
 			setSelectedFromSuggestion((prev) => ({ ...prev, [name]: false }));
@@ -228,83 +235,87 @@ const VoterEditModal: React.FC<VoterEditModalProps> = ({
 
 
 
-// Suggestion fetching
-const triggerSuggestions = async (field: 'first_name' | 'middle_name' | 'last_name', value: string) => {
-	if (debounceRef) clearTimeout(debounceRef);
-	debounceRef = setTimeout(async () => {
-		try {
-			if (!value?.trim()) {
+	// Suggestion fetching
+	const triggerSuggestions = async (field: 'first_name' | 'middle_name' | 'last_name', value: string) => {
+		if (debounceRef) clearTimeout(debounceRef);
+		debounceRef = setTimeout(async () => {
+			try {
+				if (!value?.trim()) {
+					setNameSuggestions((prev) => ({ ...prev, [field]: [] }));
+					return;
+				}
+				const res = await fetch(`/api/voter-suggestions?field=${field}&query=${encodeURIComponent(value)}`);
+				const json = await res.json();
+				const list = Array.isArray(json?.suggestions) ? json.suggestions : [];
+				setNameSuggestions((prev) => ({ ...prev, [field]: list }));
+			} catch {
 				setNameSuggestions((prev) => ({ ...prev, [field]: [] }));
-				return;
 			}
-			const res = await fetch(`/api/voter-suggestions?field=${field}&query=${encodeURIComponent(value)}`);
-			const json = await res.json();
-			const list = Array.isArray(json?.suggestions) ? json.suggestions : [];
-			setNameSuggestions((prev) => ({ ...prev, [field]: list }));
-		} catch {
-			setNameSuggestions((prev) => ({ ...prev, [field]: [] }));
+		}, 200);
+	};
+
+	// Auto-fill Marathi on blur when no suggestion used or no matching suggestion
+	const autoFillMarathiFromEnglish = async (field: 'first_name' | 'middle_name' | 'last_name') => {
+		const mrField =
+			field === 'first_name' ? 'first_name_mr' :
+				field === 'middle_name' ? 'middle_name_mr' :
+					'last_name_mr';
+
+		if (mrEdited[mrField]) return; // respect manual edits
+
+		const en = (formData)[field] as string;
+		if (!en?.trim()) return;
+
+		// try suggestion match first
+		const list = (nameSuggestions)[field] as { en: string; mr: string }[];
+		const match = list?.find(x => x.en?.toLowerCase() === en.toLowerCase());
+		if (match && match.mr) {
+			setFormData((prev) => ({ ...prev, [mrField]: match.mr }));
+			return;
 		}
-	}, 200);
-};
+		if (selectedFromSuggestion[field]) return;
 
-// Auto-fill Marathi on blur when no suggestion used or no matching suggestion
-const autoFillMarathiFromEnglish = async (field: 'first_name' | 'middle_name' | 'last_name') => {
-	const mrField =
-		field === 'first_name' ? 'first_name_mr' :
-		field === 'middle_name' ? 'middle_name_mr' :
-		'last_name_mr';
-
-	if (mrEdited[mrField]) return; // respect manual edits
-
-	const en = (formData)[field] as string;
-	if (!en?.trim()) return;
-
-	// try suggestion match first
-	const list = (nameSuggestions)[field] as { en: string; mr: string }[];
-	const match = list?.find(x => x.en?.toLowerCase() === en.toLowerCase());
-	if (match && match.mr) {
-		setFormData((prev) => ({ ...prev, [mrField]: match.mr }));
-		return;
-	}
-	if (selectedFromSuggestion[field]) return;
-
-	// fallback translate
-	const translated = await translateText(en);
-	if (translated) {
-		setFormData((prev) => ({ ...prev, [mrField]: translated }));
-	}
-};
+		// fallback translate
+		const translated = await translateText(en);
+		if (translated) {
+			setFormData((prev) => ({ ...prev, [mrField]: translated }));
+		}
+	};
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
 		if (!validate()) return;
-			console.log("checkdata",e)
+	  
 		setSaving(true);
 		try {
-			const method = mode === 'edit' ? 'PUT' : 'POST';
-			const res = await fetch('/api/voterdetails', {
-				method,
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					...formData,
-					voter_id: voter?.voter_id,
-				}),
-			});
-			const json = await res.json();
-			if (!res.ok) throw new Error(json?.error || 'Request failed');
-
-			const updated: voterdayatype | null = json?.data || null;
-			if (updated) onUpdate(updated);
-
-			toast.success(mode === 'edit' ? 'Voter updated' : 'Voter created');
-			onClose();
+		  const method = mode === "edit" ? "PUT" : "POST";
+		  const dobIso = ddMmYyyyToIso(formData.dob);
+	  
+		  const res = await fetch("/api/voterdetails", {
+			method,
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+			  ...formData,
+			  dob: dobIso,
+			  voter_id: voter?.voter_id,
+			}),
+		  });
+	  
+		  const json = await res.json();
+		  if (!res.ok) throw new Error(json?.error || "Request failed");
+	  
+		  const updated: voterdayatype | null = json?.data || null;
+		  if (updated) onUpdate(updated);
+	  
+		  toast.success(mode === "edit" ? "Voter updated" : "Voter created");
+		  onClose();
 		} catch (err) {
-			console.error(err);
-			toast.error(err instanceof Error ? err.message : 'Operation failed');
+		  console.error(err);
+		  toast.error(err instanceof Error ? err.message : "Operation failed");
 		} finally {
-			setSaving(false);
+		  setSaving(false);
 		}
-	};
-
+	  };
+	  
 	if (!isOpen) return null;
 
 	return (
@@ -320,7 +331,7 @@ const autoFillMarathiFromEnglish = async (field: 'first_name' | 'middle_name' | 
 						<div>
 							<label className="block text-sm font-medium mb-1">Colony</label>
 							<select
-								disabled={loadingColonies}
+								disabled
 								value={formData.colony_id}
 								name="colony_id"
 								onChange={handleChange}
@@ -337,7 +348,7 @@ const autoFillMarathiFromEnglish = async (field: 'first_name' | 'middle_name' | 
 
 						<div>
 							<label className="block text-sm font-medium mb-1">House No</label>
-							<input name="house_number" value={formData.house_number} onChange={handleChange} className="w-full p-2 border rounded border-gray-300" />
+							<input name="house_number" disabled value={formData.house_number} onChange={handleChange} className="w-full p-2 border rounded border-gray-300" />
 						</div>
 						{/* Booth */}
 						<div>
@@ -536,7 +547,30 @@ const autoFillMarathiFromEnglish = async (field: 'first_name' | 'middle_name' | 
 						{/* DOB */}
 						<div>
 							<label className="block text-sm font-medium mb-1">जन्मतारीख (DOB)</label>
-							<input type="date" name="dob" value={formData.dob} onChange={handleChange} className={`w-full p-2 border rounded ${errors.dob ? 'border-red-500' : 'border-gray-300'}`} />
+							<input
+								type="text"
+								name="dob"
+								value={formData.dob}
+								placeholder="dd-mm-yyyy"
+								onChange={(e) => {
+									let val = e.target.value;
+
+									// Allow only digits and dashes, max length 10
+									if (/^[0-9-]{0,10}$/.test(val)) {
+										// Automatically insert dashes at positions 2 and 5
+										if (val.length === 2 && formData.dob.length < val.length) val += '-';
+										if (val.length === 5 && formData.dob.length < val.length) val += '-';
+
+										setFormData(prev => ({ ...prev, dob: val }));
+										// Optional: validate date format and set errors if needed
+										if (!/^\d{2}-\d{2}-\d{4}$/.test(val)) {
+											setErrors(prev => ({ ...prev, dob: 'Invalid date format' }));
+										
+										}
+									}
+								}}
+								className={`w-full p-2 border rounded ${errors.dob ? 'border-red-500' : 'border-gray-300'}`}
+							/>
 							{errors.dob && <span className="text-xs text-red-500">{errors.dob}</span>}
 						</div>
 
