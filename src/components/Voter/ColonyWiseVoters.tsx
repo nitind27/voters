@@ -825,13 +825,6 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
     }
   }, [isHouseModalOpen]);
 
-  // put near other hooks in ColonyWiseVoters.tsx
-  const getVoterPhotoUrl = (p?: string) => {
-    if (!p) return '/images/user/npimg.jpg';
-    // If it's already an absolute URL, use it; else serve from local API
-    if (p.startsWith('http://') || p.startsWith('https://')) return p;
-    return `/api/voterphotos/${encodeURIComponent(p)}`;
-  };
 
   // Add modal state
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -1258,12 +1251,12 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
                             <td className="px-3 py-2 border align-top">{v.booth_number}</td>
                             <td className="px-3 py-2 border align-top">
                               <img
-                                src={getVoterPhotoUrl(v.photo)}
+                                src={`https://vishalnawle.in/vishalnavle/flutter_api_voters/voter_photos/${v.photo}`}
                                 alt="Voter Photo"
                                 className="w-10 h-10 rounded-full object-cover border-2 border-gray-200 cursor-pointer"
                                 title="Click to preview"
                                 onClick={() =>
-                                  setPreviewImg(getVoterPhotoUrl(v.photo))
+                                  setPreviewImg(`https://vishalnawle.in/vishalnavle/flutter_api_voters/voter_photos/${v.photo}`)
                                 }
                                 onError={(e) => {
                                   e.currentTarget.src = '/images/user/npimg.jpg';
@@ -1383,8 +1376,10 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
                                 <div className="space-y-2">
                                   <div className="flex items-center gap-2">
                                     <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+
                                       <img
-                                        src={getVoterPhotoUrl(primaryPerson.photo)}
+                                        src={`https://vishalnawle.in/vishalnavle/flutter_api_voters/voter_photos/${primaryPerson.photo}`}
+                                        // src={getVoterPhotoUrl(primaryPerson.photo)}
                                         alt="Voter Photo"
                                         className="w-8 h-8 rounded-full object-cover border-2 border-gray-200"
                                         onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/images/user/npimg.jpg'; }}
@@ -1598,12 +1593,13 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
                       <td className="px-3 py-2 border align-top">
 
                         <img
-                          src={getVoterPhotoUrl(voter.photo)}
+                          src={`https://vishalnawle.in/vishalnavle/flutter_api_voters/voter_photos/${voter.photo}`}
+                          // src={getVoterPhotoUrl(voter.photo)}
                           alt="Voter Photo"
                           className="w-10 h-10 rounded-full object-cover border-2 border-gray-200 cursor-pointer"
                           title="Click to preview"
                           onClick={() =>
-                            setPreviewImg(getVoterPhotoUrl(voter.photo))
+                            setPreviewImg(`https://vishalnawle.in/vishalnavle/flutter_api_voters/voter_photos/${voter.photo}`)
                           }
                           onError={(e) => {
                             e.currentTarget.src = '/images/user/npimg.jpg';

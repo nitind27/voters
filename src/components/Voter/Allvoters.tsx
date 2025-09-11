@@ -12,6 +12,7 @@ import { Column } from "../tables/tabletype";
 import { colonyentrydatatype, Voterdatatye, voterdayatype } from './Votertype';
 import { Withoutbtn } from '../tables/Withoutbtn';
 import { formatDate } from '@/lib/utils';
+import Colonywiseadd from './Colonywiseadd';
 
 // Colony type for API response
 interface ColonyData {
@@ -165,7 +166,7 @@ const Allvoters: React.FC<Props> = ({ voterentry, colonyentry }: Props) => {
         </div>
       ),
     },
-   
+
 
     {
       key: 'mobile',
@@ -202,18 +203,18 @@ const Allvoters: React.FC<Props> = ({ voterentry, colonyentry }: Props) => {
 
             : (
               <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
-               <img
-              src={`/images/user/npimg.jpg`}
-              alt="Voter Photo"
-              className="w-10 h-10 rounded-full object-cover border-2 border-gray-200 cursor-pointer"
-              title="Click to preview"
-              onClick={() =>
-                setPreviewImg(`/images/user/npimg.jpg`)
-              }
-              onError={(e) => {
-                e.currentTarget.src = '/images/user/npimg.jpg';
-              }}
-            />
+                <img
+                  src={`/images/user/npimg.jpg`}
+                  alt="Voter Photo"
+                  className="w-10 h-10 rounded-full object-cover border-2 border-gray-200 cursor-pointer"
+                  title="Click to preview"
+                  onClick={() =>
+                    setPreviewImg(`/images/user/npimg.jpg`)
+                  }
+                  onError={(e) => {
+                    e.currentTarget.src = '/images/user/npimg.jpg';
+                  }}
+                />
               </div>
             )}
         </div>
@@ -309,19 +310,19 @@ const Allvoters: React.FC<Props> = ({ voterentry, colonyentry }: Props) => {
 
                           : (
                             <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
-                            <img
-                           src={`/images/user/npimg.jpg`}
-                           alt="Voter Photo"
-                           className="w-10 h-10 rounded-full object-cover border-2 border-gray-200 cursor-pointer"
-                           title="Click to preview"
-                           onClick={() =>
-                             setPreviewImg(`/images/user/npimg.jpg`)
-                           }
-                           onError={(e) => {
-                             e.currentTarget.src = '/images/user/npimg.jpg';
-                           }}
-                         />
-                           </div>
+                              <img
+                                src={`/images/user/npimg.jpg`}
+                                alt="Voter Photo"
+                                className="w-10 h-10 rounded-full object-cover border-2 border-gray-200 cursor-pointer"
+                                title="Click to preview"
+                                onClick={() =>
+                                  setPreviewImg(`/images/user/npimg.jpg`)
+                                }
+                                onError={(e) => {
+                                  e.currentTarget.src = '/images/user/npimg.jpg';
+                                }}
+                              />
+                            </div>
                           )}</td>
                         <td className="p-2 border">{m.relation}</td>
                         <td className="p-2 border">{m.mobile || 'N/A'}</td>
@@ -369,6 +370,9 @@ const Allvoters: React.FC<Props> = ({ voterentry, colonyentry }: Props) => {
                   Clear Filter
                 </button>
 
+              </div>
+              <div>
+                <Colonywiseadd />
               </div>
             </div>
           </div>

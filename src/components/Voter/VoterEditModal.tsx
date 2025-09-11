@@ -197,6 +197,8 @@ const VoterEditModal: React.FC<VoterEditModalProps> = ({
 	const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
 		const { name, value } = e.target;
 		setFormData((prev) => ({ ...prev, [name]: value }));
+		console.log("formData",name)
+		console.log("value",e)
 		if (name === 'first_name' || name === 'middle_name' || name === 'last_name') {
 			setActiveField(name);
 			setSelectedFromSuggestion((prev) => ({ ...prev, [name]: false }));
