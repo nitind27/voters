@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { toast } from 'react-toastify';
 
-import { useRouter } from 'next/navigation';
+
 // Simple client-side translator using Google Translate public endpoint
 const translateText = async (text: string): Promise<string> => {
     if (!text?.trim()) return '';
@@ -23,13 +23,14 @@ const translateText = async (text: string): Promise<string> => {
 interface VoterAddModalProps {
     isOpen: boolean;
     onClose: () => void;
-
+    onSuccess?: () => void | Promise<void>; // ADD
 }
 // type ColonyOption = { colony_id: number; colony_name: string };
 
 const Voteradddashboard: React.FC<VoterAddModalProps> = ({
     isOpen,
     onClose,
+    onSuccess, // ADD
    
 
 }) => {
@@ -63,7 +64,7 @@ const Voteradddashboard: React.FC<VoterAddModalProps> = ({
     const [colonies, setColonies] = useState<ColonyOption[]>([]);
     const [photoPreview, setPhotoPreview] = useState<string | null>(null);
     const username = sessionStorage.getItem('userid');
-    const router = useRouter();
+    // const router = useRouter();
     const [nameSuggestions, setNameSuggestions] = useState<{
         first_name: { en: string; mr: string }[];
         middle_name: { en: string; mr: string }[];
@@ -88,6 +89,7 @@ const Voteradddashboard: React.FC<VoterAddModalProps> = ({
         last_name_mr: false,
     });
 
+  
 
     useEffect(() => {
         if (!isOpen) return;
@@ -220,7 +222,9 @@ const Voteradddashboard: React.FC<VoterAddModalProps> = ({
        
             toast.success('Voter added successfully');
             onClose();
-            router.refresh();
+            await onSuccess?.(); // TRIGGER PARENT REFRESH
+            // router.refresh(); // REMOVE this line (no page reload)
+            
             // Reset form
             setFormData({
                 colony_id: formData.colony_id || '',

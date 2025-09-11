@@ -28,17 +28,17 @@ type Props = {
 };
 
 const Allvoters: React.FC<Props> = ({ voterentry, colonyentry }: Props) => {
-  // Filter to show only primary persons in the main table
+  const [voters, setVoters] = useState<voterdayatype[]>(voterentry || []);
   const primaryPersonsData = useMemo(() => {
-    return (voterentry || []).filter(v =>
-      (v.relation || '').toLowerCase() === 'primary person'
+    return (voters || []).filter(
+      (v) => (v.relation || "").toLowerCase() === "primary person"
     );
-  }, [voterentry]);
+  }, [voters]);
 
-  const [data] = useState<voterdayatype[]>(primaryPersonsData);
-  const [filteredData, setFilteredData] = useState<voterdayatype[]>(primaryPersonsData);
-  // const [inputValue, setInputValue] = useState('');
-  const [colonyFilter, setColonyFilter] = useState('');
+  const [filteredData, setFilteredData] = useState<voterdayatype[]>(
+    primaryPersonsData
+  );
+  const [colonyFilter, setColonyFilter] = useState("");
   const [colonyList, setColonyList] = useState<ColonyData[]>([]);
   const [loadingColonies, setLoadingColonies] = useState(false);
   const [memberModalOpen, setMemberModalOpen] = useState(false);
@@ -50,15 +50,38 @@ const Allvoters: React.FC<Props> = ({ voterentry, colonyentry }: Props) => {
 
   const [previewImg, setPreviewImg] = useState<string | null>(null);
 
-  // const colonyCounts = useMemo(() => {
-  //   const map: Record<string, number> = {};
-  //   (data || []).forEach(v => {
-  //     const name = (v.colony_name || '').trim();
-  //     if (!name) return;
-  //     map[name] = (map[name] || 0) + 1;
-  //   });
-  //   return map;
-  // }, [data]);
+  const fetchVoters = async () => {
+    try {
+      const res = await fetch("/api/voterdetails", { cache: "no-store" });
+      if (!res.ok) throw new Error("Failed to fetch voters");
+      const list: voterdayatype[] = await res.json();
+      setVoters(list);
+      // Re-apply current filter on latest list
+      if (colonyFilter) {
+        const filtered = list
+          .filter((v) => (v.relation || "").toLowerCase() === "primary person")
+          .filter(
+            (item) =>
+              item.colony_name &&
+              item.colony_name
+                .toLowerCase()
+                .includes(colonyFilter.toLowerCase())
+          );
+        setFilteredData(filtered);
+      } else {
+        setFilteredData(
+          list.filter(
+            (v) => (v.relation || "").toLowerCase() === "primary person"
+          )
+        );
+      }
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to load voters");
+    }
+  };
+
+  
   const colonyEntryToColony = useMemo(() => {
     const m = new Map<string, string>();
     colonyentry.forEach((ce) => {
@@ -69,12 +92,12 @@ const Allvoters: React.FC<Props> = ({ voterentry, colonyentry }: Props) => {
 
   const colonyMemberCounts = useMemo(() => {
     const counts: Record<string, number> = {};
-    voterentry.forEach((v) => {
+    (voters || []).forEach((v) => {
       const cid = colonyEntryToColony.get(String(v.colony_entry_id));
       if (cid) counts[cid] = (counts[cid] || 0) + 1;
     });
     return counts;
-  }, [voterentry, colonyEntryToColony]);
+  }, [voters, colonyEntryToColony]);
 
   // Fetch colony data from API
   const fetchColonies = async () => {
@@ -97,14 +120,18 @@ const Allvoters: React.FC<Props> = ({ voterentry, colonyentry }: Props) => {
   // Filter data based on colony name
   useEffect(() => {
     if (colonyFilter) {
-      const filtered = data.filter(item =>
-        item.colony_name && item.colony_name.toLowerCase().includes(colonyFilter.toLowerCase())
+      const filtered = primaryPersonsData.filter(
+        (item) =>
+          item.colony_name &&
+          item.colony_name
+            .toLowerCase()
+            .includes(colonyFilter.toLowerCase())
       );
       setFilteredData(filtered);
     } else {
-      setFilteredData(data);
+      setFilteredData(primaryPersonsData);
     }
-  }, [colonyFilter, data]);
+  }, [colonyFilter, primaryPersonsData]);
 
   // Load colonies on component mount
   useEffect(() => {
@@ -114,13 +141,13 @@ const Allvoters: React.FC<Props> = ({ voterentry, colonyentry }: Props) => {
   // Group ALL family members (including primary person) by colony_entry_id
   const allMembersByColonyEntryId = useMemo(() => {
     const map = new Map<string, voterdayatype[]>();
-    (voterentry || []).forEach(v => {
+    (voters || []).forEach((v) => {
       const key = String(v.colony_entry_id);
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(v);
     });
     return map;
-  }, [voterentry]);
+  }, [voters]);
 
   const openMembersModal = (row: voterdayatype) => {
     const key = String(row.colony_entry_id);
@@ -372,7 +399,8 @@ const Allvoters: React.FC<Props> = ({ voterentry, colonyentry }: Props) => {
 
               </div>
               <div>
-                <Colonywiseadd />
+           
+                <Colonywiseadd onAdded={fetchVoters} />
               </div>
             </div>
           </div>
