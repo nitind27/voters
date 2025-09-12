@@ -49,7 +49,7 @@ const Voterdata = ({ colony, colonyentry, voterentry }: Props) => {
   const [editMemberId, setEditMemberId] = useState<number | null>(null);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [rowToDelete, setRowToDelete] = useState<VoterRow | null>(null);
-
+  const [activeTab, setActiveTab] = useState<'data' | 'colony'>('data'); // NEW
   // Members filtering and checkbox state
   type MemberChecks = { c1: boolean; c2: boolean; c3: boolean; c4: boolean };
 
@@ -88,7 +88,18 @@ const Voterdata = ({ colony, colonyentry, voterentry }: Props) => {
     return counts;
   }, [voterentry, colonyEntryToColony]);
 
-  
+  const sortedColoniesByMembers = useMemo(() => {
+	const arr = [...colony];
+	arr.sort((a, b) => {
+		const mb = colonyMemberCounts[String(b.colony_id)] || 0;
+		const ma = colonyMemberCounts[String(a.colony_id)] || 0;
+		if (mb !== ma) return mb - ma; // desc
+		return String(a.colony_name || '').localeCompare(String(b.colony_name || ''));
+	});
+	return arr;
+}, [colony, colonyMemberCounts]);
+
+  // Rows for tab 1 (existing - parsed)
   const tableRows = useMemo(() => {
     const toBool = (v: string) => v === 'true' || v === '1';
     return voterCheckboxData.map((r, idx) => {
@@ -113,6 +124,51 @@ const Voterdata = ({ colony, colonyentry, voterentry }: Props) => {
       };
     });
   }, [voterCheckboxData, voterentry]);
+
+  // Rows for tab 2 (colony-wise aggregation) - NEW
+  const colonyWiseRows = useMemo(() => {
+	// aggregate checkbox counts per colony_id from saved data
+	const agg: Record<string, { c1: number; c2: number; c3: number; c4: number; total: number }> = {};
+	voterCheckboxData.forEach((r) => {
+		const arr = String(r.checkbox_data || '').split('|');
+		const flags = {
+			c1: arr[0] === 'true' || arr[0] === '1',
+			c2: arr[1] === 'true' || arr[1] === '1',
+			c3: arr[2] === 'true' || arr[2] === '1',
+			c4: arr[3] === 'true' || arr[3] === '1',
+		};
+		const key = String(r.colony_id);
+		if (!agg[key]) agg[key] = { c1: 0, c2: 0, c3: 0, c4: 0, total: 0 };
+		if (flags.c1) agg[key].c1 += 1;
+		if (flags.c2) agg[key].c2 += 1;
+		if (flags.c3) agg[key].c3 += 1;
+		if (flags.c4) agg[key].c4 += 1;
+		if (flags.c1 || flags.c2 || flags.c3 || flags.c4) agg[key].total += 1;
+	});
+
+	// build rows for ALL colonies from API (even if no data -> zeros)
+	const rows = colony.map((c, idx) => {
+		const cid = String(c.colony_id);
+		const counts = agg[cid] || { c1: 0, c2: 0, c3: 0, c4: 0, total: 0 };
+		const members = colonyMemberCounts[cid] || 0;
+		return {
+			sr_no: idx + 1,
+			colony_id: cid,
+			colony_name: c.colony_name,
+			members,
+			...counts,
+		};
+	});
+
+	// sort by members desc, then by colony name
+	rows.sort((a, b) => {
+		if (b.members !== a.members) return b.members - a.members;
+		return String(a.colony_name || '').localeCompare(String(b.colony_name || ''));
+	});
+
+	return rows.map((r, i) => ({ ...r, sr_no: i + 1 }));
+}, [voterCheckboxData, colony, colonyMemberCounts]);
+
   // Fetch existing checkbox data when colony changes
   const fetchCheckboxData = async (colonyId?: string) => {
     try {
@@ -435,136 +491,206 @@ const Voterdata = ({ colony, colonyentry, voterentry }: Props) => {
           </div>
         </div>
       )}
-      <ReusableTable
-        data={tableRows}
-        classname={"h-auto overflow-y-auto scrollbar-hide"}
-        inputfiled={
-          <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-1">
-            <div>
-              <Label>Colony</Label>
-              <select
-                className={`w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent 
-                  ${error.colony ? 'border-red-500' : 'border-gray-300'} bg-white text-gray-800`}
-                value={selectedColonyId}
-                onChange={(e) => setSelectedColonyId(e.target.value)}
-              >
-                <option value="">Select Colony</option>
-                {colony.map((category, i) => (
-                  <option key={category.colony_id} value={category.colony_id}>
-                    {i + 1}) {category.colony_name} ({colonyMemberCounts[String(category.colony_id)] || 0})
-                  </option>
-                ))}
-              </select>
-              {error.colony && <span className="text-red-500 text-xs">{error.colony}</span>}
-            </div>
 
-            {selectedColonyId && (
+      {/* Tabs */}
+      <div className="mb-5">
+	<div className="grid grid-cols-12 gap-3">
+		<button
+			type="button"
+			aria-selected={activeTab === 'data'}
+			className={`col-span-12 sm:col-span-6 w-full px-4 py-2 text-sm font-medium rounded-md transition
+				${activeTab === 'data'
+					? 'bg-blue-600 text-white shadow'
+					: 'bg-white text-blue-600 border border-blue-600 hover:bg-blue-50'}`}
+			onClick={() => setActiveTab('data')}
+		>
+			Data sorting
+		</button>
+
+		<button
+			type="button"
+			aria-selected={activeTab === 'colony'}
+			className={`col-span-12 sm:col-span-6 w-full px-4 py-2 text-sm font-medium rounded-md transition
+				${activeTab === 'colony'
+					? 'bg-blue-600 text-white shadow'
+					: 'bg-white text-blue-600 border border-blue-600 hover:bg-blue-50'}`}
+			onClick={() => setActiveTab('colony')}
+		>
+			Colony wise
+		</button>
+	</div>
+</div>
+
+      {activeTab === 'data' ? (
+        <ReusableTable
+          data={tableRows}
+          classname={"h-[550px] overflow-y-auto "}
+          inputfiled={
+            <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-1">
               <div>
-                <Label>Members ({membersToRender.length})</Label>
-                {membersToRender.length === 0 ? (
-                  <div className="text-sm text-gray-500">No members found for this colony.</div>
-                ) : (
-                  <div className="border rounded-md overflow-x-auto">
-                    <table className="min-w-full border border-gray-300 ">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border border-gray-300">
-                            Sr. No.
-                          </th>
-                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border border-gray-300">
-                            Colony
-                          </th>
-                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border border-gray-300">
-                            Member Name
-                          </th>
-                          <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border border-gray-300">
-                            Match with corporation List
-                          </th>
-                          <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border border-gray-300">
-                            Name in corporation list but not found in physical data
-                          </th>
-                          <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border border-gray-300">
-                            Name in physical but not in corporation list
-                          </th>
-                          <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border border-gray-300">
-                            Address Mismatch
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white">
-                        {membersToRender.map((m, index) => (
-                          <tr key={m.voter_id} className="hover:bg-gray-50">
-                            <td className="px-3 py-2 text-sm font-medium text-gray-900 border border-gray-300">
-                              {index + 1}
-                            </td>
-                            <td className="px-3 py-2 text-sm text-gray-900 border border-gray-300">
-                              {(() => {
-                                const ce = colonyentry.find(ce => String(ce.colony_entry_id) === String(m.colony_entry_id));
-                                const name = colony.find(c => String(c.colony_id) === String(ce?.colony_id))?.colony_name;
-                                return name || String(ce?.colony_id || '');
-                              })()}
-                            </td>
-                            <td className="px-3 py-2 text-sm text-gray-900 border border-gray-300">
-                              {m.full_name || [m.first_name, m.middle_name, m.last_name].filter(Boolean).join(' ')}
-                            </td>
-                            <td className="px-3 py-2 text-center border border-gray-300">
-                              <input
-                                type="checkbox"
-                                className="accent-blue-600 w-4 h-4"
-                                checked={Boolean(checks[m.voter_id]?.c1)}
-                                onChange={() => setChecks(prev => { const prevRow = prev[m.voter_id] || { c1: false, c2: false, c3: false, c4: false }; return { ...prev, [m.voter_id]: { ...prevRow, c1: !prevRow.c1 } }; })}
-                              />
-                            </td>
-                            <td className="px-3 py-2 text-center border border-gray-300">
-                              <input
-                                type="checkbox"
-                                className="accent-blue-600 w-4 h-4"
-                                checked={Boolean(checks[m.voter_id]?.c2)}
-                                onChange={() => setChecks(prev => { const prevRow = prev[m.voter_id] || { c1: false, c2: false, c3: false, c4: false }; return { ...prev, [m.voter_id]: { ...prevRow, c2: !prevRow.c2 } }; })}
-                              />
-                            </td>
-                            <td className="px-3 py-2 text-center border border-gray-300">
-                              <input
-                                type="checkbox"
-                                className="accent-blue-600 w-4 h-4"
-                                checked={Boolean(checks[m.voter_id]?.c3)}
-                                onChange={() => setChecks(prev => { const prevRow = prev[m.voter_id] || { c1: false, c2: false, c3: false, c4: false }; return { ...prev, [m.voter_id]: { ...prevRow, c3: !prevRow.c3 } }; })}
-                              />
-                            </td>
-                            <td className="px-3 py-2 text-center border border-gray-300">
-                              <input
-                                type="checkbox"
-                                className="accent-blue-600 w-4 h-4"
-                                checked={Boolean(checks[m.voter_id]?.c4)}
-                                onChange={() => setChecks(prev => { const prevRow = prev[m.voter_id] || { c1: false, c2: false, c3: false, c4: false }; return { ...prev, [m.voter_id]: { ...prevRow, c4: !prevRow.c4 } }; })}
-                              />
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-
-                )}
+                <Label>Colony</Label>
+                <select
+                  className={`w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent 
+                  ${error.colony ? 'border-red-500' : 'border-gray-300'} bg-white text-gray-800`}
+                  value={selectedColonyId}
+                  onChange={(e) => setSelectedColonyId(e.target.value)}
+                >
+                  <option value="">Select Colony</option>
+                  {sortedColoniesByMembers.map((category, i) => (
+                    <option key={category.colony_id} value={category.colony_id}>
+                      {i + 1}) {category.colony_name} ({colonyMemberCounts[String(category.colony_id)] || 0})
+                    </option>
+                  ))}
+                </select>
+                {error.colony && <span className="text-red-500 text-xs">{error.colony}</span>}
               </div>
-            )}
+
+              {selectedColonyId && (
+                <div>
+                  <Label>Members ({membersToRender.length})</Label>
+                  {membersToRender.length === 0 ? (
+                    <div className="text-sm text-gray-500">No members found for this colony.</div>
+                  ) : (
+                    <div className="border rounded-md overflow-x-auto ">
+                      <table className="min-w-full border border-gray-300 ">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border border-gray-300">
+                              Sr. No.
+                            </th>
+                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border border-gray-300">
+                              Colony
+                            </th>
+                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border border-gray-300">
+                              Member Name
+                            </th>
+                            <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border border-gray-300">
+                              Match with corporation List
+                            </th>
+                            <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border border-gray-300">
+                              Name in corporation list but not found in physical data
+                            </th>
+                            <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border border-gray-300">
+                              Name in physical but not in corporation list
+                            </th>
+                            <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border border-gray-300">
+                              Address Mismatch
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white">
+                          {membersToRender.map((m, index) => (
+                            <tr key={m.voter_id} className="hover:bg-gray-50">
+                              <td className="px-3 py-2 text-sm font-medium text-gray-900 border border-gray-300">
+                                {index + 1}
+                              </td>
+                              <td className="px-3 py-2 text-sm text-gray-900 border border-gray-300">
+                                {(() => {
+                                  const ce = colonyentry.find(ce => String(ce.colony_entry_id) === String(m.colony_entry_id));
+                                  const name = colony.find(c => String(c.colony_id) === String(ce?.colony_id))?.colony_name;
+                                  return name || String(ce?.colony_id || '');
+                                })()}
+                              </td>
+                              <td className="px-3 py-2 text-sm text-gray-900 border border-gray-300">
+                                {m.full_name || [m.first_name, m.middle_name, m.last_name].filter(Boolean).join(' ')}
+                              </td>
+                              <td className="px-3 py-2 text-center border border-gray-300">
+                                <input
+                                  type="checkbox"
+                                  className="accent-blue-600 w-4 h-4"
+                                  checked={Boolean(checks[m.voter_id]?.c1)}
+                                  onChange={() => setChecks(prev => { const prevRow = prev[m.voter_id] || { c1: false, c2: false, c3: false, c4: false }; return { ...prev, [m.voter_id]: { ...prevRow, c1: !prevRow.c1 } }; })}
+                                />
+                              </td>
+                              <td className="px-3 py-2 text-center border border-gray-300">
+                                <input
+                                  type="checkbox"
+                                  className="accent-blue-600 w-4 h-4"
+                                  checked={Boolean(checks[m.voter_id]?.c2)}
+                                  onChange={() => setChecks(prev => { const prevRow = prev[m.voter_id] || { c1: false, c2: false, c3: false, c4: false }; return { ...prev, [m.voter_id]: { ...prevRow, c2: !prevRow.c2 } }; })}
+                                />
+                              </td>
+                              <td className="px-3 py-2 text-center border border-gray-300">
+                                <input
+                                  type="checkbox"
+                                  className="accent-blue-600 w-4 h-4"
+                                  checked={Boolean(checks[m.voter_id]?.c3)}
+                                  onChange={() => setChecks(prev => { const prevRow = prev[m.voter_id] || { c1: false, c2: false, c3: false, c4: false }; return { ...prev, [m.voter_id]: { ...prevRow, c3: !prevRow.c3 } }; })}
+                                />
+                              </td>
+                              <td className="px-3 py-2 text-center border border-gray-300">
+                                <input
+                                  type="checkbox"
+                                  className="accent-blue-600 w-4 h-4"
+                                  checked={Boolean(checks[m.voter_id]?.c4)}
+                                  onChange={() => setChecks(prev => { const prevRow = prev[m.voter_id] || { c1: false, c2: false, c3: false, c4: false }; return { ...prev, [m.voter_id]: { ...prevRow, c4: !prevRow.c4 } }; })}
+                                />
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                  )}
+                </div>
+              )}
+            </div>
+          }
+          columns={columns}
+          title="Voter Data Management"
+          filterOptions={[]}
+          submitbutton={
+            <button
+              type='button'
+              onClick={handleSave}
+              className='bg-blue-700 text-white py-2 px-4 rounded hover:bg-blue-800 transition-colors'
+              disabled={loading || (!selectedColonyId && !editMemberId)}
+            >
+              {loading ? 'Saving...' : (editMemberId ? 'Update Record' : 'Save Changes')}
+            </button>
+          }
+          searchKey="full_name"
+        />
+      ) : (
+        <div className="space-y-4">
+          
+          <div className="border rounded-md overflow-x-auto">
+            <table className="min-w-full border border-gray-300">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border border-gray-300">Sr. No.</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border border-gray-300">Colony</th>
+                  <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider border border-gray-300">Members</th>
+                  <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider border border-gray-300">Match with corporation List</th>
+                  <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider border border-gray-300">Name in corporation list but not found in physical data</th>
+                  <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider border border-gray-300">Name in physical but not in corporation list</th>
+                  <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider border border-gray-300">Address Mismatch</th>
+                  <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider border border-gray-300">Total Checked</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white">
+                {colonyWiseRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="px-3 py-6 text-center text-sm text-gray-500">No data available.</td>
+                  </tr>
+                ) : colonyWiseRows.map((r) => (
+                  <tr key={r.colony_id} className="hover:bg-gray-50">
+                    <td className="px-3 py-2 text-sm font-medium text-gray-900 border border-gray-300">{r.sr_no}</td>
+                    <td className="px-3 py-2 text-sm text-gray-900 border border-gray-300">{r.colony_name}</td>
+                    <td className="px-3 py-2 text-sm text-right text-gray-900 border border-gray-300">{r.members}</td>
+                    <td className="px-3 py-2 text-sm text-right text-gray-900 border border-gray-300">{r.c1}</td>
+                    <td className="px-3 py-2 text-sm text-right text-gray-900 border border-gray-300">{r.c2}</td>
+                    <td className="px-3 py-2 text-sm text-right text-gray-900 border border-gray-300">{r.c3}</td>
+                    <td className="px-3 py-2 text-sm text-right text-gray-900 border border-gray-300">{r.c4}</td>
+                    <td className="px-3 py-2 text-sm text-right text-gray-900 border border-gray-300">{r.total}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        }
-        columns={columns}
-        title="Voter Data Management"
-        filterOptions={[]}
-        submitbutton={
-          <button
-            type='button'
-            onClick={handleSave}
-            className='bg-blue-700 text-white py-2 px-4 rounded hover:bg-blue-800 transition-colors'
-            disabled={loading || (!selectedColonyId && !editMemberId)}
-          >
-            {loading ? 'Saving...' : (editMemberId ? 'Update Record' : 'Save Changes')}
-          </button>
-        }
-        searchKey="full_name"
-      />
+        </div>
+      )}
     </div>
   );
 };
