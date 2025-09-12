@@ -33,6 +33,11 @@ const Findatasorting: React.FC<Props> = ({ voterentry,colonyentry }) => {
   const [radioSelections, setRadioSelections] = useState<{ [key: number]: number }>({});
   const [submitting, setSubmitting] = useState(false);
   const [yesNoFilter, setYesNoFilter] = useState<string>(''); // '' | '1' | '0'
+console.log("datadatadata",data);
+
+  // New: tabs
+  const [activeTab, setActiveTab] = useState<'sorting' | 'individual' | 'family' | 'colony'>('sorting');
+
   // Fetch colony data for filter dropdown
   const fetchColonies = async () => {
     setLoadingColonies(true);
@@ -156,12 +161,23 @@ const Findatasorting: React.FC<Props> = ({ voterentry,colonyentry }) => {
   
   // Columns definition
   const columns: Column<voterdayatype>[] = [
-      { key: 'colony_name', label: 'Colony Name', accessor: 'colony_name' },
-    // { key: 'voter_id', label: 'Voter ID', accessor: 'voter_id' },
-    { key: 'full_name', label: 'Full Name', accessor: 'full_name' },
-    { key: 'voter_number', label: 'Voter Number', accessor: 'voter_number' },
-    { key: 'booth_number', label: 'Booth Number', accessor: 'booth_number' },
-    {
+    { key: 'colony_name', label: 'Colony Name', accessor: 'colony_name' },
+  // { key: 'voter_id', label: 'Voter ID', accessor: 'voter_id' },
+  {
+    key: 'full_name',
+    label: 'Full Name',
+    accessor: 'full_name',
+    render: (row) => (
+      <span>
+        {row.full_name}
+        {row.full_name_mr ? ` (${row.full_name_mr})` : ''}
+      </span>
+    )
+  },
+  { key: 'house_number', label: 'House Number', accessor: 'house_number' },
+  { key: 'voter_number', label: 'Voter Number', accessor: 'voter_number' },
+  { key: 'booth_number', label: 'Booth Number', accessor: 'booth_number' },
+  {
       key: 'findatasorting',
       label: 'Finance Done',
       accessor: 'Findatasorting',
@@ -196,64 +212,212 @@ const Findatasorting: React.FC<Props> = ({ voterentry,colonyentry }) => {
     }
   ];
 
+  // Derived data for "Individual" tab: always Finance Done = Yes
+  const individualData = useMemo(() => {
+    let list = [...data];
+    if (colonyFilter) {
+      list = list.filter(item =>
+        item.colony_name?.toLowerCase().includes(colonyFilter.toLowerCase())
+      );
+    }
+    return list.filter(row => {
+      const current =
+        radioSelections[row.voter_id] !== undefined
+          ? radioSelections[row.voter_id]
+          : (row.Findatasorting ?? 0);
+      return Number(current) === 1;
+    });
+  }, [data, colonyFilter, radioSelections]);
+
   return (
     <div>
       {loading && <Loader />}
-      <Withoutbtn
-        data={filteredData}
-        columns={columns}
-        title="Voter Findatasorting Management"
-        filterOptions={[]}
-        searchKey="full_name"
-        inputfiled={
-          <div className="inline-flex items-center gap-2 w-full md:w-auto">
-            <select
-              value={colonyFilter}
-              onChange={e => setColonyFilter(e.target.value)}
-              disabled={loadingColonies}
-              className="h-11 w-full md:w-64 rounded-lg border px-4 py-2 text-sm"
-            >
-              <option value="">
-                {loadingColonies ? 'Loading colonies...' : 'All Colonies'}
-              </option>
-              {colonyList.map((colony, index) => (
-                <option key={colony.colony_id} value={colony.colony_name}>
-                  {index + 1}) {colony.colony_name}({colonyMemberCounts[String(colony.colony_id)] || 0})
-                </option>
-              ))}
-            </select>
 
-            <select
-              value={yesNoFilter}
-              onChange={e => setYesNoFilter(e.target.value)}
-              className="h-11 w-full md:w-40 rounded-lg border px-4 py-2 text-sm"
-            >
-              <option value="">All</option>
-              <option value="1">Yes</option>
-              <option value="0">No</option>
-            </select>
+      {/* Tabs */}
+      <div className="grid grid-cols-4 gap-3 mb-5" role="tablist" aria-label="Finance tabs">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'sorting'}
+          aria-controls="tab-panel-sorting"
+          onClick={() => setActiveTab('sorting')}
+          className={`h-11 rounded-lg text-sm font-medium transition-colors
+            ${activeTab === 'sorting'
+              ? 'bg-blue-600 text-white shadow'
+              : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'}`}
+        >
+          Data sorting
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'individual'}
+          aria-controls="tab-panel-individual"
+          onClick={() => setActiveTab('individual')}
+          className={`h-11 rounded-lg text-sm font-medium transition-colors
+            ${activeTab === 'individual'
+              ? 'bg-blue-600 text-white shadow'
+              : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'}`}
+        >
+          Individual
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'family'}
+          aria-controls="tab-panel-family"
+          onClick={() => setActiveTab('family')}
+          className={`h-11 rounded-lg text-sm font-medium transition-colors
+            ${activeTab === 'family'
+              ? 'bg-blue-600 text-white shadow'
+              : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'}`}
+        >
+          Family
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'colony'}
+          aria-controls="tab-panel-colony"
+          onClick={() => setActiveTab('colony')}
+          className={`h-11 rounded-lg text-sm font-medium transition-colors
+            ${activeTab === 'colony'
+              ? 'bg-blue-600 text-white shadow'
+              : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'}`}
+        >
+          Colony
+        </button>
+      </div>
 
-            <button
-              type="button"
-              className="px-4 py-2 text-sm text-gray-700 bg-gray-100 border border-gray-300 rounded hover:bg-gray-200 text-nowrap"
-              onClick={() => { setColonyFilter(''); setYesNoFilter(''); }}
-              disabled={loadingColonies}
-            >
-              Clear Filter
-            </button>
+      {/* Data sorting tab: original table and filters */}
+      <div id="tab-panel-sorting" role="tabpanel" hidden={activeTab !== 'sorting'}>
+        {activeTab === 'sorting' && (
+          <Withoutbtn
+            data={filteredData}
+            columns={columns}
+            title="Voter Findatasorting Management"
+            filterOptions={[]}
+            searchKey="full_name"
+            inputfiled={
+              <div className="inline-flex items-center gap-2 w-full md:w-auto">
+                <select
+                  value={colonyFilter}
+                  onChange={e => setColonyFilter(e.target.value)}
+                  disabled={loadingColonies}
+                  className="h-11 w-full md:w-64 rounded-lg border px-4 py-2 text-sm"
+                >
+                  <option value="">
+                    {loadingColonies ? 'Loading colonies...' : 'All Colonies'}
+                  </option>
+                  {colonyList.map((colony, index) => (
+                    <option key={colony.colony_id} value={colony.colony_name}>
+                      {index + 1}) {colony.colony_name}({colonyMemberCounts[String(colony.colony_id)] || 0})
+                    </option>
+                  ))}
+                </select>
+
+                <select
+                  value={yesNoFilter}
+                  onChange={e => setYesNoFilter(e.target.value)}
+                  className="h-11 w-full md:w-40 rounded-lg border px-4 py-2 text-sm"
+                >
+                  <option value="">All</option>
+                  <option value="1">Yes</option>
+                  <option value="0">No</option>
+                </select>
+
+                <button
+                  type="button"
+                  className="px-4 py-2 text-sm text-gray-700 bg-gray-100 border border-gray-300 rounded hover:bg-gray-200 text-nowrap"
+                  onClick={() => { setColonyFilter(''); setYesNoFilter(''); }}
+                  disabled={loadingColonies}
+                >
+                  Clear Filter
+                </button>
+              </div>
+            }
+            submitbutton={
+              <button
+                type="button"
+                onClick={handleSubmitSelections}
+                disabled={submitting || Object.keys(radioSelections).length === 0}
+                className="px-4 py-2 text-sm text-nowrap font-medium text-white bg-blue-600 border border-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {submitting ? 'Submitting...' : 'Submit'}
+              </button>
+            }
+          />
+        )}
+      </div>
+
+      {/* Individual tab: auto-filter Finance Done = Yes; hide Yes/No dropdown */}
+      <div id="tab-panel-individual" role="tabpanel" hidden={activeTab !== 'individual'}>
+        {activeTab === 'individual' && (
+          <Withoutbtn
+            data={individualData}
+            columns={columns}
+            title="Individual - Finance Done (Yes)"
+            filterOptions={[]}
+            searchKey="full_name"
+            inputfiled={
+              <div className="inline-flex items-center gap-2 w-full md:w-auto">
+                <select
+                  value={colonyFilter}
+                  onChange={e => setColonyFilter(e.target.value)}
+                  disabled={loadingColonies}
+                  className="h-11 w-full md:w-64 rounded-lg border px-4 py-2 text-sm"
+                >
+                  <option value="">
+                    {loadingColonies ? 'Loading colonies...' : 'All Colonies'}
+                  </option>
+                  {colonyList.map((colony, index) => (
+                    <option key={colony.colony_id} value={colony.colony_name}>
+                      {index + 1}) {colony.colony_name}({colonyMemberCounts[String(colony.colony_id)] || 0})
+                    </option>
+                  ))}
+                </select>
+
+                <button
+                  type="button"
+                  className="px-4 py-2 text-sm text-gray-700 bg-gray-100 border border-gray-300 rounded hover:bg-gray-200 text-nowrap"
+                  onClick={() => { setColonyFilter(''); }}
+                  disabled={loadingColonies}
+                >
+                  Clear Filter
+                </button>
+              </div>
+            }
+            submitbutton={
+              <button
+                type="button"
+                onClick={handleSubmitSelections}
+                disabled={submitting || Object.keys(radioSelections).length === 0}
+                className="px-4 py-2 text-sm text-nowrap font-medium text-white bg-blue-600 border border-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {submitting ? 'Submitting...' : 'Submit'}
+              </button>
+            }
+          />
+        )}
+      </div>
+
+      {/* Family tab: placeholder */}
+      <div id="tab-panel-family" role="tabpanel" hidden={activeTab !== 'family'}>
+        {activeTab === 'family' && (
+          <div className="bg-white rounded-2xl shadow-md border p-6 text-sm text-gray-600">
+            Family view will be added here.
           </div>
-        }
-        submitbutton={
-          <button
-            type="button"
-            onClick={handleSubmitSelections}
-            disabled={submitting || Object.keys(radioSelections).length === 0}
-            className="px-4 py-2 text-sm text-nowrap font-medium text-white bg-blue-600 border border-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {submitting ? 'Submitting...' : 'Submit'}
-          </button>
-        }
-      />
+        )}
+      </div>
+
+      {/* Colony tab: placeholder */}
+      <div id="tab-panel-colony" role="tabpanel" hidden={activeTab !== 'colony'}>
+        {activeTab === 'colony' && (
+          <div className="bg-white rounded-2xl shadow-md border p-6 text-sm text-gray-600">
+            Colony view will be added here.
+          </div>
+        )}
+      </div>
     </div>
   );
 }
