@@ -7,6 +7,7 @@ import Loader from '@/common/Loader';
 import { Column } from "../tables/tabletype";
 import { colonyentrydatatype, Voterdatatye, voterdayatype } from './Votertype';
 import { Withoutbtn } from '../tables/Withoutbtn';
+import { formatDate } from '@/lib/utils';
 
 interface ColonyData {
   colony_id: number;
@@ -37,6 +38,11 @@ console.log("datadatadata",data);
 
   // New: tabs
   const [activeTab, setActiveTab] = useState<'sorting' | 'individual' | 'family' | 'colony'>('sorting');
+  
+  // Modal state for family members
+  const [showFamilyModal, setShowFamilyModal] = useState(false);
+  const [selectedFamilyMembers, setSelectedFamilyMembers] = useState<voterdayatype[]>([]);
+  const [selectedPrimaryPerson, setSelectedPrimaryPerson] = useState<voterdayatype | null>(null);
 
   // Fetch colony data for filter dropdown
   const fetchColonies = async () => {
@@ -229,6 +235,65 @@ console.log("datadatadata",data);
     });
   }, [data, colonyFilter, radioSelections]);
 
+  // Family data: Primary persons (Finance Done = Yes) grouped by house_number
+  const familyData = useMemo(() => {
+    const primaryPersons = data.filter(row => {
+      const current =
+        radioSelections[row.voter_id] !== undefined
+          ? radioSelections[row.voter_id]
+          : (row.Findatasorting ?? 0);
+      return Number(current) === 1;
+    });
+
+    // Group by house_number and colony_name to get unique primary persons
+    const grouped = primaryPersons.reduce((acc, person) => {
+      const key = `${person.house_number}_${person.colony_name}`;
+      if (!acc[key]) {
+        acc[key] = person;
+      }
+      return acc;
+    }, {} as Record<string, voterdayatype>);
+
+    return Object.values(grouped);
+  }, [data, radioSelections]);
+
+  // Colony statistics
+  const colonyStats = useMemo(() => {
+    const stats: Record<string, { name: string; total: number; yes: number; no: number }> = {};
+    
+    data.forEach(row => {
+      const colonyName = row.colony_name || 'Unknown';
+      if (!stats[colonyName]) {
+        stats[colonyName] = { name: colonyName, total: 0, yes: 0, no: 0 };
+      }
+      
+      stats[colonyName].total++;
+      const current =
+        radioSelections[row.voter_id] !== undefined
+          ? radioSelections[row.voter_id]
+          : (row.Findatasorting ?? 0);
+      
+      if (Number(current) === 1) {
+        stats[colonyName].yes++;
+      } else {
+        stats[colonyName].no++;
+      }
+    });
+
+    return Object.values(stats).sort((a, b) => b.total - a.total);
+  }, [data, radioSelections]);
+
+  // Handle family member click
+  const handleFamilyMemberClick = (primaryPerson: voterdayatype) => {
+    const familyMembers = data.filter(row => 
+      row.house_number === primaryPerson.house_number && 
+      row.colony_name === primaryPerson.colony_name
+    );
+    setSelectedFamilyMembers(familyMembers);
+    setSelectedPrimaryPerson(primaryPerson);
+    setShowFamilyModal(true);
+  };
+
   return (
     <div>
       {loading && <Loader />}
@@ -401,23 +466,279 @@ console.log("datadatadata",data);
         )}
       </div>
 
-      {/* Family tab: placeholder */}
+      {/* Family tab: Primary persons with family member modal */}
       <div id="tab-panel-family" role="tabpanel" hidden={activeTab !== 'family'}>
         {activeTab === 'family' && (
-          <div className="bg-white rounded-2xl shadow-md border p-6 text-sm text-gray-600">
-            Family view will be added here.
+          <div className="bg-white rounded-2xl shadow-md border p-6">
+ 
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Full Name
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      House Number
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Colony Name
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Voter Number
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Booth Number
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Action
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {familyData.map((person, index) => (
+                    <tr 
+                      key={`${person.house_number}_${person.colony_name}`}
+                      className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}
+                    >
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        <div>
+                          <div className="font-medium">{person.full_name}</div>
+                          {person.full_name_mr && (
+                            <div className="text-gray-600 text-xs">({person.full_name_mr})</div>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {person.house_number}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {person.colony_name}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {person.voter_number}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {person.booth_number}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        <button
+                          onClick={() => handleFamilyMemberClick(person)}
+                          className="bg-blue-600 text-white px-3 py-1 rounded text-xs hover:bg-blue-700 transition-colors"
+                        >
+                          View Family
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {familyData.length === 0 && (
+              <div className="text-center py-8 text-gray-500">
+                No primary persons found with Finance Done = Yes
+              </div>
+            )}
           </div>
         )}
       </div>
 
-      {/* Colony tab: placeholder */}
+      {/* Colony tab: Colony-wise statistics */}
       <div id="tab-panel-colony" role="tabpanel" hidden={activeTab !== 'colony'}>
         {activeTab === 'colony' && (
-          <div className="bg-white rounded-2xl shadow-md border p-6 text-sm text-gray-600">
-            Colony view will be added here.
+          <div className="bg-white rounded-2xl shadow-md border p-6">
+          
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Colony Name
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Total Voters
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Finance Done (Yes)
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Finance Done (No)
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Percentage (Yes)
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {colonyStats.map((colony, index) => {
+                    const percentage = colony.total > 0 ? ((colony.yes / colony.total) * 100).toFixed(1) : '0.0';
+                    return (
+                      <tr key={colony.name} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                          {colony.name}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {colony.total}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600 font-medium">
+                          {colony.yes}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-red-600 font-medium">
+                          {colony.no}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          <div className="flex items-center">
+                            <div className="w-16 bg-gray-200 rounded-full h-2 mr-2">
+                              <div 
+                                className="bg-green-500 h-2 rounded-full" 
+                                style={{ width: `${percentage}%` }}
+                              ></div>
+                            </div>
+                            <span>{percentage}%</span>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            {colonyStats.length === 0 && (
+              <div className="text-center py-8 text-gray-500">
+                No colony data available
+              </div>
+            )}
           </div>
         )}
       </div>
+
+      {/* Family Members Modal */}
+      {showFamilyModal && (
+        <div className="fixed inset-0  bg-black/40  flex items-center justify-center z-9999 p-4">
+          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden">
+            <div className="flex justify-between items-center p-6 border-b">
+              <h3 className="text-lg font-semibold">
+                Family Members - {selectedPrimaryPerson?.full_name} ({selectedPrimaryPerson?.house_number})
+              </h3>
+              <button
+                onClick={() => setShowFamilyModal(false)}
+                className="text-gray-400 hover:text-gray-600 text-2xl"
+              >
+                ×
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Full Name
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Voter Number
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Booth Number
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Gender
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Relation
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Mobile
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Aadhaar
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        DOB
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Finance Done
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Status
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {selectedFamilyMembers.map((member, index) => {
+                      const isPrimary = member.voter_id === selectedPrimaryPerson?.voter_id;
+                      const financeStatus = radioSelections[member.voter_id] !== undefined 
+                        ? radioSelections[member.voter_id] 
+                        : (member.Findatasorting ?? 0);
+                      
+                      return (
+                        <tr 
+                          key={member.voter_id}
+                          className={`${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'} ${
+                            isPrimary ? 'bg-blue-50 border-l-4 border-blue-500' : ''
+                          }`}
+                        >
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            <div>
+                              <div className="font-medium">{member.full_name}</div>
+                              {member.full_name_mr && (
+                                <div className="text-gray-600 text-xs">({member.full_name_mr})</div>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {member.voter_number}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {member.booth_number}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {member.gender}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {member.relation}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {member.mobile}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {member.aadhaar_number}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {formatDate(member.dob)}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            <span className={`font-medium ${
+                              Number(financeStatus) === 1 ? 'text-green-600' : 'text-red-600'
+                            }`}>
+                              {Number(financeStatus) === 1 ? 'Yes' : 'No'}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {isPrimary && (
+                              <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                                Primary
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div className="flex justify-end p-6 border-t">
+              <button
+                onClick={() => setShowFamilyModal(false)}
+                className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
