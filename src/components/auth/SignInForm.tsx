@@ -64,9 +64,9 @@ export default function SignInForm() {
 
 
       setIsLoading(true); // Set loading to true before redirect
-    
-        router.push('/');
-       
+
+      router.push('/');
+
     } catch (error) {
       console.error('Login error:', error);
       toast.error('Invalid credentials');
@@ -175,7 +175,7 @@ export default function SignInForm() {
                 </div>
                 <div className="text-center">
                   <Link
-                    href="/signin"
+                    href="/privacy_policy"
                     target="_blank"
                     className="text-sm underline text-brand-500 hover:text-brand-600 dark:text-brand-400 cursor-pointer "
                   >
