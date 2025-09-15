@@ -1,5 +1,5 @@
 
-import Dashboardbread from '@/components/common/Dashboardbread';
+import DynamicVoterCount from '@/components/common/DynamicVoterCount';
 import VoterTabs from '@/components/Voter/VoterTabs';
 // import Voterdata from '@/components/Voter/Voterdata';
 import React from 'react'
@@ -24,7 +24,7 @@ const page = async () => {
         <div className="grid grid-cols-6 gap-4 md:gap-6">
             <div className="col-span-12 space-y-6 xl:col-span-7">
 
-                <Dashboardbread title="Total Voters" breadcrumbs={voterentrydata.length} />
+                <DynamicVoterCount title="Total Voters" refreshInterval={30000} />
                
                 <VoterTabs colony={colonydata} colonyentry={colonyentrydata} voterentry={voterentrydata} />
             </div>
