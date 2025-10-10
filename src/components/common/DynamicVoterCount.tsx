@@ -65,7 +65,8 @@ const DynamicVoterCount: React.FC<DynamicVoterCountProps> = ({
           ) : error ? (
             <span className="text-red-200">Error</span>
           ) : (
-            <span className="animate-pulse">{count}</span>
+            // <span className="animate-pulse">{count}</span>
+            <span className="animate-pulse">Error</span>
           )}
         </h1>
       </div>
