@@ -11,6 +11,7 @@ const DynamicVoterCount: React.FC<DynamicVoterCountProps> = ({
   refreshInterval = 30000 
 }) => {
   const [count, setCount] = useState<number>(0);
+  console.log(count);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
