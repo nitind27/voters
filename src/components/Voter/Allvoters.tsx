@@ -215,12 +215,12 @@ const Allvoters: React.FC<Props> = ({ voterentry, colonyentry }: Props) => {
 
           {data.photo ? (
             <img
-              src={`https://vishalnawle.in/vishalnavle/flutter_api_voters/voter_photos/${data.photo}`}
+              src={`https://voterbackend.weclocks.online/uploads/voter_photos/${data.photo}`}
               alt="Voter Photo"
               className="w-10 h-10 rounded-full object-cover border-2 border-gray-200 cursor-pointer"
               title="Click to preview"
               onClick={() =>
-                setPreviewImg(`https://vishalnawle.in/vishalnavle/flutter_api_voters/voter_photos/${data.photo}`)
+                setPreviewImg(`https://voterbackend.weclocks.online/uploads/voter_photos/${data.photo}`)
               }
               onError={(e) => {
                 e.currentTarget.src = '/images/user/npimg.jpg';

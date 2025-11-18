@@ -1251,12 +1251,12 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
                             <td className="px-3 py-2 border align-top">{v.booth_number}</td>
                             <td className="px-3 py-2 border align-top">
                               <img
-                                src={`https://vishalnawle.in/vishalnavle/flutter_api_voters/voter_photos/${v.photo}`}
+                                src={`https://voterbackend.weclocks.online/uploads/voter_photos/${v.photo}`}
                                 alt="Voter Photo"
                                 className="w-10 h-10 rounded-full object-cover border-2 border-gray-200 cursor-pointer"
                                 title="Click to preview"
                                 onClick={() =>
-                                  setPreviewImg(`https://vishalnawle.in/vishalnavle/flutter_api_voters/voter_photos/${v.photo}`)
+                                  setPreviewImg(`https://voterbackend.weclocks.online/uploads/voter_photos/${v.photo}`)
                                 }
                                 onError={(e) => {
                                   e.currentTarget.src = '/images/user/npimg.jpg';
@@ -1378,7 +1378,7 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
                                     <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
 
                                       <img
-                                        src={`https://vishalnawle.in/vishalnavle/flutter_api_voters/voter_photos/${primaryPerson.photo}`}
+                                        src={`https://voterbackend.weclocks.online/uploads/voter_photos/${primaryPerson.photo}`}
                                         // src={getVoterPhotoUrl(primaryPerson.photo)}
                                         alt="Voter Photo"
                                         className="w-8 h-8 rounded-full object-cover border-2 border-gray-200"
@@ -1593,13 +1593,13 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
                       <td className="px-3 py-2 border align-top">
 
                         <img
-                          src={`https://vishalnawle.in/vishalnavle/flutter_api_voters/voter_photos/${voter.photo}`}
+                          src={`https://voterbackend.weclocks.online/uploads/voter_photos/${voter.photo}`}
                           // src={getVoterPhotoUrl(voter.photo)}
                           alt="Voter Photo"
                           className="w-10 h-10 rounded-full object-cover border-2 border-gray-200 cursor-pointer"
                           title="Click to preview"
                           onClick={() =>
-                            setPreviewImg(`https://vishalnawle.in/vishalnavle/flutter_api_voters/voter_photos/${voter.photo}`)
+                            setPreviewImg(`https://voterbackend.weclocks.online/uploads/voter_photos/${voter.photo}`)
                           }
                           onError={(e) => {
                             e.currentTarget.src = '/images/user/npimg.jpg';
