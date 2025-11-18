@@ -322,12 +322,12 @@ const Allvoters: React.FC<Props> = ({ voterentry, colonyentry }: Props) => {
                         <td className="p-2 border">{m.full_name} ({m.full_name_mr})</td>
                         <td>          {m.photo ? (
                           <img
-                            src={`https://vishalnawle.in/vishalnavle/flutter_api_voters/voter_photos/${m.photo}`}
+                            src={`https://voterbackend.weclocks.online/uploads/voter_photos/${m.photo}`}
                             alt="Voter Photo"
                             className="w-10 h-10 rounded-full object-cover border-2 border-gray-200 cursor-pointer"
                             title="Click to preview"
                             onClick={() =>
-                              setPreviewImg(`https://vishalnawle.in/vishalnavle/flutter_api_voters/voter_photos/${m.photo}`)
+                              setPreviewImg(`https://voterbackend.weclocks.online/uploads/voter_photos/${m.photo}`)
                             }
                             onError={(e) => {
                               e.currentTarget.src = '/images/user/npimg.jpg';
