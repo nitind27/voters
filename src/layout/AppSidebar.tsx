@@ -89,6 +89,11 @@ const allNavItems: NavItem[] = [
     name: "Pending Voting Data",
     path: "/voterpending",
   },
+  {
+    icon: <TbCategoryPlus />,
+    name: "Excel Matching",
+    path: "/excelexport",
+  },
   // {
   //   icon: <TbCategoryPlus />,
   //   name: "ZP Order Details",
