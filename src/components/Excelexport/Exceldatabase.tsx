@@ -58,8 +58,7 @@ const extractRelevantRow = (row: Record<string, unknown>): ExcelRow => {
   return { full_name: fullName };
 };
 
-const hasAnyValue = (row: ExcelRow) => row.full_name && row.full_name.trim().length > 0;
-
+const hasAnyValue = (row: ExcelRow) => Boolean(row.full_name && row.full_name.trim().length > 0);
 const Exceldatabase = () => {
   const [fileName, setFileName] = useState("");
   const [excelRows, setExcelRows] = useState<ExcelRow[]>([]);
@@ -67,6 +66,7 @@ const Exceldatabase = () => {
   const [totalDbMatches, setTotalDbMatches] = useState(0);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isMatching, setIsMatching] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   const stats = useMemo(() => {
     const matched = matchRows.filter((row) => row.matches.length > 0).length;
@@ -77,6 +77,61 @@ const Exceldatabase = () => {
       totalDbMatches,
     };
   }, [excelRows.length, matchRows, totalDbMatches]);
+
+  const rowsToRender = useMemo(() => {
+    if (matchRows.length > 0) return matchRows;
+    return excelRows.map((excelRow, index) => ({
+      index,
+      excelRow,
+      matches: [],
+    }));
+  }, [excelRows, matchRows]);
+
+  const matchedEntries = useMemo(
+    () => matchRows.filter((row) => row.matches.length > 0),
+    [matchRows]
+  );
+
+  const handleDownloadMatches = () => {
+    if (!matchedEntries.length) {
+      toast.warning("No matched rows available for download.");
+      return;
+    }
+
+    try {
+      setIsDownloading(true);
+      const rowsForSheet = matchedEntries.flatMap((row) =>
+        row.matches.map((match, idx) => ({
+          Sr_No: row.index + 1,
+          Excel_Full_Name: row.excelRow.full_name,
+          Match_Number: idx + 1,
+          Voter_ID: match.voter_id,
+          Full_Name_DB: match.full_name,
+          Full_Name_MR: match.full_name_mr,
+          Voter_Number: match.voter_number,
+          Mobile: match.mobile,
+          Colony_Name: match.colony_name,
+          House_Number: match.house_number,
+        }))
+      );
+
+      const worksheet = XLSX.utils.json_to_sheet(rowsForSheet);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Matches");
+
+      const baseName = fileName ? fileName.replace(/\.[^.]+$/, "") : "excel";
+      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+      const exportName = `${baseName}-matches-${timestamp}.xlsx`;
+
+      XLSX.writeFile(workbook, exportName);
+      toast.success("Matched rows downloaded.");
+    } catch (error) {
+      console.error("Error exporting matches:", error);
+      toast.error("Unable to download matched rows.");
+    } finally {
+      setIsDownloading(false);
+    }
+  };
 
   const handleFile = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -269,14 +324,24 @@ const Exceldatabase = () => {
       {excelRows.length > 0 && (
         <div className="space-y-4 rounded-2xl border border-gray-100 bg-gray-50 p-4">
           <div className="flex flex-wrap items-center gap-4">
-            <button
-              type="button"
-              onClick={handleMatchWithDatabase}
-              disabled={isMatching}
-              className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
-            >
-              {isMatching ? "Checking database..." : "Match with database"}
-            </button>
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={handleMatchWithDatabase}
+                disabled={isMatching}
+                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+              >
+                {isMatching ? "Checking database..." : "Match with database"}
+              </button>
+              <button
+                type="button"
+                onClick={handleDownloadMatches}
+                disabled={!matchedEntries.length || isDownloading}
+                className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+              >
+                {isDownloading ? "Preparing file..." : "Download matches"}
+              </button>
+            </div>
 
             <div className="flex flex-wrap gap-3 text-sm">
               <div className="rounded-lg bg-white px-4 py-2 shadow">
@@ -304,7 +369,7 @@ const Exceldatabase = () => {
                 </tr>
               </thead>
               <tbody>
-                {(matchRows.length ? matchRows : excelRows.map((row, index) => ({ index, excelRow: row, matches: [] }))).map(
+                {rowsToRender.map(
                   (row) => (
                     <tr key={row.index} className="border-t">
                       <td className="px-3 py-2 text-xs text-gray-500">{row.index + 1}</td>
