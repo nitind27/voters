@@ -337,51 +337,77 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
     return colonyList.filter(c => String(c.colony_id) === String(selectedColonyId));
   }, [colonyList, selectedColonyId]);
 
-  // Export to Excel function
-  // Export to Excel function
+  // Export to Excel function - Creates one sheet per colony with detailed voter data
   const exportToExcel = async () => {
     try {
-      // Prepare data for export
-      const exportData = visibleColonies.map((col, idx) => {
+      // Create workbook
+      const wb = XLSX.utils.book_new();
+
+      // Helper function to sanitize sheet name (Excel sheet names have restrictions)
+      const sanitizeSheetName = (name: string): string => {
+        // Excel sheet name restrictions:
+        // - Max 31 characters
+        // - Cannot contain: [ ] : * ? / \
+        const sanitized = name
+          .replace(/[\[\]:*?\/\\]/g, '') // Remove invalid characters
+          .substring(0, 31); // Limit to 31 characters
+        return sanitized || 'Sheet'; // Fallback if empty
+      };
+
+      // Create one sheet per colony with detailed voter data
+      visibleColonies.forEach((col) => {
         const cid = String(col.colony_id);
         const votersList = votersByColonyId.get(cid) || [];
-        const count = votersList.length || 0;
-        const totalHouses = new Set(
-          votersList.map(v => v.house_number || 'No House Number')
-        ).size;
 
-        return {
+        // Prepare detailed voter data for this colony
+        const exportData = votersList.map((voter, idx) => ({
           'Sr No': idx + 1,
-          'Colony Name': col.colony_name,
-          'Voter Count': count,
-          'Total Houses': totalHouses
-        };
+          'Full Name': voter.full_name || [voter.first_name, voter.middle_name, voter.last_name].filter(Boolean).join(" "),
+          'Full Name (Marathi)': voter.full_name_mr || '',
+          'House Number': voter.house_number || '',
+          'Voter Number': voter.voter_number || '',
+          'Mobile': voter.mobile || 'N/A',
+          'Booth Number': voter.booth_number || '',
+          'Gender': voter.gender || '',
+          'Date of Birth': voter.dob || '',
+          'Aadhaar Number': voter.aadhaar_number || '',
+          'Relation': voter.relation || ''
+        }));
+
+        // Create worksheet for this colony
+        const ws = XLSX.utils.json_to_sheet(exportData);
+
+        // Set column widths
+        ws['!cols'] = [
+          { wch: 8 },   // Sr No
+          { wch: 25 },  // Full Name
+          { wch: 25 },  // Full Name (Marathi)
+          { wch: 15 },  // House Number
+          { wch: 15 },  // Voter Number
+          { wch: 15 },  // Mobile
+          { wch: 15 },  // Booth Number
+          { wch: 10 },  // Gender
+          { wch: 15 },  // Date of Birth
+          { wch: 18 },  // Aadhaar Number
+          { wch: 15 }   // Relation
+        ];
+
+        // Sanitize colony name for sheet name
+        const sheetName = sanitizeSheetName(col.colony_name);
+
+        // Add worksheet to workbook with colony name as sheet name
+        XLSX.utils.book_append_sheet(wb, ws, sheetName);
       });
-
-      // Create workbook and worksheet
-      const wb = XLSX.utils.book_new();
-      const ws = XLSX.utils.json_to_sheet(exportData);
-
-      // Set column widths
-      ws['!cols'] = [
-        { wch: 8 },  // Sr No
-        { wch: 30 }, // Colony Name
-        { wch: 15 }, // Voter Count
-        { wch: 15 }  // Total Houses
-      ];
-
-      // Add worksheet to workbook
-      XLSX.utils.book_append_sheet(wb, ws, 'Colony Wise Voters');
 
       // Generate Excel file
       const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
       const data = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 
       // Save file
-      const fileName = `Colony_Wise_Voters_${new Date().toISOString().split('T')[0]}.xlsx`;
+      const fileName = `All_Colonies_Voters_${new Date().toISOString().split('T')[0]}.xlsx`;
       saveAs(data, fileName);
 
-      toast.success('Excel file downloaded successfully!');
+      toast.success(`Excel file downloaded successfully with ${visibleColonies.length} sheets!`);
     } catch (error) {
       console.error('Error exporting to Excel:', error);
       toast.error('Failed to export Excel file');

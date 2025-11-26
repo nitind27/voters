@@ -4,31 +4,22 @@ import { ChangeEvent, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 import { toast } from "react-toastify";
 
-const NAME_FIELDS = [
-  "full_name",
-  "full_name_mr",
-  "first_name_mr",
-  "middle_name_mr",
-  "last_name_mr",
-] as const;
+// Only check full_name column from Excel
+const EXCEL_COLUMN = "full_name";
 
-type NameField = (typeof NAME_FIELDS)[number];
-
-type ExcelRow = Record<NameField, string>;
+type ExcelRow = {
+  full_name: string;
+};
 
 type DbMatch = {
   voter_id: number;
   full_name: string;
   full_name_mr: string;
-  first_name_mr: string;
-  middle_name_mr: string;
-  last_name_mr: string;
   voter_number: string;
   mobile: string;
   colony_entry_id: number | null;
   colony_name: string;
   house_number: string;
-  matchedOn: NameField[];
 };
 
 type RowMatchResult = {
@@ -37,24 +28,37 @@ type RowMatchResult = {
   matches: DbMatch[];
 };
 
+// Normalize column names: handles camel case, underscores, spaces, etc.
+// Examples: "Full_name" → "fullname", "Full Name" → "fullname", "full_name" → "fullname"
 const normalizeKey = (value: string) => value.toLowerCase().replace(/[^a-z]/g, "");
 
 const extractRelevantRow = (row: Record<string, unknown>): ExcelRow => {
+  // Create a map of normalized Excel column names to their values
   const normalizedMap = Object.entries(row).reduce<Record<string, unknown>>((acc, [key, value]) => {
-    acc[normalizeKey(key)] = value;
+    const normalized = normalizeKey(key);
+    if (!acc[normalized] || (acc[normalized] === "" && value)) {
+      acc[normalized] = value;
+    }
     return acc;
   }, {});
 
-  return NAME_FIELDS.reduce((acc, field) => {
-    const lookupKey = normalizeKey(field);
-    const raw = normalizedMap[lookupKey];
-    acc[field] = typeof raw === "string" || typeof raw === "number" ? String(raw).trim() : "";
-    return acc;
-  }, {} as ExcelRow);
+  // Only extract full_name column (handles Full_name, Full Name, full_name, etc.)
+  const lookupKey = normalizeKey(EXCEL_COLUMN);
+  const raw = normalizedMap[lookupKey];
+  
+  // Remove all extra spaces: trim start/end and replace multiple spaces with single space
+  let fullName = "";
+  if (typeof raw === "string" || typeof raw === "number") {
+    fullName = String(raw)
+      .trim() // Remove spaces from start and end
+      .replace(/\s+/g, " ") // Replace multiple spaces (including tabs, newlines) with single space
+      .trim(); // Trim again after space normalization
+  }
+
+  return { full_name: fullName };
 };
 
-const hasAnyValue = (row: ExcelRow) =>
-  NAME_FIELDS.some((field) => row[field] && row[field].trim().length > 0);
+const hasAnyValue = (row: ExcelRow) => row.full_name && row.full_name.trim().length > 0;
 
 const Exceldatabase = () => {
   const [fileName, setFileName] = useState("");
@@ -88,19 +92,77 @@ const Exceldatabase = () => {
         return;
       }
       const sheet = workbook.Sheets[sheetName];
-      const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
+      // Read sheet with header row (first row as column names)
+      const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { 
+        defval: "",
+        raw: false, // Convert all values to strings
+        blankrows: false // Skip blank rows
+      });
 
       if (!rows.length) {
-        toast.error("Uploaded sheet is empty.");
+        toast.error("Uploaded sheet is empty. Please check your Excel file has data rows.");
+        return;
+      }
+
+      // Debug: Log original Excel column names and show which one will match
+      const firstRowKeys = Object.keys(rows[0] || {});
+      console.log("📊 Original Excel column names:", firstRowKeys);
+      console.log("📊 Total rows in Excel:", rows.length);
+      console.log("📊 First row sample:", rows[0]);
+      
+      if (firstRowKeys.length === 0) {
+        toast.error("Excel file में columns नहीं मिले। कृपया file check करें।");
+        return;
+      }
+      
+      const targetNormalized = normalizeKey(EXCEL_COLUMN);
+      console.log("🔍 Looking for column (normalized):", targetNormalized);
+      
+      // Show which Excel column will match
+      const matchingColumn = firstRowKeys.find(key => {
+        const normalized = normalizeKey(key);
+        return normalized === targetNormalized;
+      });
+      
+      if (matchingColumn) {
+        console.log("✅ Matching column found:", matchingColumn);
+        // Show sample values from this column
+        const sampleValues = rows.slice(0, 5).map(r => r[matchingColumn]).filter(Boolean);
+        console.log("📝 Sample values from", matchingColumn, ":", sampleValues);
+      } else {
+        console.warn("⚠️ full_name column not found in Excel!");
+        console.warn("Available columns:", firstRowKeys);
+        // Show normalized versions of available columns
+        const normalizedColumns = firstRowKeys.map(key => ({
+          original: key,
+          normalized: normalizeKey(key)
+        }));
+        console.warn("Normalized column names:", normalizedColumns);
+        toast.error(`Excel में full_name column नहीं मिला। Available columns: ${firstRowKeys.join(", ")}`);
         return;
       }
 
       const extracted = rows.map(extractRelevantRow).filter(hasAnyValue);
 
+      console.log("📊 Extracted rows with full_name:", extracted.length, "out of", rows.length);
+      
       if (!extracted.length) {
-        toast.error("Could not find the required name columns in this file.");
+        toast.error(`Excel में ${rows.length} rows हैं लेकिन full_name column में कोई data नहीं मिला। कृपया full_name column में data जोड़ें।`);
         return;
       }
+
+      // Debug: Log first few rows to see what was extracted
+      console.log("📊 Extracted Excel rows (first 3):", extracted.slice(0, 3));
+      console.log("📝 Sample full_name values (original):", extracted.slice(0, 5).map(r => r.full_name).filter(Boolean));
+      
+      // Show normalized versions for debugging
+      const sampleNormalized = extracted.slice(0, 5)
+        .map(r => ({
+          original: r.full_name,
+          normalized: r.full_name.toLowerCase().trim().replace(/\s+/g, " ")
+        }))
+        .filter(r => r.original);
+      console.log("📝 Sample full_name values (normalized for matching):", sampleNormalized);
 
       setFileName(file.name);
       setExcelRows(extracted);
@@ -122,25 +184,55 @@ const Exceldatabase = () => {
       return;
     }
 
+    console.log("🚀 Starting database matching...");
+    console.log("📊 Excel rows to match:", excelRows.length);
+    console.log("📝 Sample Excel data:", excelRows.slice(0, 3));
+
     setIsMatching(true);
     try {
+      const payload = { rows: excelRows };
+      console.log("📤 Sending data to backend:", {
+        rowCount: excelRows.length,
+        sampleRows: excelRows.slice(0, 2)
+      });
+
       const response = await fetch("/api/excel-match", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rows: excelRows }),
+        body: JSON.stringify(payload),
       });
 
+      console.log("📥 Response status:", response.status, response.statusText);
+
       if (!response.ok) {
-        throw new Error("Failed to match data.");
+        const errorText = await response.text();
+        console.error("❌ Backend error:", errorText);
+        throw new Error(`Failed to match data: ${response.status} ${errorText}`);
       }
 
       const data = (await response.json()) as { rows: RowMatchResult[]; totalDbMatches: number };
+      console.log("✅ Received response from backend");
+      console.log("📊 Response data:", {
+        totalRows: data.rows?.length ?? 0,
+        totalDbMatches: data.totalDbMatches ?? 0
+      });
+
       setMatchRows(data.rows ?? []);
       setTotalDbMatches(data.totalDbMatches ?? 0);
-      toast.success("Database matching completed.");
+      
+      // Debug: Log matching results
+      const matchedCount = (data.rows ?? []).filter(r => r.matches.length > 0).length;
+      console.log(`📊 Matching complete: ${matchedCount} rows matched out of ${data.rows?.length ?? 0}`);
+      
+      if (matchedCount === 0 && excelRows.length > 0) {
+        console.warn("⚠️ No matches found. Check browser console and server logs for details.");
+        toast.warning(`No matches found for ${excelRows.length} rows. Check browser console for details.`);
+      } else {
+        toast.success(`Database matching completed. ${matchedCount} rows matched.`);
+      }
     } catch (error) {
-      console.error(error);
-      toast.error("Failed to run database matching.");
+      console.error("❌ Error in handleMatchWithDatabase:", error);
+      toast.error(`Failed to run database matching: ${error instanceof Error ? error.message : "Unknown error"}`);
     } finally {
       setIsMatching(false);
     }
@@ -168,7 +260,9 @@ const Exceldatabase = () => {
         <span className="text-lg font-medium text-brand-600">
           {isProcessing ? "Processing..." : "Click to upload Excel for DB check"}
         </span>
-        <span className="mt-2 text-xs text-gray-500">Required columns: {NAME_FIELDS.join(", ")}</span>
+        <span className="mt-2 text-xs text-gray-500">
+          Excel में <strong>full_name</strong> column होना चाहिए (database के full_name_mr से match होगा)
+        </span>
         {fileName && <span className="mt-4 text-sm text-gray-700">Loaded: {fileName}</span>}
       </label>
 
@@ -205,11 +299,7 @@ const Exceldatabase = () => {
               <thead className="bg-gray-100">
                 <tr>
                   <th className="px-3 py-2">#</th>
-                  {NAME_FIELDS.map((field) => (
-                    <th key={field} className="px-3 py-2 capitalize">
-                      {field.replace(/_/g, " ")}
-                    </th>
-                  ))}
+                  <th className="px-3 py-2 capitalize">full_name</th>
                   <th className="px-3 py-2">Matches</th>
                 </tr>
               </thead>
@@ -218,11 +308,9 @@ const Exceldatabase = () => {
                   (row) => (
                     <tr key={row.index} className="border-t">
                       <td className="px-3 py-2 text-xs text-gray-500">{row.index + 1}</td>
-                      {NAME_FIELDS.map((field) => (
-                        <td key={field} className="px-3 py-2 text-xs">
-                          {row.excelRow[field] || <span className="text-gray-400">—</span>}
-                        </td>
-                      ))}
+                      <td className="px-3 py-2 text-xs">
+                        {row.excelRow.full_name || <span className="text-gray-400">—</span>}
+                      </td>
                       <td className="px-3 py-2">
                         {row.matches.length === 0 ? (
                           <span className="text-xs text-gray-500">No match</span>
@@ -234,10 +322,7 @@ const Exceldatabase = () => {
                                   {match.full_name_mr || match.full_name} (#{match.voter_id})
                                 </div>
                                 <div className="text-[11px] text-emerald-700">
-                                  Matched on:{" "}
-                                  {match.matchedOn
-                                    .map((field) => field.replace(/_/g, " "))
-                                    .join(", ")}
+                                  Matched on: full_name → full_name_mr
                                 </div>
                                 <div className="flex flex-wrap gap-2 text-[11px] text-emerald-700">
                                   {match.colony_name && <span>Colony: {match.colony_name}</span>}
