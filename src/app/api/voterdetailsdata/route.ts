@@ -22,13 +22,19 @@ export async function GET(request: NextRequest) {
         const offset = (validPage - 1) * validLimit;
 
         // Build WHERE clause dynamically
-        const conditions: string[] = [];
+        const conditions: string[] = ['updated_at IS NOT NULL'];
         const queryParams: (string | number)[] = [];
 
         // If general search is provided, search in both voter_id and full_name
         if (search.trim()) {
-            conditions.push('(Voter_Id LIKE ? OR full_name LIKE ?)');
-            queryParams.push(`%${search.trim()}%`, `%${search.trim()}%`);
+            // Split search into words for flexible matching (order doesn't matter)
+            const searchWords = search.trim().split(/\s+/).filter(word => word.length > 0);
+            if (searchWords.length > 0) {
+                const wordConditions = searchWords.map(() => 'full_name LIKE ?').join(' AND ');
+                conditions.push(`(Voter_Id LIKE ? OR (${wordConditions}))`);
+                queryParams.push(`%${search.trim()}%`);
+                searchWords.forEach(word => queryParams.push(`%${word}%`));
+            }
         } else {
             // Individual field filters
             if (voterId.trim()) {
@@ -36,8 +42,13 @@ export async function GET(request: NextRequest) {
                 queryParams.push(`%${voterId.trim()}%`);
             }
             if (fullName.trim()) {
-                conditions.push('full_name LIKE ?');
-                queryParams.push(`%${fullName.trim()}%`);
+                // Split full_name into words for flexible matching (order doesn't matter)
+                const nameWords = fullName.trim().split(/\s+/).filter(word => word.length > 0);
+                if (nameWords.length > 0) {
+                    const wordConditions = nameWords.map(() => 'full_name LIKE ?').join(' AND ');
+                    conditions.push(`(${wordConditions})`);
+                    nameWords.forEach(word => queryParams.push(`%${word}%`));
+                }
             }
         }
 
