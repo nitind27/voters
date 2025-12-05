@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
         const offset = (validPage - 1) * validLimit;
 
         // Build WHERE clause dynamically
-        const conditions: string[] = ['updated_at IS NOT NULL'];
+        const conditions: string[] = ['updated_at IS NULL'];
         const queryParams: (string | number)[] = [];
 
         // If general search is provided, search in both voter_id and full_name
