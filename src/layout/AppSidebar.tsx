@@ -35,10 +35,16 @@ type NavItem = {
 
 const allNavItems: NavItem[] = [
   {
-    icon: <RxDashboard />,
+    icon: <TbCategoryPlus />,
     name: "Dashboard",
     path: "/",
   },
+  {
+    icon: <RxDashboard />,
+    name: "Old Dashboard",
+    path: "/olddashboard",
+  },
+ 
   // {
   //   icon: <TbCategoryPlus />,
   //   name: "Masters",
