@@ -60,7 +60,7 @@ interface ColonyWiseData {
 }
 
 const Newdashboard: React.FC = () => {
-  const [active, setActive] = useState<"voterwisedetails" | "allvoterdetails">("voterwisedetails");
+  const [active, setActive] = useState<"voterwisedetails" | "allvoterdetails">("allvoterdetails");
 
   // State for Voterwisedetails tab
 //   const [totalCount, setTotalCount] = useState<number>(0);
