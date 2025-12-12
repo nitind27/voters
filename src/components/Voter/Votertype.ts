@@ -49,6 +49,7 @@ export interface voterdayatype {
     Voterlist: number;
     status: string;
     Findatasorting?: number; // Add this field for the radio button values
+    female_survey?: number; // Field for female voter survey (Yes/No)
   
 
 

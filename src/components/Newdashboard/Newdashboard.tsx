@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Column } from "../tables/tabletype";
 import { Withoutbtn } from "../tables/Withoutbtn";
 import { toast } from "react-toastify";
+import Loader from "@/common/Loader";
 
 // Voter details data type - All fields from database
 interface VoterDetailsData {
@@ -59,8 +60,30 @@ interface ColonyWiseData {
   totalHouses: number;
 }
 
+// Female voter data type (from voter_details table)
+interface FemaleVoterData {
+  id: number;
+  Voter_Id: string;
+  Ref_id: string;
+  full_name: string;
+  Father_name: string;
+  Husband_name: string;
+  Mother_name: string;
+  Age: string;
+  Gender: string;
+  House_Number: string;
+  Section_No_Name: string;
+  Part_No: string;
+  Updated_colony: string;
+  updated_mobile_no: string;
+  Updated_photo: string;
+  updated_house_number: string;
+  colony_name: string;
+  female_survey: number;
+}
+
 const Newdashboard: React.FC = () => {
-  const [active, setActive] = useState<"voterwisedetails" | "allvoterdetails">("allvoterdetails");
+  const [active, setActive] = useState<"voterwisedetails" | "allvoterdetails" | "femalevoters">("allvoterdetails");
 
   // State for Voterwisedetails tab
 //   const [totalCount, setTotalCount] = useState<number>(0);
@@ -74,6 +97,13 @@ const Newdashboard: React.FC = () => {
   // Colony list for dropdown
   const [colonyList, setColonyList] = useState<ColonyData[]>([]);
   const [loadingColonies, setLoadingColonies] = useState(false);
+
+  // State for Female Voters tab
+  const [femaleVoterData, setFemaleVoterData] = useState<FemaleVoterData[]>([]);
+  const [filteredFemaleData, setFilteredFemaleData] = useState<FemaleVoterData[]>([]);
+  const [femaleLoading, setFemaleLoading] = useState(false);
+  const [femaleColonyFilter, setFemaleColonyFilter] = useState('');
+  const [femaleYesNoFilter, setFemaleYesNoFilter] = useState<string>(''); // '' | '1' | '0'
 
   // Edit modal state - Only 3 fields
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -142,6 +172,42 @@ const Newdashboard: React.FC = () => {
     }
   }, []);
 
+  // Fetch female voter data from the API
+  const fetchFemaleVoterData = useCallback(async () => {
+    setFemaleLoading(true);
+    try {
+      const response = await fetch('/api/femalesurvey');
+      if (!response.ok) throw new Error('Failed to fetch female voter data');
+      const result = await response.json();
+      setFemaleVoterData(result);
+      setFilteredFemaleData(result);
+    } catch {
+      toast.error('Failed to load female voter data');
+      setFemaleVoterData([]);
+      setFilteredFemaleData([]);
+    } finally {
+      setFemaleLoading(false);
+    }
+  }, []);
+
+  // Filter female voters by colony and yes/no
+  useEffect(() => {
+    let filtered = femaleVoterData;
+
+    if (femaleColonyFilter) {
+      filtered = filtered.filter(item =>
+        item.colony_name?.toLowerCase().includes(femaleColonyFilter.toLowerCase())
+      );
+    }
+
+    if (femaleYesNoFilter !== '') {
+      const target = parseInt(femaleYesNoFilter, 10);
+      filtered = filtered.filter(row => Number(row.female_survey) === target);
+    }
+
+    setFilteredFemaleData(filtered);
+  }, [femaleColonyFilter, femaleYesNoFilter, femaleVoterData]);
+
   // Initial load
   useEffect(() => {
     fetchTotalCount();
@@ -153,7 +219,10 @@ const Newdashboard: React.FC = () => {
     if ((active === "allvoterdetails" || active === "voterwisedetails") && voterData.length === 0) {
       fetchVoterData();
     }
-  }, [active, fetchVoterData, voterData.length]);
+    if (active === "femalevoters" && femaleVoterData.length === 0) {
+      fetchFemaleVoterData();
+    }
+  }, [active, fetchVoterData, voterData.length, fetchFemaleVoterData, femaleVoterData.length]);
 
   // Group voters by colony
   const colonyWiseGroupedData = useMemo(() => {
@@ -283,6 +352,135 @@ const Newdashboard: React.FC = () => {
     }
   };
 
+  // Female voter member counts by colony
+  const femaleColonyMemberCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    femaleVoterData.forEach((v) => {
+      const colonyId = v.Updated_colony || '0';
+      counts[colonyId] = (counts[colonyId] || 0) + 1;
+    });
+    return counts;
+  }, [femaleVoterData]);
+
+  // Define columns for female voters table
+  const femaleColumns: Column<FemaleVoterData>[] = useMemo(() => [
+    { 
+      key: 'colony_name', 
+      label: 'Colony Name', 
+      accessor: 'colony_name',
+      render: (data) => (
+        <span className="text-sm">{data.colony_name || 'Not Assigned'}</span>
+      ),
+    },
+    { 
+      key: 'House_Number', 
+      label: 'House No', 
+      accessor: 'House_Number',
+      render: (data) => (
+        <span className="text-sm">{data.updated_house_number || data.House_Number || 'N/A'}</span>
+      ),
+    },
+    {
+      key: 'full_name',
+      label: 'Full Name',
+      accessor: 'full_name',
+      render: (data) => (
+        <div className="flex flex-col">
+          <span className="font-medium">{data.full_name || 'N/A'}</span>
+          {data.Father_name && <span className="text-xs text-gray-500">Father: {data.Father_name}</span>}
+          {data.Husband_name && <span className="text-xs text-gray-500">Husband: {data.Husband_name}</span>}
+        </div>
+      ),
+    },
+    {
+      key: 'updated_mobile_no',
+      label: 'Mobile',
+      accessor: 'updated_mobile_no',
+      render: (data) => (
+        <span className="font-mono">{data.updated_mobile_no || 'N/A'}</span>
+      ),
+    },
+    {
+      key: 'Updated_photo',
+      label: 'Photo',
+      accessor: 'Updated_photo',
+      render: (data) => (
+        <div className="flex items-center">
+          {data.Updated_photo ? (
+            <img
+              src={`https://voterbackend.weclocks.online/uploads/voter_photos/${data.Updated_photo}`}
+              alt="Voter Photo"
+              className="w-10 h-10 rounded-full object-cover border-2 border-gray-200 cursor-pointer"
+              title="Click to preview"
+              onClick={() =>
+                setPreviewImg(`https://voterbackend.weclocks.online/uploads/voter_photos/${data.Updated_photo}`)
+              }
+              onError={(e) => {
+                e.currentTarget.src = '/images/user/npimg.jpg';
+              }}
+            />
+          ) : (
+            <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
+              <img
+                src={`/images/user/npimg.jpg`}
+                alt="No Photo"
+                className="w-10 h-10 rounded-full object-cover border-2 border-gray-200"
+              />
+            </div>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: 'Gender',
+      label: 'Gender',
+      accessor: 'Gender',
+      render: (data) => (
+        <span className="px-2 py-1 text-xs font-medium bg-pink-100 text-pink-700 rounded-full">
+          {data.Gender === 'F' || data.Gender === 'Female' || data.Gender === 'female' ? 'स्त्री' : data.Gender}
+        </span>
+      ),
+    },
+    {
+      key: 'Age',
+      label: 'Age',
+      accessor: 'Age',
+      render: (data) => (
+        <span className="text-sm">{data.Age || 'N/A'}</span>
+      ),
+    },
+    { 
+      key: 'Voter_Id', 
+      label: 'Voter ID', 
+      accessor: 'Voter_Id',
+      render: (data) => (
+        <span className="font-mono text-blue-600 text-sm">{data.Voter_Id || 'N/A'}</span>
+      ),
+    },
+    { 
+      key: 'Part_No', 
+      label: 'Part No', 
+      accessor: 'Part_No',
+      render: (data) => (
+        <span className="text-sm">{data.Part_No || 'N/A'}</span>
+      ),
+    },
+    {
+      key: 'female_survey',
+      label: 'Survey Status',
+      accessor: 'female_survey',
+      render: (data) => (
+        <span className={`px-3 py-1 text-xs font-medium rounded-full ${
+          data.female_survey === 1 
+            ? 'bg-green-100 text-green-700' 
+            : 'bg-red-100 text-red-700'
+        }`}>
+          {data.female_survey === 1 ? 'Yes' : 'No'}
+        </span>
+      ),
+    },
+  ], []);
+
   // Define columns for the table
   const columns: Column<VoterDetailsData>[] = useMemo(() => [
     {
@@ -384,7 +582,7 @@ const Newdashboard: React.FC = () => {
   return (
     <div className="">
       {/* Button grid tabs */}
-      <div className="grid grid-cols-2 gap-3 mb-5" role="tablist" aria-label="Voter tabs">
+      <div className="grid grid-cols-3 gap-3 mb-5" role="tablist" aria-label="Voter tabs">
       <button
           type="button"
           role="tab"
@@ -410,6 +608,19 @@ const Newdashboard: React.FC = () => {
               : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"}`}
         >
           Colony wise Voter details
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={active === "femalevoters"}
+          aria-controls="tab-panel-femalevoters"
+          onClick={() => setActive("femalevoters")}
+          className={`h-11 rounded-lg text-sm font-medium transition-colors
+            ${active === "femalevoters"
+              ? "bg-pink-600 text-white shadow"
+              : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"}`}
+        >
+          Female Voters (स्त्री)
         </button>
 
       </div>
@@ -547,6 +758,69 @@ const Newdashboard: React.FC = () => {
                 searchKey="full_name"
               />
             )}
+          </div>
+        )}
+      </div>
+
+      {/* Female Voters Tab Panel */}
+      <div
+        id="tab-panel-femalevoters"
+        role="tabpanel"
+        hidden={active !== "femalevoters"}
+        className="focus:outline-none"
+      >
+        {active === "femalevoters" && (
+          <div className="">
+            {femaleLoading && <Loader />}
+            <Withoutbtn
+              data={filteredFemaleData}
+              columns={femaleColumns}
+              title="Female Voters (स्त्री मतदार)"
+              filterOptions={[]}
+              searchKey="full_name"
+              inputfiled={
+                <div className="inline-flex items-center gap-2 w-full md:w-auto">
+                  <select
+                    value={femaleColonyFilter}
+                    onChange={e => setFemaleColonyFilter(e.target.value)}
+                    disabled={loadingColonies}
+                    className="h-11 w-full md:w-64 rounded-lg border px-4 py-2 text-sm"
+                  >
+                    <option value="">
+                      {loadingColonies ? 'Loading colonies...' : 'All Colonies'}
+                    </option>
+                    {colonyList.map((colony, index) => (
+                      <option key={colony.colony_id} value={colony.colony_name}>
+                        {index + 1}) {colony.colony_name}({femaleColonyMemberCounts[String(colony.colony_id)] || 0})
+                      </option>
+                    ))}
+                  </select>
+
+                  <select
+                    value={femaleYesNoFilter}
+                    onChange={e => setFemaleYesNoFilter(e.target.value)}
+                    className="h-11 w-full md:w-40 rounded-lg border px-4 py-2 text-sm"
+                  >
+                    <option value="">All</option>
+                    <option value="1">Yes</option>
+                    <option value="0">No</option>
+                  </select>
+
+                  <button
+                    type="button"
+                    className="px-4 py-2 text-sm text-gray-700 bg-gray-100 border border-gray-300 rounded hover:bg-gray-200 text-nowrap"
+                    onClick={() => { setFemaleColonyFilter(''); setFemaleYesNoFilter(''); }}
+                    disabled={loadingColonies}
+                  >
+                    Clear Filter
+                  </button>
+
+                  <span className="text-sm text-gray-600">
+                    Total: <span className="font-semibold text-pink-600">{filteredFemaleData.length}</span>
+                  </span>
+                </div>
+              }
+            />
           </div>
         )}
       </div>
