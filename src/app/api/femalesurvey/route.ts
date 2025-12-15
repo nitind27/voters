@@ -28,11 +28,10 @@ export async function GET() {
                 v.Updated_photo,
                 v.updated_house_number,
                 c.colony_name,
-                COALESCE(v.female_survey, 0) as female_survey
+                COALESCE(v.female_survey, 'No') as female_survey
             FROM voter_details v
             LEFT JOIN colony c ON v.Updated_colony = c.colony_id
-            WHERE v.updated_at IS NOT NULL 
-              AND (v.Gender = 'F' OR v.Gender = 'स्त्री' OR v.Gender = 'Female' OR v.Gender = 'female')
+           
             ORDER BY v.id DESC
         `;
         
@@ -41,7 +40,7 @@ export async function GET() {
         // Process the data to ensure female_survey is always a number
         const processedRows = rows.map(row => ({
             ...row,
-            female_survey: row.female_survey ? parseInt(row.female_survey) : 0
+            female_survey: row.female_survey || 'No' // Default to 'No' if null
         }));
 
         return NextResponse.json(processedRows);

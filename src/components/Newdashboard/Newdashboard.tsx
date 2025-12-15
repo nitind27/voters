@@ -79,7 +79,7 @@ interface FemaleVoterData {
   Updated_photo: string;
   updated_house_number: string;
   colony_name: string;
-  female_survey: number;
+  female_survey: string; // Change from number to string
 }
 
 const Newdashboard: React.FC = () => {
@@ -103,7 +103,7 @@ const Newdashboard: React.FC = () => {
   const [filteredFemaleData, setFilteredFemaleData] = useState<FemaleVoterData[]>([]);
   const [femaleLoading, setFemaleLoading] = useState(false);
   const [femaleColonyFilter, setFemaleColonyFilter] = useState('');
-  const [femaleYesNoFilter, setFemaleYesNoFilter] = useState<string>(''); // '' | '1' | '0'
+  const [femaleYesNoFilter, setFemaleYesNoFilter] = useState<string>(''); // '' | 'Yes' | 'No'
 
   // Edit modal state - Only 3 fields
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -201,8 +201,7 @@ const Newdashboard: React.FC = () => {
     }
 
     if (femaleYesNoFilter !== '') {
-      const target = parseInt(femaleYesNoFilter, 10);
-      filtered = filtered.filter(row => Number(row.female_survey) === target);
+      filtered = filtered.filter(row => String(row.female_survey) === femaleYesNoFilter);
     }
 
     setFilteredFemaleData(filtered);
@@ -471,11 +470,11 @@ const Newdashboard: React.FC = () => {
       accessor: 'female_survey',
       render: (data) => (
         <span className={`px-3 py-1 text-xs font-medium rounded-full ${
-          data.female_survey === 1 
+          String(data.female_survey).toLowerCase() === 'yes'
             ? 'bg-green-100 text-green-700' 
             : 'bg-red-100 text-red-700'
         }`}>
-          {data.female_survey === 1 ? 'Yes' : 'No'}
+          {String(data.female_survey).toLowerCase() === 'yes' ? 'Yes' : 'No'}
         </span>
       ),
     },
@@ -620,7 +619,7 @@ const Newdashboard: React.FC = () => {
               ? "bg-pink-600 text-white shadow"
               : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"}`}
         >
-          Female Voters (स्त्री)
+          Male Female Voters
         </button>
 
       </div>
@@ -802,8 +801,8 @@ const Newdashboard: React.FC = () => {
                     className="h-11 w-full md:w-40 rounded-lg border px-4 py-2 text-sm"
                   >
                     <option value="">All</option>
-                    <option value="1">Yes</option>
-                    <option value="0">No</option>
+                    <option value="Yes">Yes</option>
+                    <option value="No">No</option>
                   </select>
 
                   <button
