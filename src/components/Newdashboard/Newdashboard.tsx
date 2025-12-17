@@ -785,6 +785,15 @@ const Newdashboard: React.FC = () => {
     return counts;
   }, [familyWiseSurveyData]);
 
+  // Sort users by survey count (descending) for dropdown
+  const sortedUserList = useMemo(() => {
+    return [...userList].sort((a, b) => {
+      const countA = userSurveyCounts[a.user_id] || 0;
+      const countB = userSurveyCounts[b.user_id] || 0;
+      return countB - countA; // Descending order
+    });
+  }, [userList, userSurveyCounts]);
+
   // Define columns for the table
   const columns: Column<VoterDetailsData>[] = useMemo(() => [
     {
@@ -1194,7 +1203,7 @@ const Newdashboard: React.FC = () => {
                     <option value="">
                       {loadingUsers ? 'Loading users...' : 'All Users'}
                     </option>
-                    {userList.map((user) => (
+                    {sortedUserList.map((user) => (
                       <option key={user.user_id} value={String(user.user_id)}>
                         {user.name} ({userSurveyCounts[user.user_id] || 0} surveys)
                       </option>
