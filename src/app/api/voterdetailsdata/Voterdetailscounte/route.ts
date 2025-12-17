@@ -6,7 +6,7 @@ import type { RowDataPacket } from 'mysql2';
 export async function GET() {
     try {
         const [countResult] = await pool.query<RowDataPacket[]>(
-            `SELECT COUNT(*) as total FROM voter_details_old WHERE updated_at IS NOT NULL`
+            `SELECT COUNT(*) as total FROM tbl_voters_search WHERE updated_at IS NOT NULL`
         );
         
         return NextResponse.json({

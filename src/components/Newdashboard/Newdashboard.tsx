@@ -5,6 +5,7 @@ import { Column } from "../tables/tabletype";
 import { Withoutbtn } from "../tables/Withoutbtn";
 import { toast } from "react-toastify";
 import Loader from "@/common/Loader";
+import DynamicCfrCount from "@/components/common/DynamicCfrCount";
 
 // Voter details data type - All fields from database
 interface VoterDetailsData {
@@ -60,7 +61,7 @@ interface ColonyWiseData {
   totalHouses: number;
 }
 
-// Female voter data type (from voter_details_old table)
+// Female voter data type (from tbl_voters_search table)
 interface FemaleVoterData {
   id: number;
   Voter_Id: string;
@@ -82,12 +83,48 @@ interface FemaleVoterData {
   female_survey: string; // Change from number to string
 }
 
+// Family wise survey data type
+interface FamilyWiseSurveyData {
+  id: number;
+  Voter_Id: string;
+  full_name: string;
+  ENG_Full_name: string;
+  Age: string;
+  Gender: string;
+  House_Number: string;
+  Updated_colony: string;
+  updated_mobile_no: string;
+  Updated_photo: string;
+  user_id: number;
+  updated_house_number: string;
+  family_member: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  colony_name: string;
+  user_name: string;
+  family_member_count?: number;
+}
+
+// Family member detail type (for modal)
+interface FamilyMemberDetail extends FamilyWiseSurveyData {
+  family_member_count?: number;
+}
+
+// User data type
+interface UserData {
+  user_id: number;
+  name: string;
+  username: string;
+  status: string;
+}
+
 const Newdashboard: React.FC = () => {
-  const [active, setActive] = useState<"voterwisedetails" | "allvoterdetails" | "femalevoters">("allvoterdetails");
+  const [active, setActive] = useState<"voterwisedetails" | "allvoterdetails" | "femalevoters" | "familywisesurvey">("allvoterdetails");
 
   // State for Voterwisedetails tab
-//   const [totalCount, setTotalCount] = useState<number>(0);
-//   const [loadingCount, setLoadingCount] = useState(true);
+  //   const [totalCount, setTotalCount] = useState<number>(0);
+  //   const [loadingCount, setLoadingCount] = useState(true);
 
   // State for All voter details tab
   const [voterData, setVoterData] = useState<VoterDetailsData[]>([]);
@@ -104,6 +141,21 @@ const Newdashboard: React.FC = () => {
   const [femaleLoading, setFemaleLoading] = useState(false);
   const [femaleColonyFilter, setFemaleColonyFilter] = useState('');
   const [femaleYesNoFilter, setFemaleYesNoFilter] = useState<string>(''); // '' | 'Yes' | 'No'
+
+  // State for Family Wise Survey tab
+  const [familyWiseSurveyData, setFamilyWiseSurveyData] = useState<FamilyWiseSurveyData[]>([]);
+  const [filteredFamilyWiseData, setFilteredFamilyWiseData] = useState<FamilyWiseSurveyData[]>([]);
+  const [familyWiseLoading, setFamilyWiseLoading] = useState(false);
+  const [userList, setUserList] = useState<UserData[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [selectedUserId, setSelectedUserId] = useState<string>(''); // '' means all users
+
+  // Family member modal state
+  const [familyMemberModalOpen, setFamilyMemberModalOpen] = useState(false);
+  const [selectedFamilyMemberId, setSelectedFamilyMemberId] = useState<string>('');
+  const [primaryPersonName, setPrimaryPersonName] = useState<string>('');
+  const [familyMemberDetails, setFamilyMemberDetails] = useState<FamilyMemberDetail[]>([]);
+  const [loadingFamilyMembers, setLoadingFamilyMembers] = useState(false);
 
   // Edit modal state - Only 3 fields
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -138,19 +190,37 @@ const Newdashboard: React.FC = () => {
     }
   };
 
+  // Fetch user list
+  const fetchUsers = async () => {
+    setLoadingUsers(true);
+    try {
+      const response = await fetch('/api/users');
+      if (!response.ok) {
+        throw new Error('Failed to fetch users');
+      }
+      const users = await response.json();
+      setUserList(users);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+      toast.error('Failed to load user list');
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
   // Fetch total count for Voterwisedetails tab
   const fetchTotalCount = async () => {
     // setLoadingCount(true);
     try {
       const res = await fetch("/api/voterdetailsdata/Voterdetailscounte");
       if (!res.ok) throw new Error("Failed to fetch count");
-    //   const data = await res.json();
-    //   setTotalCount(data.total || 0);
+      //   const data = await res.json();
+      //   setTotalCount(data.total || 0);
     } catch (error) {
       console.error("Error fetching count:", error);
-    //   setTotalCount(0);
+      //   setTotalCount(0);
     } finally {
-    //   setLoadingCount(false);
+      //   setLoadingCount(false);
     }
   };
 
@@ -190,6 +260,56 @@ const Newdashboard: React.FC = () => {
     }
   }, []);
 
+  // Fetch family wise survey data from the API
+  const fetchFamilyWiseSurveyData = useCallback(async () => {
+    setFamilyWiseLoading(true);
+    try {
+      const response = await fetch('/api/familywisesurvey');
+      if (!response.ok) throw new Error('Failed to fetch family wise survey data');
+      const result = await response.json();
+      setFamilyWiseSurveyData(result);
+      setFilteredFamilyWiseData(result);
+    } catch {
+      toast.error('Failed to load family wise survey data');
+      setFamilyWiseSurveyData([]);
+      setFilteredFamilyWiseData([]);
+    } finally {
+      setFamilyWiseLoading(false);
+    }
+  }, []);
+
+  // Fetch family members by family_member_id
+  const fetchFamilyMembers = useCallback(async (familyMemberId: string) => {
+    setLoadingFamilyMembers(true);
+    try {
+      const response = await fetch(`/api/familywisesurvey?family_member_id=${familyMemberId}`);
+      if (!response.ok) throw new Error('Failed to fetch family members');
+      const result = await response.json();
+      setFamilyMemberDetails(result);
+    } catch {
+      toast.error('Failed to load family member details');
+      setFamilyMemberDetails([]);
+    } finally {
+      setLoadingFamilyMembers(false);
+    }
+  }, []);
+
+  // Open family member modal
+  const openFamilyMemberModal = useCallback(async (familyMemberId: string, primaryPersonName: string) => {
+    setSelectedFamilyMemberId(familyMemberId);
+    setPrimaryPersonName(primaryPersonName);
+    setFamilyMemberModalOpen(true);
+    await fetchFamilyMembers(familyMemberId);
+  }, [fetchFamilyMembers]);
+
+  // Close family member modal
+  const closeFamilyMemberModal = () => {
+    setFamilyMemberModalOpen(false);
+    setSelectedFamilyMemberId('');
+    setPrimaryPersonName('');
+    setFamilyMemberDetails([]);
+  };
+
   // Filter female voters by colony and yes/no
   useEffect(() => {
     let filtered = femaleVoterData;
@@ -207,10 +327,22 @@ const Newdashboard: React.FC = () => {
     setFilteredFemaleData(filtered);
   }, [femaleColonyFilter, femaleYesNoFilter, femaleVoterData]);
 
+  // Filter family wise survey by user
+  useEffect(() => {
+    let filtered = familyWiseSurveyData;
+
+    if (selectedUserId !== '') {
+      filtered = filtered.filter(item => String(item.user_id) === selectedUserId);
+    }
+
+    setFilteredFamilyWiseData(filtered);
+  }, [selectedUserId, familyWiseSurveyData]);
+
   // Initial load
   useEffect(() => {
     fetchTotalCount();
     fetchColonies();
+    fetchUsers();
   }, []);
 
   // Load voter data when tab is active
@@ -221,7 +353,10 @@ const Newdashboard: React.FC = () => {
     if (active === "femalevoters" && femaleVoterData.length === 0) {
       fetchFemaleVoterData();
     }
-  }, [active, fetchVoterData, voterData.length, fetchFemaleVoterData, femaleVoterData.length]);
+    if (active === "familywisesurvey" && familyWiseSurveyData.length === 0) {
+      fetchFamilyWiseSurveyData();
+    }
+  }, [active, fetchVoterData, voterData.length, fetchFemaleVoterData, femaleVoterData.length, fetchFamilyWiseSurveyData, familyWiseSurveyData.length]);
 
   // Group voters by colony
   const colonyWiseGroupedData = useMemo(() => {
@@ -363,17 +498,17 @@ const Newdashboard: React.FC = () => {
 
   // Define columns for female voters table
   const femaleColumns: Column<FemaleVoterData>[] = useMemo(() => [
-    { 
-      key: 'colony_name', 
-      label: 'Colony Name', 
+    {
+      key: 'colony_name',
+      label: 'Colony Name',
       accessor: 'colony_name',
       render: (data) => (
         <span className="text-sm">{data.colony_name || 'Not Assigned'}</span>
       ),
     },
-    { 
-      key: 'House_Number', 
-      label: 'House No', 
+    {
+      key: 'House_Number',
+      label: 'House No',
       accessor: 'House_Number',
       render: (data) => (
         <span className="text-sm">{data.updated_house_number || data.House_Number || 'N/A'}</span>
@@ -448,17 +583,17 @@ const Newdashboard: React.FC = () => {
         <span className="text-sm">{data.Age || 'N/A'}</span>
       ),
     },
-    { 
-      key: 'Voter_Id', 
-      label: 'Voter ID', 
+    {
+      key: 'Voter_Id',
+      label: 'Voter ID',
       accessor: 'Voter_Id',
       render: (data) => (
         <span className="font-mono text-blue-600 text-sm">{data.Voter_Id || 'N/A'}</span>
       ),
     },
-    { 
-      key: 'Part_No', 
-      label: 'Part No', 
+    {
+      key: 'Part_No',
+      label: 'Part No',
       accessor: 'Part_No',
       render: (data) => (
         <span className="text-sm">{data.Part_No || 'N/A'}</span>
@@ -469,16 +604,158 @@ const Newdashboard: React.FC = () => {
       label: 'Survey Status',
       accessor: 'female_survey',
       render: (data) => (
-        <span className={`px-3 py-1 text-xs font-medium rounded-full ${
-          String(data.female_survey).toLowerCase() === 'yes'
-            ? 'bg-green-100 text-green-700' 
+        <span className={`px-3 py-1 text-xs font-medium rounded-full ${String(data.female_survey).toLowerCase() === 'yes'
+            ? 'bg-green-100 text-green-700'
             : 'bg-red-100 text-red-700'
-        }`}>
+          }`}>
           {String(data.female_survey).toLowerCase() === 'yes' ? 'Yes' : 'No'}
         </span>
       ),
     },
   ], []);
+
+  // Define columns for family wise survey table
+  const familyWiseColumns: Column<FamilyWiseSurveyData>[] = useMemo(() => [
+    {
+      key: 'user_name',
+      label: 'User Name',
+      accessor: 'user_name',
+      render: (data) => (
+        <span className="text-sm font-medium text-purple-600">{data.user_name || 'N/A'}</span>
+      ),
+    },
+    {
+      key: 'colony_name',
+      label: 'Colony Name',
+      accessor: 'colony_name',
+      render: (data) => (
+        <span className="text-sm">{data.colony_name || 'Not Assigned'}</span>
+      ),
+    },
+    {
+      key: 'House_Number',
+      label: 'House No',
+      accessor: 'House_Number',
+      render: (data) => (
+        <span className="text-sm">{data.updated_house_number || data.House_Number || 'N/A'}</span>
+      ),
+    },
+    {
+      key: 'full_name',
+      label: 'Full Name',
+      accessor: 'full_name',
+      render: (data) => (
+        <div className="flex flex-col">
+          <span className="font-medium">{data.full_name || 'N/A'}</span>
+          {data.ENG_Full_name && <span className="text-xs text-gray-500">English: {data.ENG_Full_name}</span>}
+        </div>
+      ),
+    },
+    {
+      key: 'updated_mobile_no',
+      label: 'Mobile',
+      accessor: 'updated_mobile_no',
+      render: (data) => (
+        <span className="font-mono">{data.updated_mobile_no || 'N/A'}</span>
+      ),
+    },
+    {
+      key: 'Updated_photo',
+      label: 'Photo',
+      accessor: 'Updated_photo',
+      render: (data) => (
+        <div className="flex items-center">
+          {data.Updated_photo ? (
+            <img
+              src={`https://voterbackend.weclocks.online/uploads/voter_photos/${data.Updated_photo}`}
+              alt="Voter Photo"
+              className="w-10 h-10 rounded-full object-cover border-2 border-gray-200 cursor-pointer"
+              title="Click to preview"
+              onClick={() =>
+                setPreviewImg(`https://voterbackend.weclocks.online/uploads/voter_photos/${data.Updated_photo}`)
+              }
+              onError={(e) => {
+                e.currentTarget.src = '/images/user/npimg.jpg';
+              }}
+            />
+          ) : (
+            <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
+              <img
+                src={`/images/user/npimg.jpg`}
+                alt="No Photo"
+                className="w-10 h-10 rounded-full object-cover border-2 border-gray-200"
+              />
+            </div>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: 'Gender',
+      label: 'Gender',
+      accessor: 'Gender',
+      render: (data) => (
+        <span className="px-2 py-1 text-xs font-medium bg-pink-100 text-pink-700 rounded-full">
+          {data.Gender === 'F' || data.Gender === 'Female' || data.Gender === 'female' ? 'स्त्री' : data.Gender}
+        </span>
+      ),
+    },
+    {
+      key: 'Age',
+      label: 'Age',
+      accessor: 'Age',
+      render: (data) => (
+        <span className="text-sm">{data.Age || 'N/A'}</span>
+      ),
+    },
+    {
+      key: 'Voter_Id',
+      label: 'Voter ID',
+      accessor: 'Voter_Id',
+      render: (data) => (
+        <span className="font-mono text-blue-600 text-sm">{data.Voter_Id || 'N/A'}</span>
+      ),
+    },
+    {
+      key: 'family_member_count',
+      label: 'Family Members',
+      accessor: 'family_member_count',
+      render: (data) => {
+        const count = data.family_member_count || 0;
+        return (
+          <button
+            onClick={() => openFamilyMemberModal(data.Voter_Id, data.full_name || data.ENG_Full_name || data.Voter_Id)}
+            className={`px-3 py-1 text-xs font-medium rounded-full cursor-pointer transition-colors ${count > 0
+                ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                : 'bg-gray-100 text-gray-500'
+              }`}
+            title="Click to view family members"
+          >
+            {count} {count === 1 ? 'Member' : 'Members'}
+          </button>
+        );
+      },
+    },
+    {
+      key: 'family_member',
+      label: 'Family Member ID',
+      accessor: 'family_member',
+      render: (data) => (
+        <span className="font-mono text-sm">{data.family_member || 'N/A'}</span>
+      ),
+    },
+  ], [openFamilyMemberModal]);
+
+  // Calculate survey counts per user
+  const userSurveyCounts = useMemo(() => {
+    const counts: Record<number, number> = {};
+    familyWiseSurveyData.forEach((item) => {
+      if (item.user_id) {
+        counts[item.user_id] = (counts[item.user_id] || 0) + 1;
+      }
+    });
+    return counts;
+  }, [familyWiseSurveyData]);
 
   // Define columns for the table
   const columns: Column<VoterDetailsData>[] = useMemo(() => [
@@ -578,11 +855,36 @@ const Newdashboard: React.FC = () => {
     },
   ], [colonyList]);
 
+  // Get title based on active tab
+  const getTabTitle = () => {
+    switch (active) {
+      case "allvoterdetails":
+        return "Voter Details";
+      case "voterwisedetails":
+        return "Colony Wise Voter Details";
+      case "femalevoters":
+        return "Male Female Voters";
+      case "familywisesurvey":
+        return "Family Wise Survey";
+      default:
+        return "Total Voters";
+    }
+  };
+
   return (
     <div className="">
+      {/* Dynamic Count Display */}
+      <div className="mb-5">
+        <DynamicCfrCount
+          title={getTabTitle()}
+          tabType={active}
+          refreshInterval={3000}
+        />
+      </div>
+
       {/* Button grid tabs */}
       <div className="grid grid-cols-3 gap-3 mb-5" role="tablist" aria-label="Voter tabs">
-      <button
+        <button
           type="button"
           role="tab"
           aria-selected={active === "allvoterdetails"}
@@ -608,7 +910,7 @@ const Newdashboard: React.FC = () => {
         >
           Colony wise Voter details
         </button>
-        <button
+        {/* <button
           type="button"
           role="tab"
           aria-selected={active === "femalevoters"}
@@ -620,6 +922,19 @@ const Newdashboard: React.FC = () => {
               : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"}`}
         >
           Male Female Voters
+        </button> */}
+        <button
+          type="button"
+          role="tab"
+          aria-selected={active === "familywisesurvey"}
+          aria-controls="tab-panel-familywisesurvey"
+          onClick={() => setActive("familywisesurvey")}
+          className={`h-11 rounded-lg text-sm font-medium transition-colors
+            ${active === "familywisesurvey"
+              ? "bg-blue-600 text-white shadow"
+              : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"}`}
+        >
+          Family Wise Survey
         </button>
 
       </div>
@@ -816,6 +1131,68 @@ const Newdashboard: React.FC = () => {
 
                   <span className="text-sm text-gray-600">
                     Total: <span className="font-semibold text-pink-600">{filteredFemaleData.length}</span>
+                  </span>
+                </div>
+              }
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Family Wise Survey Tab Panel */}
+      <div
+        id="tab-panel-familywisesurvey"
+        role="tabpanel"
+        hidden={active !== "familywisesurvey"}
+        className="focus:outline-none"
+      >
+        {active === "familywisesurvey" && (
+          <div className="">
+            {familyWiseLoading && <Loader />}
+            <Withoutbtn
+              data={filteredFamilyWiseData}
+              columns={familyWiseColumns}
+              title="Family Wise Survey"
+              filterOptions={[]}
+              searchKey="full_name"
+              inputfiled={
+                <div className="inline-flex items-center gap-2 w-full md:w-auto">
+                  <select
+                    value={selectedUserId}
+                    onChange={e => setSelectedUserId(e.target.value)}
+                    disabled={loadingUsers}
+                    className="h-11 w-full md:w-64 rounded-lg border px-4 py-2 text-sm"
+                  >
+                    <option value="">
+                      {loadingUsers ? 'Loading users...' : 'All Users'}
+                    </option>
+                    {userList.map((user) => (
+                      <option key={user.user_id} value={String(user.user_id)}>
+                        {user.name} ({userSurveyCounts[user.user_id] || 0} surveys)
+                      </option>
+                    ))}
+                  </select>
+
+                  <button
+                    type="button"
+                    className="px-4 py-2 text-sm text-gray-700 bg-gray-100 border border-gray-300 rounded hover:bg-gray-200 text-nowrap"
+                    onClick={() => setSelectedUserId('')}
+                    disabled={loadingUsers}
+                  >
+                    Clear Filter
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={fetchFamilyWiseSurveyData}
+                    disabled={familyWiseLoading}
+                    className="px-4 py-2 text-sm font-medium text-white bg-purple-600 border border-purple-600 rounded-lg hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {familyWiseLoading ? 'Loading...' : 'Refresh'}
+                  </button>
+
+                  <span className="text-sm text-gray-600">
+                    Total: <span className="font-semibold text-purple-600">{filteredFamilyWiseData.length}</span>
                   </span>
                 </div>
               }
@@ -1085,6 +1462,133 @@ const Newdashboard: React.FC = () => {
                     Save Changes
                   </>
                 )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Family Member Details Modal */}
+      {familyMemberModalOpen && (
+        <div
+          className="fixed inset-0 z-9999 flex items-center justify-center bg-black/50"
+          role="dialog"
+          aria-modal="true"
+          onClick={closeFamilyMemberModal}
+        >
+          <div
+            className="relative w-[95vw] max-w-6xl max-h-[90vh] overflow-hidden rounded-xl bg-white shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b bg-gray-50">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-800">
+                  Family Members of {primaryPersonName || selectedFamilyMemberId}
+                </h3>
+                <p className="text-sm text-gray-500">
+                  Primary Person ID: {selectedFamilyMemberId} | Total Family Members: {familyMemberDetails.length}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="p-2 rounded-lg hover:bg-gray-200 transition-colors"
+                onClick={closeFamilyMemberModal}
+                aria-label="Close"
+              >
+                <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
+              {loadingFamilyMembers ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-purple-600"></div>
+                </div>
+              ) : (
+                <table className="min-w-full text-sm">
+                  <thead className="bg-gray-50 sticky top-0">
+                    <tr>
+                      <th className="px-3 py-2 border text-left">Sr</th>
+                      <th className="px-3 py-2 border text-left">Photo</th>
+                      <th className="px-3 py-2 border text-left">Voter ID</th>
+                      <th className="px-3 py-2 border text-left">Full Name</th>
+                      <th className="px-3 py-2 border text-left">English Name</th>
+                      <th className="px-3 py-2 border text-left">Age</th>
+                      <th className="px-3 py-2 border text-left">Gender</th>
+                      <th className="px-3 py-2 border text-left">House No</th>
+                      <th className="px-3 py-2 border text-left">Mobile</th>
+                      <th className="px-3 py-2 border text-left">Colony</th>
+                      <th className="px-3 py-2 border text-left">User</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {familyMemberDetails.length === 0 ? (
+                      <tr>
+                        <td className="px-3 py-2 border text-center" colSpan={11}>
+                          No family members found
+                        </td>
+                      </tr>
+                    ) : (
+                      familyMemberDetails.map((member, idx) => (
+                        <tr key={member.id} className="hover:bg-gray-50">
+                          <td className="px-3 py-2 border">{idx + 1}</td>
+                          <td className="px-3 py-2 border">
+                            {member.Updated_photo ? (
+                              <img
+                                src={`https://voterbackend.weclocks.online/uploads/voter_photos/${member.Updated_photo}`}
+                                alt="Voter Photo"
+                                className="w-10 h-10 rounded-full object-cover border-2 border-gray-200 cursor-pointer"
+                                onClick={() =>
+                                  setPreviewImg(`https://voterbackend.weclocks.online/uploads/voter_photos/${member.Updated_photo}`)
+                                }
+                                onError={(e) => {
+                                  e.currentTarget.src = '/images/user/npimg.jpg';
+                                }}
+                              />
+                            ) : (
+                              <img
+                                src="/images/user/npimg.jpg"
+                                alt="No Photo"
+                                className="w-10 h-10 rounded-full object-cover border-2 border-gray-200"
+                              />
+                            )}
+                          </td>
+                          <td className="px-3 py-2 border font-mono text-blue-600">{member.Voter_Id || "N/A"}</td>
+                          <td className="px-3 py-2 border font-medium">{member.full_name || "N/A"}</td>
+                          <td className="px-3 py-2 border">{member.ENG_Full_name || "N/A"}</td>
+                          <td className="px-3 py-2 border">{member.Age || "N/A"}</td>
+                          <td className="px-3 py-2 border">
+                            <span className={`px-2 py-0.5 rounded-full text-xs ${member.Gender === "M" || member.Gender === "Male"
+                                ? "bg-blue-100 text-blue-700"
+                                : "bg-pink-100 text-pink-700"
+                              }`}>
+                              {member.Gender || "N/A"}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 border">{member.updated_house_number || member.House_Number || "N/A"}</td>
+                          <td className="px-3 py-2 border font-mono">{member.updated_mobile_no || "N/A"}</td>
+                          <td className="px-3 py-2 border">{member.colony_name || "N/A"}</td>
+                          <td className="px-3 py-2 border text-purple-600">{member.user_name || "N/A"}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t bg-gray-50">
+              <button
+                type="button"
+                onClick={closeFamilyMemberModal}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Close
               </button>
             </div>
           </div>
