@@ -18,7 +18,8 @@ export async function GET(request: NextRequest) {
         
         // Validate page number
         const validPage = Math.max(1, page);
-        const validLimit = Math.min(Math.max(1, limit), 100); // Max 100 items per page
+        // Allow higher limits (up to 50000) for bulk data fetching
+        const validLimit = Math.min(Math.max(1, limit), 50000);
         const offset = (validPage - 1) * validLimit;
 
         // Build WHERE clause dynamically - note: updated_at IS NOT NULL

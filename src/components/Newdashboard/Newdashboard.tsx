@@ -228,7 +228,14 @@ const Newdashboard: React.FC = () => {
   const fetchVoterData = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/voterdetailsdata/Voterdetailslist?limit=10000`);
+      // First get total count
+      const countRes = await fetch(`/api/voterdetailsdata/Voterdetailscounte`);
+      const countData = await countRes.json();
+      const totalRecords = countData.total || 0;
+      
+      // Fetch all data - use total count + some buffer to ensure we get all records
+      const limit = Math.max(totalRecords + 100, 10000);
+      const res = await fetch(`/api/voterdetailsdata/Voterdetailslist?limit=${limit}&page=1`);
       if (!res.ok) throw new Error("Failed to fetch voter data");
       const result = await res.json();
       setVoterData(result.data || []);
@@ -347,21 +354,28 @@ const Newdashboard: React.FC = () => {
 
   // Load voter data when tab is active
   useEffect(() => {
-    if ((active === "allvoterdetails" || active === "voterwisedetails") && voterData.length === 0) {
-      fetchVoterData();
+    if (active === "allvoterdetails" || active === "voterwisedetails") {
+      if (voterData.length === 0 && !loading) {
+        fetchVoterData();
+      }
     }
-    if (active === "femalevoters" && femaleVoterData.length === 0) {
+    if (active === "femalevoters" && femaleVoterData.length === 0 && !femaleLoading) {
       fetchFemaleVoterData();
     }
-    if (active === "familywisesurvey" && familyWiseSurveyData.length === 0) {
+    if (active === "familywisesurvey" && familyWiseSurveyData.length === 0 && !familyWiseLoading) {
       fetchFamilyWiseSurveyData();
     }
-  }, [active, fetchVoterData, voterData.length, fetchFemaleVoterData, femaleVoterData.length, fetchFamilyWiseSurveyData, familyWiseSurveyData.length]);
+  }, [active, fetchVoterData, voterData.length, loading, fetchFemaleVoterData, femaleVoterData.length, femaleLoading, fetchFamilyWiseSurveyData, familyWiseSurveyData.length, familyWiseLoading]);
 
   // Group voters by colony
   const colonyWiseGroupedData = useMemo(() => {
+    if (!voterData || voterData.length === 0) {
+      return [];
+    }
+
     const colonyMap = new Map<string, VoterDetailsData[]>();
 
+    // Use all voter data (API already filters by updated_at IS NOT NULL)
     voterData.forEach(voter => {
       const colonyId = voter.Updated_colony || "0";
       if (!colonyMap.has(colonyId)) {
@@ -374,7 +388,21 @@ const Newdashboard: React.FC = () => {
 
     colonyMap.forEach((voters, colonyId) => {
       const colony = colonyList.find(c => String(c.colony_id) === colonyId);
-      const uniqueHouses = new Set(voters.map(v => v.updated_house_number || "No House"));
+      
+      // Calculate unique houses - check both updated_house_number and House_Number
+      // Filter out empty strings, null, undefined, and "No House"
+      const houseNumbers = voters
+        .map(v => {
+          const houseNum = v.updated_house_number || v.House_Number;
+          // Check if houseNum exists and is not empty
+          if (houseNum && typeof houseNum === 'string' && houseNum.trim() !== "" && houseNum.trim() !== "No House") {
+            return houseNum.trim();
+          }
+          return null;
+        })
+        .filter((houseNum): houseNum is string => houseNum !== null);
+      
+      const uniqueHouses = new Set(houseNumbers);
 
       result.push({
         colony_id: colonyId,
