@@ -11,7 +11,7 @@ export async function GET(
         const { id } = await params;
         
         const [rows] = await pool.query<RowDataPacket[]>(
-            `SELECT * FROM voter_details WHERE id = ?`,
+            `SELECT * FROM voter_details_old WHERE id = ?`,
             [id]
         );
 
@@ -43,7 +43,7 @@ export async function PUT(
 
         // Update only 3 fields: Updated_colony, updated_house_number, updated_mobile_no
         const [result] = await pool.query<ResultSetHeader>(
-            `UPDATE voter_details 
+            `UPDATE voter_details_old 
              SET Updated_colony = ?,
                  updated_house_number = ?,
                  updated_mobile_no = ?,
@@ -80,7 +80,7 @@ export async function DELETE(
         const { id } = await params;
         
         const [result] = await pool.query<ResultSetHeader>(
-            `DELETE FROM voter_details WHERE id = ?`,
+            `DELETE FROM voter_details_old WHERE id = ?`,
             [id]
         );
 

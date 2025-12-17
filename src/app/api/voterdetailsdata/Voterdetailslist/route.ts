@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
 
         // Get total count for pagination (with filters)
         const [countResult] = await pool.query<RowDataPacket[]>(
-            `SELECT COUNT(*) as total FROM voter_details ${whereClause}`,
+            `SELECT COUNT(*) as total FROM voter_details_old ${whereClause}`,
             queryParams
         );
         const totalRecords = countResult[0].total;
@@ -64,7 +64,7 @@ export async function GET(request: NextRequest) {
 
         // Get paginated data (with filters)
         const [rows] = await pool.query<RowDataPacket[]>(
-            `SELECT * FROM voter_details ${whereClause} ORDER BY id DESC LIMIT ? OFFSET ?`,
+            `SELECT * FROM voter_details_old ${whereClause} ORDER BY id DESC LIMIT ? OFFSET ?`,
             [...queryParams, validLimit, offset]
         );
 

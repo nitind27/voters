@@ -29,7 +29,7 @@ export async function GET() {
                 v.updated_house_number,
                 c.colony_name,
                 COALESCE(v.female_survey, 'No') as female_survey
-            FROM voter_details v
+            FROM voter_details_old v
             LEFT JOIN colony c ON v.Updated_colony = c.colony_id
            
             ORDER BY v.id DESC

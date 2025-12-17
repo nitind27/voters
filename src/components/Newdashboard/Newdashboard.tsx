@@ -60,7 +60,7 @@ interface ColonyWiseData {
   totalHouses: number;
 }
 
-// Female voter data type (from voter_details table)
+// Female voter data type (from voter_details_old table)
 interface FemaleVoterData {
   id: number;
   Voter_Id: string;
