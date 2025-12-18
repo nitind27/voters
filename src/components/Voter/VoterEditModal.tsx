@@ -525,8 +525,7 @@ const VoterEditModal: React.FC<VoterEditModalProps> = ({
 							</select>
 							{errors.availability && <span className="text-xs text-red-500">{errors.availability}</span>}
 						</div>
-
-						{/* Relation */}
+						{/* Relation */}						
 						<div>
 							<label className="block text-sm font-medium mb-1">Relation</label>
 							<select name="relation" value={formData.relation} onChange={handleChange} className={`w-full p-2 border rounded ${errors.relation ? 'border-red-500' : 'border-gray-300'}`}>

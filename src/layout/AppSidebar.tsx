@@ -92,6 +92,11 @@ const allNavItems: NavItem[] = [
   },
   {
     icon: <TbCategoryPlus />,
+    name: "Voter Master",
+    path: "/votermaster",
+  },
+  {
+    icon: <TbCategoryPlus />,
     name: "Pending Voting Data",
     path: "/voterpending",
   },

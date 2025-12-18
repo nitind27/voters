@@ -26,7 +26,7 @@ export async function GET(
     }
 }
 
-// Update voter details - Only 3 fields: Colony, House Number, Mobile Number
+// Update voter details - colony / house / mobile + admin master fields
 export async function PUT(
     request: NextRequest,
     { params }: { params: Promise<{ id: string }> }
@@ -39,20 +39,52 @@ export async function PUT(
             Updated_colony,
             updated_house_number,
             updated_mobile_no,
+
+            // admin master fields (all optional)
+            volunteer_name,
+            volunteer_mobile,
+            volunteer_status,
+            assigned_colony_name,
+            inst_1_paid,
+            inst_2_paid,
+            inst_3_paid,
+            voting_paid,
+            voting_in_transit,
+            voting_status,
         } = body;
 
-        // Update only 3 fields: Updated_colony, updated_house_number, updated_mobile_no
         const [result] = await pool.query<ResultSetHeader>(
             `UPDATE tbl_voters_search 
-             SET Updated_colony = ?,
-                 updated_house_number = ?,
-                 updated_mobile_no = ?,
-                 Updated_at = NOW()
+             SET 
+                Updated_colony       = ?,
+                updated_house_number = ?,
+                updated_mobile_no    = ?,
+                volunteer_name       = ?,
+                volunteer_mobile     = ?,
+                volunteer_status     = ?,
+                assigned_colony_name = ?,
+                inst_1_paid          = ?,
+                inst_2_paid          = ?,
+                inst_3_paid          = ?,
+                voting_paid          = ?,
+                voting_in_transit    = ?,
+                voting_status        = ?,
+                Updated_at           = NOW()
              WHERE id = ?`,
             [
                 Updated_colony || null,
                 updated_house_number || null,
                 updated_mobile_no || null,
+                volunteer_name || null,
+                volunteer_mobile || null,
+                volunteer_status || null,
+                assigned_colony_name || null,
+                inst_1_paid ?? 0,
+                inst_2_paid ?? 0,
+                inst_3_paid ?? 0,
+                voting_paid ?? 0,
+                voting_in_transit ?? 0,
+                voting_status || 'Pending',
                 id
             ]
         );
