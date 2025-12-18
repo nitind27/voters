@@ -47,6 +47,16 @@ const VoterMaster: React.FC = () => {
   const [savingId, setSavingId] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<"A" | "B" | "C" | "D">("A");
 
+  // B tab state
+  type ColonyOption = { colony_id: number; colony_name: string };
+  const [colonies, setColonies] = useState<ColonyOption[]>([]);
+  const [loadingColonies, setLoadingColonies] = useState(false);
+  const [assignVolunteerName, setAssignVolunteerName] = useState("");
+  const [assignVolunteerMobile, setAssignVolunteerMobile] = useState("");
+  const [assignVolunteerStatus, setAssignVolunteerStatus] = useState<"Active" | "Inactive">("Active");
+  const [selectedColonies, setSelectedColonies] = useState<string[]>([]);
+  const [assigning, setAssigning] = useState(false);
+
   const fetchData = async (pageNo = 1, searchText = "") => {
     setLoading(true);
     try {
@@ -73,6 +83,25 @@ const VoterMaster: React.FC = () => {
 
   useEffect(() => {
     fetchData(1, "");
+  }, []);
+
+  // Load colony list for B tab
+  useEffect(() => {
+    const loadColonies = async () => {
+      try {
+        setLoadingColonies(true);
+        const res = await fetch("/api/colony");
+        if (!res.ok) throw new Error("Failed to fetch colonies");
+        const json = await res.json();
+        setColonies(Array.isArray(json) ? json : []);
+      } catch (e) {
+        console.error(e);
+        toast.error("Colony list load होत नाही.");
+      } finally {
+        setLoadingColonies(false);
+      }
+    };
+    loadColonies();
   }, []);
 
   const handleSaveRow = async (row: VoterMasterRow) => {
@@ -114,6 +143,42 @@ const VoterMaster: React.FC = () => {
 
   const updateRow = (id: number, patch: Partial<VoterMasterRow>) => {
     setRows(prev => prev.map(r => (r.id === id ? { ...r, ...patch } : r)));
+  };
+
+  // Bulk assign volunteer to selected colonies (B tab)
+  const handleBulkAssign = async () => {
+    if (!assignVolunteerName.trim()) {
+      toast.error("Volunteer Name आवश्यक आहे.");
+      return;
+    }
+    if (!selectedColonies.length) {
+      toast.error("किमान एक Colony निवडा.");
+      return;
+    }
+
+    try {
+      setAssigning(true);
+      const res = await fetch("/api/votermaster/assign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          volunteer_name: assignVolunteerName.trim(),
+          volunteer_mobile: assignVolunteerMobile.trim() || null,
+          volunteer_status: assignVolunteerStatus,
+          colony_names: selectedColonies,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || "Assign failed");
+      toast.success("Volunteer assign झाला.");
+      // reload list with same filters
+      fetchData(page, search);
+    } catch (e) {
+      console.error(e);
+      toast.error("Assign होत नाही. कृपया पुन्हा प्रयत्न करा.");
+    } finally {
+      setAssigning(false);
+    }
   };
 
   // A) Volunteer master columns (per voter row)
@@ -292,7 +357,8 @@ const VoterMaster: React.FC = () => {
         render: row => (
           <div className="flex gap-1 justify-center">
             {[1, 2, 3].map(n => {
-              const key = (`inst_${n}_paid` as keyof VoterMasterRow);
+              type InstalmentKey = "inst_1_paid" | "inst_2_paid" | "inst_3_paid";
+              const key: InstalmentKey = `inst_${n}_paid` as InstalmentKey;
               const checked = Number(row[key]) === 1;
               return (
                 <label key={n} className="flex items-center gap-1 text-xs">
@@ -300,9 +366,12 @@ const VoterMaster: React.FC = () => {
                     type="checkbox"
                     className="w-3 h-3"
                     checked={checked}
-                    onChange={() =>
-                      updateRow(row.id, { [key]: checked ? 0 : 1 } as any)
-                    }
+                    onChange={() => {
+                      const patch: Partial<VoterMasterRow> = {
+                        [key]: checked ? 0 : 1,
+                      };
+                      updateRow(row.id, patch);
+                    }}
                   />
                   <span>{n}</span>
                 </label>
@@ -312,7 +381,7 @@ const VoterMaster: React.FC = () => {
         ),
       },
     ],
-    [savingId],
+    [],
   );
 
   // D) Voting status
@@ -362,7 +431,11 @@ const VoterMaster: React.FC = () => {
           <select
             className="px-2 py-1 border rounded text-xs"
             value={row.voting_status ?? "Pending"}
-            onChange={e => updateRow(row.id, { voting_status: e.target.value as any })}
+            onChange={e =>
+              updateRow(row.id, {
+                voting_status: e.target.value as VoterMasterRow["voting_status"],
+              })
+            }
           >
             <option value="Pending">Pending</option>
             <option value="In Transit">In Transit</option>
@@ -454,23 +527,104 @@ const VoterMaster: React.FC = () => {
       </div>
 
       {activeTab === "B" ? (
-        <ReusableTable
-          data={assignRows}
-          columns={assignColumns as Column<any>[]}
-          title="Assign Volunteer"
-          classname="h-[600px] overflow-y-auto"
-          filterOptions={[]}
-          searchKey="volunteer_name"
-        />
+        <>
+          <div className="border rounded-md p-4 space-y-3 bg-gray-50">
+            <h3 className="font-semibold text-sm">Assign Volunteer to Colony</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div>
+                <Label>Volunteer Name</Label>
+                <input
+                  className="w-full px-3 py-2 border rounded-md text-sm"
+                  value={assignVolunteerName}
+                  onChange={e => setAssignVolunteerName(e.target.value)}
+                  placeholder="Enter volunteer name"
+                />
+              </div>
+              <div>
+                <Label>Mobile Number</Label>
+                <input
+                  className="w-full px-3 py-2 border rounded-md text-sm"
+                  value={assignVolunteerMobile}
+                  onChange={e => setAssignVolunteerMobile(e.target.value)}
+                  placeholder="Enter mobile no."
+                />
+              </div>
+              <div>
+                <Label>Status</Label>
+                <select
+                  className="w-full px-3 py-2 border rounded-md text-sm"
+                  value={assignVolunteerStatus}
+                  onChange={e => setAssignVolunteerStatus(e.target.value as "Active" | "Inactive")}
+                >
+                  <option value="Active">Active</option>
+                  <option value="Inactive">Inactive</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <Label>Select Colony (Multi)</Label>
+              <div className="max-h-44 overflow-y-auto border rounded-md p-2 bg-white">
+                {loadingColonies ? (
+                  <div className="text-xs text-gray-500">Loading colonies...</div>
+                ) : colonies.length === 0 ? (
+                  <div className="text-xs text-gray-500">No colonies found.</div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 text-xs">
+                    {colonies.map(c => {
+                      const id = String(c.colony_name);
+                      const checked = selectedColonies.includes(id);
+                      return (
+                        <label key={c.colony_id} className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            className="w-3 h-3"
+                            checked={checked}
+                            onChange={e => {
+                              setSelectedColonies(prev =>
+                                e.target.checked ? [...prev, id] : prev.filter(x => x !== id),
+                              );
+                            }}
+                          />
+                          <span>{c.colony_name}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={handleBulkAssign}
+                disabled={assigning}
+                className="px-4 py-2 text-sm font-medium rounded bg-blue-600 text-white disabled:opacity-60"
+              >
+                {assigning ? "Assigning..." : "Add / Assign"}
+              </button>
+            </div>
+          </div>
+
+          <ReusableTable
+            data={assignRows}
+            columns={assignColumns}
+            title="Assign Volunteer (Summary)"
+            classname="h-[600px] overflow-y-auto"
+            filterOptions={[]}
+            searchKey="volunteer_name"
+          />
+        </>
       ) : (
         <ReusableTable
           data={rows}
           columns={
             activeTab === "A"
-              ? (volunteerColumns as Column<any>[])
+              ? volunteerColumns
               : activeTab === "C"
-              ? (financialColumns as Column<any>[])
-              : (votingColumns as Column<any>[])
+              ? financialColumns
+              : votingColumns
           }
           title={
             activeTab === "A"

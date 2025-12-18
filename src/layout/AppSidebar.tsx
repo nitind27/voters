@@ -168,17 +168,17 @@ const AppSidebar: React.FC = () => {
 
   useEffect(() => {
     const handleRouteChange = () => {
-
       setIsglobleloading(false);
     };
 
     if (router) {
       handleRouteChange();
     }
-    return () => {
 
+    return () => {
+      // no cleanup needed currently
     };
-  }, [router]);
+  }, [router, setIsglobleloading]);
 
 
   const renderMenuItems = (
