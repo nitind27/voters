@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
     const status = rows[0];
     
     // Check if installment is paid (value is 1, '1', or 'Yes')
-    const isPaid = (value: any) => {
+    const isPaid = (value: string | number | null | undefined) => {
       return value === 1 || value === '1' || value === 'Yes';
     };
 

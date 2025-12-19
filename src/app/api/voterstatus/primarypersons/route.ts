@@ -1,8 +1,8 @@
 import pool from '@/lib/db';
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import type { RowDataPacket } from 'mysql2';
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     // Get primary persons (where Voter_Id = family_member)
     const [rows] = await pool.query<RowDataPacket[]>(

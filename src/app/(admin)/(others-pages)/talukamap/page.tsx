@@ -13,23 +13,46 @@ export const metadata: Metadata = {
         "Scheme Monitoring & Tracking System",
 };
 
-async function fetchFarmersData() {
+// Force dynamic rendering to prevent build-time fetching
+export const dynamic = 'force-dynamic';
 
+// Helper function to add timeout to fetch requests
+async function fetchWithTimeout(url: string, timeoutMs: number = 30000): Promise<Response> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    
     try {
-        // 1. Add yearmaster fetch here (6 fetches total)
+        const response = await fetch(url, {
+            cache: 'no-store',
+            signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+        return response;
+    } catch (error) {
+        clearTimeout(timeoutId);
+        if (error instanceof Error && error.name === 'AbortError') {
+            throw new Error(`Request timeout after ${timeoutMs}ms: ${url}`);
+        }
+        throw error;
+    }
+}
+
+async function fetchFarmersData() {
+    try {
+        // Fetch all data with timeout (30 seconds per request)
         const [usersRes, schemesRes, farmersRes, schemescrudRes, schemessubcategoryRes, yearmasterRes, documentsRes, talukaRes, villagesRes] = await Promise.all([
-            fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/usercategorycrud`),
-            fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/schemescrud`),
-            fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/farmers`),
-            fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/schemescategory`),
-            fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/schemessubcategory`), // Assuming this is correct
-            fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/yearmaster`),
-            fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/documents`),
-            fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/taluka`),
-            fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/villages`),
+            fetchWithTimeout(`${process.env.NEXT_PUBLIC_API_URL}/api/usercategorycrud`, 30000),
+            fetchWithTimeout(`${process.env.NEXT_PUBLIC_API_URL}/api/schemescrud`, 30000),
+            fetchWithTimeout(`${process.env.NEXT_PUBLIC_API_URL}/api/farmers`, 30000),
+            fetchWithTimeout(`${process.env.NEXT_PUBLIC_API_URL}/api/schemescategory`, 30000),
+            fetchWithTimeout(`${process.env.NEXT_PUBLIC_API_URL}/api/schemessubcategory`, 30000),
+            fetchWithTimeout(`${process.env.NEXT_PUBLIC_API_URL}/api/yearmaster`, 30000),
+            fetchWithTimeout(`${process.env.NEXT_PUBLIC_API_URL}/api/documents`, 30000),
+            fetchWithTimeout(`${process.env.NEXT_PUBLIC_API_URL}/api/taluka`, 30000),
+            fetchWithTimeout(`${process.env.NEXT_PUBLIC_API_URL}/api/villages`, 30000),
         ]);
 
-        // 2. Keep 6 elements here to match
+        // Parse all responses
         const [users, schemes, farmers, schemescrud, schemessubcategory, yearmaster, documents, taluka, villages] = await Promise.all([
             usersRes.json(),
             schemesRes.json(),
@@ -51,10 +74,10 @@ async function fetchFarmersData() {
             farmers: [],
             schemescrud: [],
             schemessubcategory: [],
-            yearmaster: [], // Added missing array
-            documents: [], // Added missing array
-            taluka: [], // Added missing array
-            villages: [], // Added missing array
+            yearmaster: [],
+            documents: [],
+            taluka: [],
+            villages: [],
         };
     }
 }

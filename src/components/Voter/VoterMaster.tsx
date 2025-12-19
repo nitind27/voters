@@ -49,6 +49,29 @@ const VoterMaster: React.FC = () => {
 
   // B tab state
   type ColonyOption = { colony_id: number; colony_name: string };
+  type VolunteerMasterApiItem = {
+    user_id: number;
+    volunteer_name: string;
+    contact_no: string;
+    colony_id: string | null;
+    status: string;
+    username: string;
+    password: string;
+    created_at?: string;
+    updated_at?: string;
+    colony_names: string;
+    colony_ids: number[];
+  };
+  type AssignRow = {
+    id: number;
+    sr_no: number;
+    volunteer_name: string;
+    contact_no: string;
+    colony_names: string;
+    status: string;
+    username: string;
+    password: string;
+  };
   const [colonies, setColonies] = useState<ColonyOption[]>([]);
   const [loadingColonies, setLoadingColonies] = useState(false);
   const [assignVolunteerName, setAssignVolunteerName] = useState("");
@@ -56,7 +79,7 @@ const VoterMaster: React.FC = () => {
   const [assignVolunteerStatus, setAssignVolunteerStatus] = useState<"Active" | "Inactive">("Active");
   const [selectedColonies, setSelectedColonies] = useState<string[]>([]);
   const [assigning, setAssigning] = useState(false);
-  const [assignRows, setAssignRows] = useState<any[]>([]);
+  const [assignRows, setAssignRows] = useState<AssignRow[]>([]);
   const [loadingAssignData, setLoadingAssignData] = useState(false);
   const [searchContact, setSearchContact] = useState("");
 
@@ -119,7 +142,7 @@ const VoterMaster: React.FC = () => {
       });
       if (!res.ok) throw new Error("Failed to load volunteer master data");
       const json = await res.json();
-      const processedData = (json.data || []).map((item: any, index: number) => ({
+      const processedData = (json.data || []).map((item: VolunteerMasterApiItem, index: number) => ({
         id: item.user_id || index,
         sr_no: index + 1,
         volunteer_name: item.volunteer_name || "",
@@ -381,17 +404,6 @@ const VoterMaster: React.FC = () => {
     [savingId],
   );
 
-  // B) Assign volunteer – from volunteer_master table
-  type AssignRow = {
-    id: number;
-    sr_no: number;
-    volunteer_name: string;
-    contact_no: string;
-    colony_names: string;
-    status: string;
-    username: string;
-    password: string;
-  };
 
   const assignColumns: Column<AssignRow>[] = [
     { key: "sr_no", label: "Sr No", accessor: "sr_no" },

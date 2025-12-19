@@ -1283,17 +1283,15 @@ const VoterStatusDashboard: React.FC = () => {
                   >
                     {financeListLoading ? 'Loading...' : 'Refresh'}
                   </button>
-                  
-                  {/* <span className="text-sm text-gray-600">
+                  <span className="text-sm text-gray-600">
                     Showing: <span className="font-semibold text-green-600">{filteredFinanceListData.length}</span> of <span className="font-semibold text-gray-600">{financeListData.length}</span>
-                  </span> */}
+                  </span>
                 </div>
               }
             />
           </div>
         )}
       </div>
-
       {/* Voting Done Tab Panel */}
       <div
         id="tab-panel-votingdone"
