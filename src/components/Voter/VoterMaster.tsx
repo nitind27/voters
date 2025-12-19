@@ -56,6 +56,9 @@ const VoterMaster: React.FC = () => {
   const [assignVolunteerStatus, setAssignVolunteerStatus] = useState<"Active" | "Inactive">("Active");
   const [selectedColonies, setSelectedColonies] = useState<string[]>([]);
   const [assigning, setAssigning] = useState(false);
+  const [assignRows, setAssignRows] = useState<any[]>([]);
+  const [loadingAssignData, setLoadingAssignData] = useState(false);
+  const [searchContact, setSearchContact] = useState("");
 
   const fetchData = async (pageNo = 1, searchText = "") => {
     setLoading(true);
@@ -103,6 +106,104 @@ const VoterMaster: React.FC = () => {
     };
     loadColonies();
   }, []);
+
+  // Fetch volunteer_master data for B tab
+  const fetchAssignData = async (searchText = "") => {
+    setLoadingAssignData(true);
+    try {
+      const params = new URLSearchParams();
+      if (searchText.trim()) params.set("search", searchText.trim());
+      
+      const res = await fetch(`/api/volunteermaster?${params.toString()}`, {
+        cache: "no-store",
+      });
+      if (!res.ok) throw new Error("Failed to load volunteer master data");
+      const json = await res.json();
+      const processedData = (json.data || []).map((item: any, index: number) => ({
+        id: item.user_id || index,
+        sr_no: index + 1,
+        volunteer_name: item.volunteer_name || "",
+        contact_no: item.contact_no || "",
+        colony_names: item.colony_names || "",
+        colony_ids: item.colony_ids || [],
+        status: item.status || "Active",
+        username: item.username || "",
+        password: item.password || "",
+      }));
+      setAssignRows(processedData);
+    } catch (e) {
+      console.error(e);
+      toast.error("Volunteer data load होत नाही.");
+    } finally {
+      setLoadingAssignData(false);
+    }
+  };
+
+  // Search volunteer by contact_no and populate form
+  const handleSearchVolunteer = async () => {
+    if (!searchContact.trim()) {
+      toast.error("Please enter contact number to search");
+      return;
+    }
+
+    try {
+      const params = new URLSearchParams();
+      params.set("search", searchContact.trim());
+      
+      const res = await fetch(`/api/volunteermaster?${params.toString()}`, {
+        cache: "no-store",
+      });
+      if (!res.ok) throw new Error("Failed to search volunteer");
+      const json = await res.json();
+      
+      if (json.data && json.data.length > 0) {
+        const volunteer = json.data[0];
+        
+        // Populate form fields
+        setAssignVolunteerName(volunteer.volunteer_name || "");
+        setAssignVolunteerMobile(volunteer.contact_no || "");
+        setAssignVolunteerStatus(volunteer.status || "Active");
+        
+        // Pre-select colonies
+        if (volunteer.colony_ids && volunteer.colony_ids.length > 0) {
+          // Get colony names for the colony_ids
+          const colonyNames: string[] = [];
+          volunteer.colony_ids.forEach((colonyId: number) => {
+            const colony = colonies.find(c => c.colony_id === colonyId);
+            if (colony) {
+              colonyNames.push(colony.colony_name);
+            }
+          });
+          setSelectedColonies(colonyNames);
+        } else {
+          setSelectedColonies([]);
+        }
+        
+        toast.success("Volunteer found and form populated");
+      } else {
+        toast.info("No volunteer found with this contact number");
+        // Clear form if not found
+        setAssignVolunteerName("");
+        setAssignVolunteerMobile("");
+        setSelectedColonies([]);
+        setAssignVolunteerStatus("Active");
+      }
+      
+      // Refresh table with search results
+      await fetchAssignData(searchContact.trim());
+    } catch (e) {
+      console.error(e);
+      toast.error("Search failed. Please try again.");
+    }
+  };
+
+  // Load assign data when B tab is active
+  useEffect(() => {
+    if (activeTab === "B") {
+      fetchAssignData();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
 
   const handleSaveRow = async (row: VoterMasterRow) => {
     try {
@@ -170,9 +271,30 @@ const VoterMaster: React.FC = () => {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error || "Assign failed");
-      toast.success("Volunteer assign झाला.");
-      // reload list with same filters
-      fetchData(page, search);
+      
+      // Show error if contact_no already exists (insertion was prevented)
+      if (json.warning) {
+        toast.error(json.warning);
+        // Don't reload if contact_no already exists (insertion was skipped)
+        return;
+      } else {
+        toast.success("Volunteer assign झाला.");
+        
+        // Clear form fields after successful insert
+        setAssignVolunteerName("");
+        setAssignVolunteerMobile("");
+        setSelectedColonies([]);
+        setAssignVolunteerStatus("Active");
+        
+        // Clear search filter (contact_no search box)
+        setSearchContact("");
+        
+        // Reload volunteer_master data to show inserted volunteer in table
+        await fetchAssignData("");
+        
+        // Also reload voter data
+        await fetchData(1, search);
+      }
     } catch (e) {
       console.error(e);
       toast.error("Assign होत नाही. कृपया पुन्हा प्रयत्न करा.");
@@ -259,35 +381,17 @@ const VoterMaster: React.FC = () => {
     [savingId],
   );
 
-  // B) Assign volunteer – aggregated by volunteer + colony
+  // B) Assign volunteer – from volunteer_master table
   type AssignRow = {
-    id: string;
+    id: number;
     sr_no: number;
     volunteer_name: string;
-    assigned_colony_name: string;
-    voters_count: number;
+    contact_no: string;
+    colony_names: string;
+    status: string;
+    username: string;
+    password: string;
   };
-
-  const assignRows: AssignRow[] = useMemo(() => {
-    const map = new Map<string, { volunteer_name: string; assigned_colony_name: string; voters_count: number }>();
-    rows.forEach(r => {
-      const vName = r.volunteer_name || "";
-      const cName = r.assigned_colony_name || r.Updated_colony || "";
-      if (!vName || !cName) return;
-      const key = `${vName}::${cName}`;
-      const existing = map.get(key);
-      if (existing) {
-        existing.voters_count += 1;
-      } else {
-        map.set(key, { volunteer_name: vName, assigned_colony_name: cName, voters_count: 1 });
-      }
-    });
-    return Array.from(map.values()).map((item, index) => ({
-      id: `${item.volunteer_name}-${item.assigned_colony_name}`,
-      sr_no: index + 1,
-      ...item,
-    }));
-  }, [rows]);
 
   const assignColumns: Column<AssignRow>[] = [
     { key: "sr_no", label: "Sr No", accessor: "sr_no" },
@@ -297,14 +401,19 @@ const VoterMaster: React.FC = () => {
       accessor: "volunteer_name",
     },
     {
-      key: "assigned_colony_name",
-      label: "Assigned Colony",
-      accessor: "assigned_colony_name",
+      key: "contact_no",
+      label: "Contact Number",
+      accessor: "contact_no",
     },
     {
-      key: "voters_count",
-      label: "Number of Voters",
-      accessor: "voters_count",
+      key: "colony_names",
+      label: "Assigned Colonies",
+      accessor: "colony_names",
+    },
+    {
+      key: "status",
+      label: "Status",
+      accessor: "status",
     },
   ];
 
@@ -495,36 +604,78 @@ const VoterMaster: React.FC = () => {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div>
-          <Label>Search Voter (ID / Name)</Label>
-          <input
-            className="w-full px-3 py-2 border rounded-md text-sm"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Enter Voter ID or Name"
-          />
+      {activeTab === "B" ? (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <Label>Search Volunteer (Contact Number)</Label>
+            <input
+              className="w-full px-3 py-2 border rounded-md text-sm"
+              value={searchContact}
+              onChange={e => setSearchContact(e.target.value)}
+              placeholder="Enter contact number to search"
+              onKeyPress={e => {
+                if (e.key === "Enter") {
+                  handleSearchVolunteer();
+                }
+              }}
+            />
+          </div>
+          <div className="flex items-end gap-2">
+            <button
+              type="button"
+              onClick={handleSearchVolunteer}
+              className="px-4 py-2 text-sm rounded bg-blue-600 text-white"
+            >
+              Search
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setSearchContact("");
+                setAssignVolunteerName("");
+                setAssignVolunteerMobile("");
+                setSelectedColonies([]);
+                setAssignVolunteerStatus("Active");
+                fetchAssignData("");
+              }}
+              className="px-4 py-2 text-sm rounded border border-gray-300"
+            >
+              Clear
+            </button>
+          </div>
         </div>
-        <div className="flex items-end gap-2">
-          <button
-            type="button"
-            onClick={() => fetchData(1, search)}
-            className="px-4 py-2 text-sm rounded bg-blue-600 text-white"
-          >
-            Search
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setSearch("");
-              fetchData(1, "");
-            }}
-            className="px-4 py-2 text-sm rounded border border-gray-300"
-          >
-            Clear
-          </button>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <Label>Search Voter (ID / Name)</Label>
+            <input
+              className="w-full px-3 py-2 border rounded-md text-sm"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Enter Voter ID or Name"
+            />
+          </div>
+          <div className="flex items-end gap-2">
+            <button
+              type="button"
+              onClick={() => fetchData(1, search)}
+              className="px-4 py-2 text-sm rounded bg-blue-600 text-white"
+            >
+              Search
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setSearch("");
+                fetchData(1, "");
+              }}
+              className="px-4 py-2 text-sm rounded border border-gray-300"
+            >
+              Clear
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {activeTab === "B" ? (
         <>
@@ -607,14 +758,24 @@ const VoterMaster: React.FC = () => {
             </div>
           </div>
 
-          <ReusableTable
-            data={assignRows}
-            columns={assignColumns}
-            title="Assign Volunteer (Summary)"
-            classname="h-[600px] overflow-y-auto"
-            filterOptions={[]}
-            searchKey="volunteer_name"
-          />
+          {loadingAssignData ? (
+            <div className="bg-white rounded-2xl shadow-md border p-8 text-center">
+              <p className="text-gray-500 text-lg">Loading volunteer data...</p>
+            </div>
+          ) : assignRows.length === 0 ? (
+            <div className="bg-white rounded-2xl shadow-md border p-8 text-center">
+              <p className="text-gray-500 text-lg">There are no records to display</p>
+            </div>
+          ) : (
+            <ReusableTable
+              data={assignRows}
+              columns={assignColumns}
+              title="Assign Volunteer (Summary)"
+              classname="h-[600px] overflow-y-auto"
+              filterOptions={[]}
+              searchKey="volunteer_name"
+            />
+          )}
         </>
       ) : (
         <ReusableTable

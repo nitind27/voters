@@ -6,6 +6,7 @@ import { Withoutbtn } from "../tables/Withoutbtn";
 import { toast } from "react-toastify";
 import Loader from "@/common/Loader";
 import DynamicCfrCount from "@/components/common/DynamicCfrCount";
+import VoterStatusDashboard from "./VoterStatusDashboard";
 
 // Voter details data type - All fields from database
 interface VoterDetailsData {
@@ -120,7 +121,7 @@ interface UserData {
 }
 
 const Newdashboard: React.FC = () => {
-  const [active, setActive] = useState<"voterwisedetails" | "allvoterdetails" | "femalevoters" | "familywisesurvey">("allvoterdetails");
+  const [active, setActive] = useState<"voterwisedetails" | "allvoterdetails" | "femalevoters" | "familywisesurvey" | "voterstatus">("allvoterdetails");
 
   // State for Voterwisedetails tab
   //   const [totalCount, setTotalCount] = useState<number>(0);
@@ -903,6 +904,8 @@ const Newdashboard: React.FC = () => {
         return "Male Female Voters";
       case "familywisesurvey":
         return "Family Wise Survey";
+      case "voterstatus":
+        return "Voter Status";
       default:
         return "Total Voters";
     }
@@ -914,13 +917,13 @@ const Newdashboard: React.FC = () => {
       <div className="mb-5">
         <DynamicCfrCount
           title={getTabTitle()}
-          tabType={active}
+          tabType={active === "voterstatus" ? undefined : active}
           refreshInterval={3000}
         />
       </div>
 
       {/* Button grid tabs */}
-      <div className="grid grid-cols-3 gap-3 mb-5" role="tablist" aria-label="Voter tabs">
+      <div className="grid grid-cols-4 gap-3 mb-5" role="tablist" aria-label="Voter tabs">
         <button
           type="button"
           role="tab"
@@ -972,6 +975,19 @@ const Newdashboard: React.FC = () => {
               : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"}`}
         >
           Family Wise Survey
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={active === "voterstatus"}
+          aria-controls="tab-panel-voterstatus"
+          onClick={() => setActive("voterstatus")}
+          className={`h-11 rounded-lg text-sm font-medium transition-colors
+            ${active === "voterstatus"
+              ? "bg-indigo-600 text-white shadow"
+              : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"}`}
+        >
+          Voter Status
         </button>
 
       </div>
@@ -1234,6 +1250,20 @@ const Newdashboard: React.FC = () => {
                 </div>
               }
             />
+          </div>
+        )}
+      </div>
+
+      {/* Voter Status Tab Panel */}
+      <div
+        id="tab-panel-voterstatus"
+        role="tabpanel"
+        hidden={active !== "voterstatus"}
+        className="focus:outline-none"
+      >
+        {active === "voterstatus" && (
+          <div className="">
+            <VoterStatusDashboard />
           </div>
         )}
       </div>

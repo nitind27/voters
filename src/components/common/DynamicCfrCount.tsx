@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect, useCallback } from 'react';
 
-type TabType = "allvoterdetails" | "voterwisedetails" | "femalevoters" | "familywisesurvey";
+type TabType = "allvoterdetails" | "voterwisedetails" | "femalevoters" | "familywisesurvey" | "voterstatus";
 
 interface DynamicCfrCountProps {
   title: string;
@@ -34,6 +34,10 @@ const DynamicCfrCount: React.FC<DynamicCfrCountProps> = ({
           break;
         case "familywisesurvey":
           apiUrl = '/api/familywisesurvey';
+          break;
+        case "voterstatus":
+          // For voter status, we can use a general count or skip
+          apiUrl = '/api/voterdetailsdata/Voterdetailscounte';
           break;
         default:
           apiUrl = '/api/voterdetailsdata/Voterdetailscounte';

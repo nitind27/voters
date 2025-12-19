@@ -1,40 +1,14 @@
--- Create table for storing voter checkbox data
-CREATE TABLE IF NOT EXISTS voter_checkbox_data (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    colony_id INT NOT NULL,
-    member_id INT NOT NULL,
-    checkbox_data VARCHAR(50) NOT NULL, -- Format: "true|false|true|false"
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    UNIQUE KEY unique_colony_member (colony_id, member_id),
-    INDEX idx_colony_id (colony_id),
-    INDEX idx_member_id (member_id)
-);
+-- Quick fix script for voter_master table
+-- This script will DROP the existing table and CREATE it fresh
 
--- Sample data insertion (optional)
--- INSERT INTO voter_checkbox_data (colony_id, member_id, checkbox_data) VALUES 
--- (1, 101, 'true|false|true|false'),
--- (1, 102, 'false|true|false|true'),
--- (2, 201, 'true|true|false|false');
-
--- Note: checkbox_data format explanation:
--- Position 1: C1 checkbox (true/false)
--- Position 2: C2 checkbox (true/false) 
--- Position 3: C3 checkbox (true/false)
--- Position 4: C4 checkbox (true/false)
--- Separated by pipe (|) character
-
--- Create table for storing voter master data (volunteer assignments)
--- NOTE: If table already exists, run voter_master_final.sql instead
-
--- Disable foreign key checks
+-- Step 1: Disable foreign key checks temporarily
 SET FOREIGN_KEY_CHECKS = 0;
 
--- Drop existing table if exists (uncomment if you want to recreate)
--- DROP TABLE IF EXISTS voter_master;
+-- Step 2: Drop the existing table (this will delete all data!)
+DROP TABLE IF EXISTS voter_master;
 
--- Create table if it doesn't exist
-CREATE TABLE IF NOT EXISTS voter_master (
+-- Step 3: Create the table with proper structure
+CREATE TABLE voter_master (
     id INT AUTO_INCREMENT PRIMARY KEY,
     voter_id INT NOT NULL COMMENT 'Reference to tbl_voters_search.id',
     Voter_Id VARCHAR(100) NOT NULL COMMENT 'Voter ID string',
@@ -66,5 +40,6 @@ CREATE TABLE IF NOT EXISTS voter_master (
     FOREIGN KEY (assigned_colony_id) REFERENCES colony(colony_id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Re-enable foreign key checks
+-- Step 4: Re-enable foreign key checks
 SET FOREIGN_KEY_CHECKS = 1;
+
