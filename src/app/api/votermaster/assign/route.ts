@@ -11,11 +11,13 @@ export async function POST(request: NextRequest) {
       volunteer_mobile,
       volunteer_status,
       colony_names,
+      primary_person_ids,
     } = body as {
       volunteer_name?: string;
       volunteer_mobile?: string | null;
       volunteer_status?: 'Active' | 'Inactive';
       colony_names?: string[];
+      primary_person_ids?: string; // Comma-separated string of Voter_Id values
     };
 
     if (!volunteer_name || !Array.isArray(colony_names) || colony_names.length === 0) {
@@ -71,7 +73,7 @@ export async function POST(request: NextRequest) {
 
           // Check if volunteer already exists with SAME volunteer_name AND contact_no
           const [existingVolunteer] = await connection.query<RowDataPacket[]>(
-            `SELECT volunteer_name, contact_no, colony_id FROM volunteer_master 
+            `SELECT volunteer_name, contact_no, colony_id, primary_person_id FROM volunteer_master 
              WHERE volunteer_name = ? AND contact_no = ? 
              LIMIT 1`,
             [volunteer_name, mobile],
@@ -88,15 +90,32 @@ export async function POST(request: NextRequest) {
             const allColonyIds = [...new Set([...existingColonyIds, ...colonyIds])].sort((a, b) => a - b);
             const updatedColonyIdString = allColonyIds.join(',');
 
+            // Replace primary_person_ids with new selection (not merge - this allows removal of unchecked items)
+            const newPrimaryPersonIds = primary_person_ids
+              ? primary_person_ids.split(',').map((id: string) => id.trim()).filter(Boolean)
+              : [];
+            
+            // Sort the IDs
+            const sortedPrimaryPersonIds = newPrimaryPersonIds.sort((a, b) => {
+              const numA = parseInt(a, 10);
+              const numB = parseInt(b, 10);
+              if (!isNaN(numA) && !isNaN(numB)) {
+                return numA - numB;
+              }
+              return a.localeCompare(b);
+            });
+            const updatedPrimaryPersonIds = sortedPrimaryPersonIds.length > 0 ? sortedPrimaryPersonIds.join(',') : null;
+            
             await connection.query<ResultSetHeader>(
               `UPDATE volunteer_master SET
                 username = ?,
                 password = ?,
                 colony_id = ?,
                 status = ?,
+                primary_person_id = ?,
                 updated_at = NOW()
               WHERE volunteer_name = ? AND contact_no = ?`,
-              [volunteerUsername, volunteerPassword, updatedColonyIdString, status, volunteer_name, mobile],
+              [volunteerUsername, volunteerPassword, updatedColonyIdString, status, updatedPrimaryPersonIds, volunteer_name, mobile],
             );
             volunteerMasterUpdated++;
           } else {
@@ -116,6 +135,8 @@ export async function POST(request: NextRequest) {
                 // Skip insertion - contact_no must be unique
               } else {
                 // Contact number doesn't exist - safe to INSERT new record
+                const primaryPersonIds = primary_person_ids || null;
+                
                 await connection.query<ResultSetHeader>(
                   `INSERT INTO volunteer_master (
                     volunteer_name,
@@ -124,15 +145,18 @@ export async function POST(request: NextRequest) {
                     password,
                     colony_id,
                     status,
+                    primary_person_id,
                     created_at,
                     updated_at
-                  ) VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())`,
-                  [volunteer_name, mobile, volunteerUsername, volunteerPassword, colonyIdString, status],
+                  ) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+                  [volunteer_name, mobile, volunteerUsername, volunteerPassword, colonyIdString, status, primaryPersonIds],
                 );
                 volunteerMasterInserted++;
               }
             } else {
               // No contact number provided - still insert (contact_no can be null)
+              const primaryPersonIds = primary_person_ids || null;
+              
               await connection.query<ResultSetHeader>(
                 `INSERT INTO volunteer_master (
                   volunteer_name,
@@ -141,10 +165,11 @@ export async function POST(request: NextRequest) {
                   password,
                   colony_id,
                   status,
+                  primary_person_id,
                   created_at,
                   updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())`,
-                [volunteer_name, mobile, volunteerUsername, volunteerPassword, colonyIdString, status],
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+                [volunteer_name, mobile, volunteerUsername, volunteerPassword, colonyIdString, status, primaryPersonIds],
               );
               volunteerMasterInserted++;
             }
