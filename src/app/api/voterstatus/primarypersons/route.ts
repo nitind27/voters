@@ -7,6 +7,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const colonyName = searchParams.get('colony_name');
     const colonyId = searchParams.get('colony_id');
+    const onlyAssigned = searchParams.get('only_assigned'); // New parameter to filter by volunteer_master
 
     let whereClause = `v.family_member IS NOT NULL 
          AND v.family_member != ''
@@ -22,9 +23,27 @@ export async function GET(request: NextRequest) {
       params.push(colonyId);
     }
 
-    // Get primary persons (where Voter_Id = family_member)
+    // Build join clause
+    // Always join with colony first
+    let joinClause = `LEFT JOIN colony c ON v.Updated_colony = c.colony_id`;
+    
+    // If only_assigned is true, also join with volunteer_master to filter assigned primary persons
+    if (onlyAssigned === 'true') {
+      // Join with volunteer_master to only get primary persons that are assigned
+      // primary_person_id stores comma-separated values (can be id or Voter_Id)
+      joinClause += ` INNER JOIN volunteer_master vm ON (
+        vm.primary_person_id IS NOT NULL 
+        AND vm.primary_person_id != ''
+        AND (
+          FIND_IN_SET(CAST(v.id AS CHAR), vm.primary_person_id) > 0 
+          OR FIND_IN_SET(v.Voter_Id, vm.primary_person_id) > 0
+        )
+      )`;
+    }
+
+    // Get primary persons (where Voter_Id = family_member) with member count
     const [rows] = await pool.query<RowDataPacket[]>(
-      `SELECT 
+      `SELECT DISTINCT
          v.id,
          v.Voter_Id,
          v.full_name,
@@ -34,9 +53,12 @@ export async function GET(request: NextRequest) {
          v.updated_mobile_no,
          v.updated_house_number,
          v.House_Number,
-         c.colony_name
+         c.colony_name,
+         (SELECT COUNT(*) 
+          FROM tbl_voters_search fm 
+          WHERE fm.family_member = v.Voter_Id) as member_count
        FROM tbl_voters_search v
-       LEFT JOIN colony c ON v.Updated_colony = c.colony_id
+       ${joinClause}
        WHERE ${whereClause}
        ORDER BY v.full_name ASC`,
       params,

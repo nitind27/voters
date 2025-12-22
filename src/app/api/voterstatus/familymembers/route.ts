@@ -28,6 +28,10 @@ export async function GET(request: NextRequest) {
          v.updated_mobile_no,
          v.voting_status,
          v.voting_paid,
+         v.voting_in_transit,
+         v.inst_1_paid,
+         v.inst_2_paid,
+         v.inst_3_paid,
          c.colony_name
        FROM tbl_voters_search v
        LEFT JOIN colony c ON v.Updated_colony = c.colony_id
