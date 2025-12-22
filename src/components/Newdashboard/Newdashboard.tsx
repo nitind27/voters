@@ -7,6 +7,8 @@ import { toast } from "react-toastify";
 import Loader from "@/common/Loader";
 import DynamicCfrCount from "@/components/common/DynamicCfrCount";
 import VoterStatusDashboard from "./VoterStatusDashboard";
+import * as XLSX from 'xlsx';
+import { saveAs } from 'file-saver';
 
 // Voter details data type - All fields from database
 interface VoterDetailsData {
@@ -432,6 +434,170 @@ const Newdashboard: React.FC = () => {
     setColonyModalOpen(false);
     setSelectedColonyData(null);
     setColonySearchTerm("");
+  };
+
+  // Export colony wise data to Excel
+  const exportColonyWiseToExcel = async () => {
+    try {
+      // Create workbook
+      const wb = XLSX.utils.book_new();
+
+      // Helper function to sanitize sheet name (Excel sheet names have restrictions)
+      const sanitizeSheetName = (name: string): string => {
+        // Excel sheet name restrictions:
+        // - Max 31 characters
+        // - Cannot contain: [ ] : * ? / \
+        const sanitized = name
+          .replace(/[\[\]:*?\/\\]/g, '') // Remove invalid characters
+          .substring(0, 31); // Limit to 31 characters
+        return sanitized || 'Sheet'; // Fallback if empty
+      };
+
+      // Create one sheet per colony with detailed voter data
+      colonyWiseGroupedData.forEach((colony) => {
+        // Prepare detailed voter data for this colony
+        const exportData = colony.voters.map((voter, idx) => ({
+          'Sr No': idx + 1,
+          'Full Name': voter.full_name || "N/A",
+          'Father Name': voter.Father_name || "N/A",
+          'Age': voter.Age || "N/A",
+          'Gender': voter.Gender || "N/A",
+          'House Number': voter.updated_house_number || voter.House_Number || "N/A",
+          'Colony': colony.colony_name,
+          'Mobile': voter.updated_mobile_no || "N/A",
+          'Voter ID': voter.Voter_Id || "N/A",
+          'Part No': voter.Part_No || "N/A",
+          'Page No': voter.Page_NO || "N/A",
+          'Publication Date': voter.Publication_Date || "N/A"
+        }));
+
+        // Create worksheet for this colony
+        const ws = XLSX.utils.json_to_sheet(exportData);
+
+        // Set column widths
+        ws['!cols'] = [
+          { wch: 8 },   // Sr No
+          { wch: 25 },  // Full Name
+          { wch: 20 },  // Father Name
+          { wch: 8 },   // Age
+          { wch: 10 },  // Gender
+          { wch: 15 },  // House Number
+          { wch: 20 },  // Colony
+          { wch: 15 },  // Mobile
+          { wch: 15 },  // Voter ID
+          { wch: 10 },  // Part No
+          { wch: 10 },  // Page No
+          { wch: 15 }   // Publication Date
+        ];
+
+        // Sanitize colony name for sheet name
+        const sheetName = sanitizeSheetName(colony.colony_name);
+
+        // Add worksheet to workbook with colony name as sheet name
+        XLSX.utils.book_append_sheet(wb, ws, sheetName);
+      });
+
+      // Generate Excel file
+      const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      const data = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+
+      // Save file
+      const fileName = `Colony_Wise_Voters_${new Date().toISOString().split('T')[0]}.xlsx`;
+      saveAs(data, fileName);
+
+      toast.success(`Excel file downloaded successfully with ${colonyWiseGroupedData.length} sheets!`);
+    } catch (error) {
+      console.error('Error exporting colony wise data to Excel:', error);
+      toast.error('Failed to export Excel file');
+    }
+  };
+
+  // Export colony wise data to PDF
+  const exportColonyWiseToPDF = async () => {
+    try {
+      // Create HTML content for all colonies
+      let allTablesHtml = '';
+
+      colonyWiseGroupedData.forEach((colony, index) => {
+        const tableRows = colony.voters.map((voter, idx) => `
+          <tr>
+            <td style="padding: 4px; border: 1px solid #000; font-size: 8px;">${idx + 1}</td>
+            <td style="padding: 4px; border: 1px solid #000; font-size: 8px;">${voter.full_name || "N/A"}</td>
+            <td style="padding: 4px; border: 1px solid #000; font-size: 8px;">${voter.Father_name || "N/A"}</td>
+            <td style="padding: 4px; border: 1px solid #000; font-size: 8px;">${voter.Age || "N/A"}</td>
+            <td style="padding: 4px; border: 1px solid #000; font-size: 8px;">${voter.Gender || "N/A"}</td>
+            <td style="padding: 4px; border: 1px solid #000; font-size: 8px;">${voter.updated_house_number || voter.House_Number || "N/A"}</td>
+            <td style="padding: 4px; border: 1px solid #000; font-size: 8px;">${voter.updated_mobile_no || "N/A"}</td>
+            <td style="padding: 4px; border: 1px solid #000; font-size: 8px;">${voter.Voter_Id || "N/A"}</td>
+          </tr>
+        `).join('');
+
+        allTablesHtml += `
+          <div style="margin-bottom: 20px; page-break-after: always;">
+            <h2 style="font-size: 14px; margin-bottom: 5px;">${index + 1}. ${colony.colony_name}</h2>
+            <p style="font-size: 10px; margin-bottom: 10px;">Total Voters: ${colony.totalVoters} | Total Houses: ${colony.totalHouses}</p>
+            <table style="width: 100%; border-collapse: collapse; font-size: 8px;">
+              <thead>
+                <tr style="background-color: #f0f0f0;">
+                  <th style="padding: 4px; border: 1px solid #000; font-weight: bold;">Sr</th>
+                  <th style="padding: 4px; border: 1px solid #000; font-weight: bold;">Full Name</th>
+                  <th style="padding: 4px; border: 1px solid #000; font-weight: bold;">Father Name</th>
+                  <th style="padding: 4px; border: 1px solid #000; font-weight: bold;">Age</th>
+                  <th style="padding: 4px; border: 1px solid #000; font-weight: bold;">Gender</th>
+                  <th style="padding: 4px; border: 1px solid #000; font-weight: bold;">House No</th>
+                  <th style="padding: 4px; border: 1px solid #000; font-weight: bold;">Mobile</th>
+                  <th style="padding: 4px; border: 1px solid #000; font-weight: bold;">Voter ID</th>
+                </tr>
+              </thead>
+              <tbody>${tableRows}</tbody>
+            </table>
+          </div>
+        `;
+      });
+
+      const htmlContent = `
+        <html>
+          <head>
+            <title>Colony Wise Voter Details Report</title>
+            <style>
+              @page { size: A4 landscape; margin: 10mm; }
+              body { font-family: Arial, sans-serif; margin: 0; padding: 10px; }
+              h1 { text-align: center; margin-bottom: 10px; font-size: 16px; }
+              .info { text-align: center; margin-bottom: 15px; font-size: 12px; }
+            </style>
+          </head>
+          <body>
+            <h1>Colony Wise Voter Details Report</h1>
+            <div class="info">
+              <p>Generated on: ${new Date().toLocaleDateString()} | Total Colonies: ${colonyWiseGroupedData.length}</p>
+            </div>
+            ${allTablesHtml}
+          </body>
+        </html>
+      `;
+
+      // Open in new window and trigger print
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.write(htmlContent);
+        printWindow.document.close();
+
+        // Wait for content to load then print
+        setTimeout(() => {
+          //printWindow.print();
+          setTimeout(() => {
+            //printWindow.close();
+          }, 1000);
+        }, 500);
+
+        toast.success('PDF print dialog opened! Click print to save as PDF.');
+      } else {
+        toast.error('Please allow popups to download PDF');
+      }
+    } catch (error) {
+      console.error('Error exporting colony wise data to PDF:', error);
+      toast.error('Failed to export PDF file');
+    }
   };
 
   // Filtered voters in colony modal
@@ -1010,6 +1176,28 @@ const Newdashboard: React.FC = () => {
               </h2>
               <div className="flex items-center gap-2">
                 <button
+                  onClick={exportColonyWiseToExcel}
+                  disabled={loading || colonyWiseGroupedData.length === 0}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Export to Excel"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  Excel
+                </button>
+                <button
+                  onClick={exportColonyWiseToPDF}
+                  disabled={loading || colonyWiseGroupedData.length === 0}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Export to PDF"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                  </svg>
+                  PDF
+                </button>
+                <button
                   onClick={fetchVoterData}
                   disabled={loading}
                   className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
@@ -1038,12 +1226,13 @@ const Newdashboard: React.FC = () => {
                       <th className="px-3 py-2 border text-left">Colony</th>
                       <th className="px-3 py-2 border text-left">Total Houses</th>
                       <th className="px-3 py-2 border text-left">Total Voters</th>
+                      <th className="px-3 py-2 border text-left">Export</th>
                     </tr>
                   </thead>
                   <tbody>
                     {colonyWiseGroupedData.length === 0 ? (
                       <tr>
-                        <td className="px-3 py-2 border" colSpan={4}>
+                        <td className="px-3 py-2 border" colSpan={5}>
                           No data found
                         </td>
                       </tr>
@@ -1061,6 +1250,140 @@ const Newdashboard: React.FC = () => {
                               {colony.totalVoters}
                             </button>
                           </td>
+                          <td className="px-3 py-2 border">
+                            <div className="flex gap-1">
+                              <button
+                                onClick={() => {
+                                  try {
+                                    const exportData = colony.voters.map((voter, idx) => ({
+                                      'Sr No': idx + 1,
+                                      'Full Name': voter.full_name || "N/A",
+                                      'Father Name': voter.Father_name || "N/A",
+                                      'Age': voter.Age || "N/A",
+                                      'Gender': voter.Gender || "N/A",
+                                      'House Number': voter.updated_house_number || voter.House_Number || "N/A",
+                                      'Mobile': voter.updated_mobile_no || "N/A",
+                                      'Voter ID': voter.Voter_Id || "N/A",
+                                      'Part No': voter.Part_No || "N/A",
+                                      'Page No': voter.Page_NO || "N/A"
+                                    }));
+
+                                    const wb = XLSX.utils.book_new();
+                                    const ws = XLSX.utils.json_to_sheet(exportData);
+
+                                    ws['!cols'] = [
+                                      { wch: 8 }, { wch: 25 }, { wch: 20 }, { wch: 8 },
+                                      { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 15 },
+                                      { wch: 10 }, { wch: 10 }
+                                    ];
+
+                                    const sheetName = colony.colony_name.replace(/[\[\]:*?\/\\]/g, '').substring(0, 31) || 'Sheet';
+                                    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+
+                                    const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+                                    const data = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+
+                                    const fileName = `${colony.colony_name.replace(/[^a-zA-Z0-9]/g, '_')}_Voters_${new Date().toISOString().split('T')[0]}.xlsx`;
+                                    saveAs(data, fileName);
+
+                                    toast.success(`${colony.colony_name} Excel file downloaded successfully!`);
+                                  } catch (error) {
+                                    console.error('Error exporting colony to Excel:', error);
+                                    toast.error('Failed to export Excel file');
+                                  }
+                                }}
+                                className="p-1 text-green-600 hover:text-green-800 hover:bg-green-50 rounded"
+                                title="Export to Excel"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                              </button>
+                              <button
+                                onClick={() => {
+                                  try {
+                                    // Create HTML content for single colony
+                                    const tableRows = colony.voters.map((voter, idx) => `
+                                      <tr>
+                                        <td style="padding: 4px; border: 1px solid #000; font-size: 9px;">${idx + 1}</td>
+                                        <td style="padding: 4px; border: 1px solid #000; font-size: 9px;">${voter.full_name || "N/A"}</td>
+                                        <td style="padding: 4px; border: 1px solid #000; font-size: 9px;">${voter.Father_name || "N/A"}</td>
+                                        <td style="padding: 4px; border: 1px solid #000; font-size: 9px;">${voter.Age || "N/A"}</td>
+                                        <td style="padding: 4px; border: 1px solid #000; font-size: 9px;">${voter.Gender || "N/A"}</td>
+                                        <td style="padding: 4px; border: 1px solid #000; font-size: 9px;">${voter.updated_house_number || voter.House_Number || "N/A"}</td>
+                                        <td style="padding: 4px; border: 1px solid #000; font-size: 9px;">${voter.updated_mobile_no || "N/A"}</td>
+                                        <td style="padding: 4px; border: 1px solid #000; font-size: 9px;">${voter.Voter_Id || "N/A"}</td>
+                                      </tr>
+                                    `).join('');
+
+                                    const htmlContent = `
+                                      <html>
+                                        <head>
+                                          <title>${colony.colony_name} - Voters Report</title>
+                                          <style>
+                                            @page { size: A4 landscape; margin: 10mm; }
+                                            body { font-family: Arial, sans-serif; margin: 0; padding: 10px; }
+                                            h1 { text-align: center; margin-bottom: 10px; font-size: 16px; }
+                                            .info { text-align: center; margin-bottom: 15px; font-size: 12px; }
+                                            table { width: 100%; border-collapse: collapse; font-size: 8px; }
+                                            th { background-color: #f0f0f0; padding: 4px; border: 1px solid #000; font-weight: bold; }
+                                            td { padding: 4px; border: 1px solid #000; }
+                                          </style>
+                                        </head>
+                                        <body>
+                                          <h1>${colony.colony_name} - Voters Report</h1>
+                                          <div class="info">
+                                            <p>Generated on: ${new Date().toLocaleDateString()} | Total Voters: ${colony.totalVoters}</p>
+                                          </div>
+                                          <table>
+                                            <thead>
+                                              <tr>
+                                                <th>Sr</th>
+                                                <th>Full Name</th>
+                                                <th>Father Name</th>
+                                                <th>Age</th>
+                                                <th>Gender</th>
+                                                <th>House No</th>
+                                                <th>Mobile</th>
+                                                <th>Voter ID</th>
+                                              </tr>
+                                            </thead>
+                                            <tbody>${tableRows}</tbody>
+                                          </table>
+                                        </body>
+                                      </html>
+                                    `;
+
+                                    const printWindow = window.open('', '_blank');
+                                    if (printWindow) {
+                                      printWindow.document.write(htmlContent);
+                                      printWindow.document.close();
+
+                                      setTimeout(() => {
+                                        //printWindow.print();
+                                        setTimeout(() => {
+                                          //printWindow.close();
+                                        }, 1000);
+                                      }, 500);
+
+                                      toast.success(`${colony.colony_name} PDF print dialog opened! Click print to save as PDF.`);
+                                    } else {
+                                      toast.error('Please allow popups to download PDF');
+                                    }
+                                  } catch (error) {
+                                    console.error('Error exporting colony to PDF:', error);
+                                    toast.error('Failed to export PDF file');
+                                  }
+                                }}
+                                className="p-1 text-red-600 hover:text-red-800 hover:bg-red-50 rounded"
+                                title="Export to PDF"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                </svg>
+                              </button>
+                            </div>
+                          </td>
                         </tr>
                       ))
                     )}
@@ -1075,6 +1398,7 @@ const Newdashboard: React.FC = () => {
                         <td className="px-3 py-2 border">
                           {colonyWiseGroupedData.reduce((sum, c) => sum + c.totalVoters, 0)}
                         </td>
+                        <td className="px-3 py-2 border"></td>
                       </tr>
                     </tfoot>
                   )}
