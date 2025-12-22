@@ -275,8 +275,10 @@ const Newdashboard: React.FC = () => {
       const response = await fetch('/api/familywisesurvey');
       if (!response.ok) throw new Error('Failed to fetch family wise survey data');
       const result = await response.json();
-      setFamilyWiseSurveyData(result);
-      setFilteredFamilyWiseData(result);
+      // Handle new response structure with pagination
+      const data = Array.isArray(result) ? result : (result.data || []);
+      setFamilyWiseSurveyData(data);
+      setFilteredFamilyWiseData(data);
     } catch {
       toast.error('Failed to load family wise survey data');
       setFamilyWiseSurveyData([]);

@@ -61,8 +61,16 @@ const DynamicCfrCount: React.FC<DynamicCfrCountProps> = ({
       if (tabType === "allvoterdetails" || tabType === "voterwisedetails") {
         setCount(data.total ?? 0);
       } else if (tabType === "femalevoters" || tabType === "familywisesurvey") {
-        // For these endpoints, data is an array
-        setCount(Array.isArray(data) ? data.length : 0);
+        // For these endpoints, check if data has pagination structure or is an array
+        if (data.pagination && typeof data.pagination.totalRecords === 'number') {
+          setCount(data.pagination.totalRecords);
+        } else if (Array.isArray(data)) {
+          setCount(data.length);
+        } else if (Array.isArray(data.data)) {
+          setCount(data.data.length);
+        } else {
+          setCount(0);
+        }
       } else {
         setCount(data.total ?? data.count ?? 0);
       }

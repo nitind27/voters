@@ -47,6 +47,14 @@ export async function GET(request: Request) {
         }
         
         // Get primary persons (where Voter_Id = family_member) with family member counts
+        // Use pagination to avoid timeout
+        const page = parseInt(searchParams.get('page') || '1', 10);
+        const limit = parseInt(searchParams.get('limit') || '100', 10);
+        const validPage = Math.max(1, page);
+        const validLimit = Math.min(Math.max(1, limit), 1000); // Max 1000 per page
+        const offset = (validPage - 1) * validLimit;
+        
+        // Optimized query using subquery instead of self-join for better performance
         const query = `
             SELECT 
                 v.id,
@@ -67,24 +75,43 @@ export async function GET(request: Request) {
                 v.updated_at,
                 c.colony_name,
                 u.name as user_name,
-                COUNT(fm.id) as family_member_count
+                COALESCE((
+                    SELECT COUNT(*)
+                    FROM tbl_voters_search fm
+                    WHERE fm.family_member = v.Voter_Id 
+                        AND fm.Voter_Id != v.Voter_Id
+                ), 0) as family_member_count
             FROM tbl_voters_search v
             LEFT JOIN colony c ON v.Updated_colony = c.colony_id
             LEFT JOIN users u ON v.user_id = u.user_id
-            LEFT JOIN tbl_voters_search fm ON fm.family_member = v.Voter_Id AND fm.Voter_Id != v.Voter_Id
             WHERE v.family_member IS NOT NULL 
                 AND v.family_member != ''
                 AND v.Voter_Id = v.family_member
-            GROUP BY v.id, v.Voter_Id, v.full_name, v.ENG_Full_name, v.Age, v.Gender, 
-                     v.House_Number, v.Updated_colony, v.updated_mobile_no, v.Updated_photo,
-                     v.user_id, v.updated_house_number, v.family_member, v.status,
-                     v.created_at, v.updated_at, c.colony_name, u.name
             ORDER BY v.id DESC
+            LIMIT ? OFFSET ?
         `;
         
-        const [rows] = await connection.query<RowDataPacket[]>(query);
+        const [rows] = await connection.query<RowDataPacket[]>(query, [validLimit, offset]);
+        
+        // Get total count for pagination
+        const [countRows] = await connection.query<RowDataPacket[]>(
+            `SELECT COUNT(*) as total 
+             FROM tbl_voters_search 
+             WHERE family_member IS NOT NULL 
+                 AND family_member != ''
+                 AND Voter_Id = family_member`
+        );
+        const totalRecords = Number(countRows[0]?.total || 0);
 
-        return NextResponse.json(rows);
+        return NextResponse.json({
+            data: rows,
+            pagination: {
+                currentPage: validPage,
+                totalPages: Math.ceil(totalRecords / validLimit),
+                totalRecords: totalRecords,
+                recordsPerPage: validLimit,
+            },
+        });
     } catch (error) {
         console.error('Database query failed (GET):', error);
         return NextResponse.json(
