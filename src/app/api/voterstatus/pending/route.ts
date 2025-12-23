@@ -6,13 +6,13 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page') || '1', 10);
-    const limit = parseInt(searchParams.get('limit') || '10000', 10);
+    const limit = parseInt(searchParams.get('limit') || '23785', 10);
 
     const validPage = Math.max(1, page);
     const validLimit = Math.min(Math.max(1, limit), 50000);
     const offset = (validPage - 1) * validLimit;
 
-    // Get pending list - voters where volunteer_status is NULL or 'Pending' or not assigned
+    // Get pending list - voters where voting_status = 'Pending'
     const [rows] = await pool.query<RowDataPacket[]>(
       `SELECT 
          v.id,
@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
          c.colony_name
        FROM tbl_voters_search v
        LEFT JOIN colony c ON v.Updated_colony = c.colony_id
-       WHERE (v.volunteer_status IS NULL OR v.volunteer_status = '' OR v.volunteer_status = 'Pending')
+       WHERE v.voting_status = 'Pending'
        ORDER BY v.id DESC
        LIMIT ? OFFSET ?`,
       [validLimit, offset],
@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
     const [countRows] = await pool.query<RowDataPacket[]>(
       `SELECT COUNT(*) as total 
        FROM tbl_voters_search 
-       WHERE (volunteer_status IS NULL OR volunteer_status = '' OR volunteer_status = 'Pending')`,
+       WHERE voting_status = 'Pending'`,
     );
     const totalRecords = Number(countRows[0]?.total || 0);
 

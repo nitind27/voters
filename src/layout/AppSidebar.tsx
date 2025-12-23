@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useSidebar } from "../context/SidebarContext";
-import { RxDashboard } from "react-icons/rx";
+// import { RxDashboard } from "react-icons/rx";
 import { TbCategoryPlus } from "react-icons/tb"
 
 
@@ -39,11 +39,11 @@ const allNavItems: NavItem[] = [
     name: "Dashboard",
     path: "/",
   },
-  {
-    icon: <RxDashboard />,
-    name: "Old Dashboard",
-    path: "/olddashboard",
-  },
+  // {
+  //   icon: <RxDashboard />,
+  //   name: "Old Dashboard",
+  //   path: "/olddashboard",
+  // },
  
   // {
   //   icon: <TbCategoryPlus />,
@@ -73,38 +73,47 @@ const allNavItems: NavItem[] = [
     name: "Colony",
     path: "/colony",
   },
+  // {
+  //   icon: <TbCategoryPlus />,
+  //   name: "Corporation Data Matching",
+  //   path: "/voter",
+  // },
   {
     icon: <TbCategoryPlus />,
-    name: "Corporation Data Matching",
-    path: "/voter",
+    name: "Corporation List",
+    path: "/corporationlist",
   },
-
   
+  // {
+  //   icon: <TbCategoryPlus />,
+  //   name: "Financial Data Sorting",
+  //   path: "/findatasorting",
+  // },
+  // {
+  //   icon: <TbCategoryPlus />,
+  //   name: "Election Day Sorting",
+  //   path: "/voterlist",
+  // },
   {
     icon: <TbCategoryPlus />,
-    name: "Financial Data Sorting",
-    path: "/findatasorting",
-  },
-  {
-    icon: <TbCategoryPlus />,
-    name: "Election Day Sorting",
-    path: "/voterlist",
-  },
-  {
-    icon: <TbCategoryPlus />,
-    name: "Voter Master",
+    name: "Volunteer Details",
     path: "/votermaster",
   },
   {
     icon: <TbCategoryPlus />,
-    name: "Pending Voting Data",
-    path: "/voterpending",
+    name: "Voter Status",
+    path: "/voterstatus",
   },
-  {
-    icon: <TbCategoryPlus />,
-    name: "Excel Matching",
-    path: "/excelexport",
-  },
+  // {
+  //   icon: <TbCategoryPlus />,
+  //   name: "Pending Voting Data",
+  //   path: "/voterpending",
+  // },
+  // {
+  //   icon: <TbCategoryPlus />,
+  //   name: "Excel Matching",
+  //   path: "/excelexport",
+  // },
   // {
   //   icon: <TbCategoryPlus />,
   //   name: "ZP Order Details",
@@ -127,6 +136,15 @@ const allNavItems: NavItem[] = [
   // },
 ];
 
+// Nav items for category_id 6 (Polling Data only)
+const pollingNavItems: NavItem[] = [
+  {
+    icon: <TbCategoryPlus />,
+    name: "Polling Data",
+    path: "/pollingdata",
+  },
+];
+
 
 
 
@@ -145,11 +163,13 @@ const AppSidebar: React.FC = () => {
   const router = usePathname();
   const [storedValue, setStoredValue] = useState<string | null>(null);
   const [storedValuecategory_name, setStoredValuecategory_name] = useState<string | null>(null);
-  const navItems: NavItem[] = storedValuecategory_name === "1"
-    ? allNavItems
-    : (storedValuecategory_name === "25")
+  const navItems: NavItem[] = storedValuecategory_name === "6"
+    ? pollingNavItems
+    : storedValuecategory_name === "1"
       ? allNavItems
-      : allNavItems;
+      : (storedValuecategory_name === "25")
+        ? allNavItems
+        : allNavItems;
 
 
   useEffect(() => {

@@ -64,6 +64,7 @@ const VoterMaster: React.FC = () => {
     updated_at?: string;
     colony_names: string;
     colony_ids: number[];
+    category_id?: number | null;
   };
   type AssignRow = {
     id: number;
@@ -75,6 +76,8 @@ const VoterMaster: React.FC = () => {
     status: string;
     username: string;
     password: string;
+    category_id?: number | null;
+    category_name?: string | null;
   };
   const [colonies, setColonies] = useState<ColonyOption[]>([]);
   // const [loadingColonies, setLoadingColonies] = useState(false);
@@ -95,10 +98,21 @@ const VoterMaster: React.FC = () => {
     volunteer_name: "",
     contact_no: "",
     status: "Active" as "Active" | "Inactive",
+    category_id: null as number | null,
   });
   const [creatingVolunteer, setCreatingVolunteer] = useState(false);
   const [updatingVolunteer, setUpdatingVolunteer] = useState(false);
-  const [deletingVolunteerId, setDeletingVolunteerId] = useState<number | null>(null);
+  // const [deletingVolunteerId, setDeletingVolunteerId] = useState<number | null>(null);
+  const [updatingStatusId, setUpdatingStatusId] = useState<number | null>(null);
+  const [resettingPasswordId, setResettingPasswordId] = useState<number | null>(null);
+  
+  // Category state
+  type CategoryOption = {
+    category_id: number;
+    name: string;
+  };
+  const [categories, setCategories] = useState<CategoryOption[]>([]);
+  const [loadingCategories, setLoadingCategories] = useState(false);
 
   // Tab B - Searchable volunteer select state
   const [volunteerSearchTerm, setVolunteerSearchTerm] = useState("");
@@ -285,6 +299,39 @@ const VoterMaster: React.FC = () => {
     loadColonies();
   }, []);
 
+  // Load categories (only category_id 5 and 6)
+  useEffect(() => {
+    const loadCategories = async () => {
+      setLoadingCategories(true);
+      try {
+        const res = await fetch("/api/usercategorycrud", {
+          cache: "no-store",
+        });
+        if (!res.ok) throw new Error("Failed to fetch categories");
+        const json = await res.json();
+        // Filter only category_id 5 and 6
+        const filteredCategories = (Array.isArray(json) ? json : []).filter(
+          (cat: CategoryOption) => cat.category_id === 5 || cat.category_id === 6
+        );
+        setCategories(filteredCategories);
+      } catch (e) {
+        console.error(e);
+        toast.error("Category list load होत नाही.");
+      } finally {
+        setLoadingCategories(false);
+      }
+    };
+    loadCategories();
+  }, []);
+
+  // Reload volunteer master data when categories are loaded (to show category names)
+  useEffect(() => {
+    if (categories.length > 0 && activeTab === "A") {
+      fetchVolunteerMasterData("");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [categories]);
+
   // Load colony primary person counts
   const loadColonyCounts = async () => {
     try {
@@ -312,25 +359,28 @@ const VoterMaster: React.FC = () => {
       });
       if (!res.ok) throw new Error("Failed to load volunteer master data");
       const json = await res.json();
-      const processedData = (json.data || []).map((item: VolunteerMasterApiItem & { primary_person_id?: string | null }, index: number) => {
-        // Calculate primary person count from primary_person_id (comma-separated string)
-        const primaryPersonCount = item.primary_person_id
-          ? item.primary_person_id.split(',').filter((id: string) => id.trim()).length
-          : 0;
-        
-        return {
-          id: item.user_id || index,
-          sr_no: index + 1,
-          volunteer_name: item.volunteer_name || "",
-          contact_no: item.contact_no || "",
-          colony_names: item.colony_names || "",
-          colony_ids: item.colony_ids || [],
-          primary_person_count: primaryPersonCount,
-          status: item.status || "Active",
-          username: item.username || "",
-          password: item.password || "",
-        };
-      });
+      const processedData = (json.data || [])
+        .filter((item: VolunteerMasterApiItem) => item.status === "Active") // Only show Active volunteers
+        .map((item: VolunteerMasterApiItem & { primary_person_id?: string | null }, index: number) => {
+          // Calculate primary person count from primary_person_id (comma-separated string)
+          const primaryPersonCount = item.primary_person_id
+            ? item.primary_person_id.split(',').filter((id: string) => id.trim()).length
+            : 0;
+          
+          return {
+            id: item.user_id || index,
+            sr_no: index + 1,
+            volunteer_name: item.volunteer_name || "",
+            contact_no: item.contact_no || "",
+            colony_names: item.colony_names || "",
+            colony_ids: item.colony_ids || [],
+            primary_person_count: primaryPersonCount,
+            status: item.status || "Active",
+            username: item.username || "",
+            password: item.password || "",
+            category_id: item.category_id || null,
+          };
+        });
       setAssignRows(processedData);
     } catch (e) {
       console.error(e);
@@ -352,25 +402,33 @@ const VoterMaster: React.FC = () => {
       });
       if (!res.ok) throw new Error("Failed to load volunteer master data");
       const json = await res.json();
-      const processedData = (json.data || []).map((item: VolunteerMasterApiItem & { primary_person_id?: string | null }, index: number) => {
-        // Calculate primary person count from primary_person_id (comma-separated string)
-        const primaryPersonCount = item.primary_person_id
-          ? item.primary_person_id.split(',').filter((id: string) => id.trim()).length
-          : 0;
-        
-        return {
-          id: item.user_id || index,
-          sr_no: index + 1,
-          volunteer_name: item.volunteer_name || "",
-          contact_no: item.contact_no || "",
-          colony_names: item.colony_names || "",
-          colony_ids: item.colony_ids || [],
-          primary_person_count: primaryPersonCount,
-          status: item.status || "Active",
-          username: item.username || "",
-          password: item.password || "",
-        };
-      });
+      const processedData = (json.data || [])
+        .map((item: VolunteerMasterApiItem & { primary_person_id?: string | null }, index: number) => {
+          // Calculate primary person count from primary_person_id (comma-separated string)
+          const primaryPersonCount = item.primary_person_id
+            ? item.primary_person_id.split(',').filter((id: string) => id.trim()).length
+            : 0;
+          
+          // Find category name from categories state
+          const categoryName = item.category_id 
+            ? categories.find(cat => cat.category_id === item.category_id)?.name || null
+            : null;
+          
+          return {
+            id: item.user_id || index,
+            sr_no: index + 1,
+            volunteer_name: item.volunteer_name || "",
+            contact_no: item.contact_no || "",
+            colony_names: item.colony_names || "",
+            colony_ids: item.colony_ids || [],
+            primary_person_count: primaryPersonCount,
+            status: item.status || "Active",
+            username: item.username || "",
+            password: item.password || "",
+            category_id: item.category_id || null,
+            category_name: categoryName,
+          };
+        });
       setVolunteerMasterRows(processedData);
     } catch (e) {
       console.error(e);
@@ -420,7 +478,8 @@ const VoterMaster: React.FC = () => {
       });
       if (!res.ok) throw new Error("Failed to load volunteers");
       const json = await res.json();
-      setAvailableVolunteers(json.data || []);
+      // Filter out inactive volunteers
+      setAvailableVolunteers((json.data || []).filter((v: VolunteerMasterApiItem) => v.status === "Active"));
     } catch (e) {
       console.error(e);
       toast.error("Volunteers load होत नाही.");
@@ -507,7 +566,8 @@ const VoterMaster: React.FC = () => {
       });
       if (!res.ok) throw new Error("Failed to load volunteers");
       const json = await res.json();
-      setFinancialAvailableVolunteers(json.data || []);
+      // Filter out inactive volunteers
+      setFinancialAvailableVolunteers((json.data || []).filter((v: VolunteerMasterApiItem) => v.status === "Active"));
     } catch (e) {
       console.error(e);
       toast.error("Volunteers load होत नाही.");
@@ -832,7 +892,8 @@ const VoterMaster: React.FC = () => {
       });
       if (!res.ok) throw new Error("Failed to load volunteers");
       const json = await res.json();
-      setVotingAvailableVolunteers(json.data || []);
+      // Filter out inactive volunteers
+      setVotingAvailableVolunteers((json.data || []).filter((v: VolunteerMasterApiItem) => v.status === "Active"));
     } catch (e) {
       console.error(e);
       toast.error("Volunteers load होत नाही.");
@@ -871,12 +932,37 @@ const VoterMaster: React.FC = () => {
   }, [colonies, selectedVotingVolunteerId, votingAvailableVolunteers]);
 
   // Tab D - Load primary persons when colony is selected
-  const loadVotingPrimaryPersons = async (colonyId: number) => {
-    if (!colonyId) {
-      setVotingPrimaryPersons([]);
-      setSelectedVotingPrimaryPersonIds([]);
-      setVotingMembers([]);
-      setMemberVotingStatus({});
+  const loadVotingPrimaryPersons = async (colonyId: number | null) => {
+    if (!colonyId || colonyId === -1) {
+      // Load from all colonies if "All" is selected
+      if (colonyId === -1) {
+        setLoadingVotingPrimaryPersons(true);
+        try {
+          const params = new URLSearchParams();
+          // Don't set colony_id when "All" is selected
+          if (selectedVotingVolunteerId) {
+            params.set("only_assigned", "true");
+          }
+          
+          const res = await fetch(`/api/voterstatus/primarypersons?${params.toString()}`, {
+            cache: "no-store",
+          });
+          if (!res.ok) throw new Error("Failed to load primary persons");
+          const json = await res.json();
+          setVotingPrimaryPersons(json || []);
+        } catch (e) {
+          console.error(e);
+          toast.error("Primary persons load होत नाही.");
+          setVotingPrimaryPersons([]);
+        } finally {
+          setLoadingVotingPrimaryPersons(false);
+        }
+      } else {
+        setVotingPrimaryPersons([]);
+        setSelectedVotingPrimaryPersonIds([]);
+        setVotingMembers([]);
+        setMemberVotingStatus({});
+      }
       return;
     }
 
@@ -1302,6 +1388,7 @@ const VoterMaster: React.FC = () => {
           volunteer_name: volunteerFormData.volunteer_name.trim(),
           contact_no: volunteerFormData.contact_no.trim() || null,
           status: volunteerFormData.status,
+          category_id: volunteerFormData.category_id || null,
         }),
       });
       const json = await res.json();
@@ -1313,6 +1400,7 @@ const VoterMaster: React.FC = () => {
         volunteer_name: "",
         contact_no: "",
         status: "Active",
+        category_id: null,
       });
       
       // Refresh data if on Tab A or Tab B
@@ -1471,6 +1559,7 @@ const VoterMaster: React.FC = () => {
       volunteer_name: row.volunteer_name || "",
       contact_no: row.contact_no || "",
       status: (row.status as "Active" | "Inactive") || "Active",
+      category_id: row.category_id || null,
     });
     setIsEditModalOpen(true);
   };
@@ -1493,6 +1582,7 @@ const VoterMaster: React.FC = () => {
           volunteer_name: volunteerFormData.volunteer_name.trim(),
           contact_no: volunteerFormData.contact_no.trim() || null,
           status: volunteerFormData.status,
+          category_id: volunteerFormData.category_id || null,
         }),
       });
       const json = await res.json();
@@ -1505,6 +1595,7 @@ const VoterMaster: React.FC = () => {
         volunteer_name: "",
         contact_no: "",
         status: "Active",
+        category_id: null,
       });
       
       // Reload volunteer master data
@@ -1517,29 +1608,91 @@ const VoterMaster: React.FC = () => {
     }
   };
 
-  // Handle delete volunteer
-  const handleDeleteVolunteer = async (userId: number, volunteerName: string) => {
-    if (!confirm(`Are you sure you want to delete volunteer "${volunteerName}"? This action cannot be undone.`)) {
+  // Handle status change for volunteer
+  const handleStatusChange = async (userId: number, newStatus: "Active" | "Inactive") => {
+    try {
+      setUpdatingStatusId(userId);
+      // Find the volunteer to get current data
+      const volunteer = volunteerMasterRows.find(v => v.id === userId);
+      if (!volunteer) {
+        throw new Error("Volunteer not found");
+      }
+
+      const res = await fetch("/api/volunteermaster", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: userId,
+          volunteer_name: volunteer.volunteer_name,
+          contact_no: volunteer.contact_no || null,
+          status: newStatus,
+          category_id: volunteer.category_id || null,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || "Failed to update volunteer status");
+      
+      toast.success(`Volunteer status ${newStatus} झाला.`);
+      
+      // Reload volunteer master data
+      await fetchVolunteerMasterData("");
+      
+      // Also reload Tab B data if on Tab B
+      if (activeTab === "B") {
+        await fetchAssignData("");
+        await loadAvailableVolunteers();
+      }
+    } catch (e) {
+      console.error(e);
+      toast.error("Volunteer status अपडेट होत नाही.");
+    } finally {
+      setUpdatingStatusId(null);
+    }
+  };
+
+ 
+
+  // Handle reset password
+  const handleResetPassword = async (userId: number, volunteerName: string, contactNo: string) => {
+    if (!confirm(`Are you sure you want to reset password for volunteer "${volunteerName}"? Password will be set to contact number.`)) {
       return;
     }
 
     try {
-      setDeletingVolunteerId(userId);
-      const res = await fetch(`/api/volunteermaster?user_id=${userId}`, {
-        method: "DELETE",
+      setResettingPasswordId(userId);
+      // Find the volunteer to get current data
+      const volunteer = volunteerMasterRows.find(v => v.id === userId);
+      if (!volunteer) {
+        throw new Error("Volunteer not found");
+      }
+
+      // Reset password to contact_no
+      const newPassword = contactNo || "";
+
+      const res = await fetch("/api/volunteermaster", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: userId,
+          volunteer_name: volunteer.volunteer_name,
+          contact_no: volunteer.contact_no || null,
+          status: volunteer.status,
+          category_id: volunteer.category_id || null,
+          password: newPassword, // Update password to contact_no
+        }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json?.error || "Failed to delete volunteer");
+      if (!res.ok) throw new Error(json?.error || "Failed to reset password");
       
-      toast.success("Volunteer डिलीट झाला.");
+      toast.success("Password reset झाला.");
       
       // Reload volunteer master data
       await fetchVolunteerMasterData("");
     } catch (e) {
       console.error(e);
-      toast.error("Volunteer डिलीट होत नाही.");
+      toast.error("Password reset होत नाही.");
     } finally {
-      setDeletingVolunteerId(null);
+      setResettingPasswordId(null);
     }
   };
 
@@ -1556,28 +1709,79 @@ const VoterMaster: React.FC = () => {
       accessor: "contact_no",
     },
     {
+      key: "category_name",
+      label: "Category",
+      accessor: "category_name",
+      render: (row: AssignRow) => {
+        // Find category name by matching category_id with categories array
+        const category = row.category_id 
+          ? categories.find(cat => cat.category_id  == row.category_id)
+          : null;
+        return (
+          <span className="text-gray-700">
+            {category?.name || "-"}
+          </span>
+        );
+      },
+    },
+    {
+      key: "status",
+      label: "Status",
+      accessor: "status",
+      render: (row: AssignRow) => (
+        <span
+          className={`px-3 py-1 text-xs rounded font-medium ${
+            row.status === "Active" 
+              ? "bg-green-100 text-green-800" 
+              : "bg-red-100 text-red-800"
+          }`}
+        >
+          {row.status || "Active"}
+        </span>
+      ),
+    },
+    {
       key: "actions",
       label: "Actions",
       accessor: "volunteer_name" as keyof AssignRow,
-      render: (row: AssignRow) => (
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => handleEditVolunteer(row)}
-            className="px-3 py-1 text-xs rounded bg-blue-600 text-white hover:bg-blue-700"
-          >
-            Edit
-          </button>
-          <button
-            type="button"
-            onClick={() => handleDeleteVolunteer(row.id, row.volunteer_name)}
-            disabled={deletingVolunteerId === row.id}
-            className="px-3 py-1 text-xs rounded bg-red-600 text-white hover:bg-red-700 disabled:opacity-60"
-          >
-            {deletingVolunteerId === row.id ? "Deleting..." : "Delete"}
-          </button>
-        </div>
-      ),
+      render: (row: AssignRow) => {
+        const isActive = row.status === "Active";
+        const isUpdating = updatingStatusId === row.id;
+        const isResetting = resettingPasswordId === row.id;
+        return (
+          <div className="flex gap-2 whitespace-nowrap">
+            <button
+              type="button"
+              onClick={() => handleEditVolunteer(row)}
+              className="px-3 py-1 text-xs rounded bg-blue-600 text-white hover:bg-blue-700"
+            >
+              Edit
+            </button>
+            <button
+              type="button"
+              onClick={() => handleStatusChange(row.id, isActive ? "Inactive" : "Active")}
+              disabled={isUpdating}
+              className={`px-3 py-1 text-xs rounded text-white hover:opacity-90 disabled:opacity-60 ${
+                isActive 
+                  ? "bg-red-600 hover:bg-red-700" 
+                  : "bg-green-600 hover:bg-green-700"
+              }`}
+            >
+              {isUpdating 
+                ? (isActive ? "Deactivating..." : "Activating...") 
+                : (isActive ? "Deactivate" : "Activate")}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleResetPassword(row.id, row.volunteer_name, row.contact_no)}
+              disabled={isResetting || !row.contact_no}
+              className="px-3 py-1 text-xs rounded bg-orange-600 text-white hover:bg-orange-700 disabled:opacity-60"
+            >
+              {isResetting ? "Resetting..." : "Reset"}
+            </button>
+          </div>
+        );
+      },
     },
   ];
 
@@ -3153,6 +3357,7 @@ const VoterMaster: React.FC = () => {
                   volunteer_name: "",
                   contact_no: "",
                   status: "Active",
+                  category_id: null,
                 });
               }}
               className="max-w-md p-6"
@@ -3160,6 +3365,22 @@ const VoterMaster: React.FC = () => {
               <div>
                 <h3 className="text-lg font-semibold mb-4">Add Volunteer</h3>
                 <div className="space-y-4">
+                <div>
+                    <Label>User Category</Label>
+                    <select
+                      className="w-full px-3 py-2 border rounded-md text-sm"
+                      value={volunteerFormData.category_id || ""}
+                      onChange={e => setVolunteerFormData({ ...volunteerFormData, category_id: e.target.value ? Number(e.target.value) : null })}
+                      disabled={loadingCategories}
+                    >
+                      <option value="">Select Category</option>
+                      {categories.map(cat => (
+                        <option key={cat.category_id} value={cat.category_id}>
+                          {cat.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                   <div>
                     
                     <Label>Volunteer Name *</Label>
@@ -3190,6 +3411,7 @@ const VoterMaster: React.FC = () => {
                       <option value="Inactive">Inactive</option>
                     </select>
                   </div>
+              
                   <div className="flex justify-end gap-2 mt-6">
                     <button
                       type="button"
@@ -3199,6 +3421,7 @@ const VoterMaster: React.FC = () => {
                           volunteer_name: "",
                           contact_no: "",
                           status: "Active",
+                          category_id: null,
                         });
                       }}
                       className="px-4 py-2 text-sm rounded border border-gray-300 hover:bg-gray-50"
@@ -3230,6 +3453,7 @@ const VoterMaster: React.FC = () => {
                   volunteer_name: "",
                   contact_no: "",
                   status: "Active",
+                  category_id: null,
                 });
               }}
               className="max-w-md p-6"
@@ -3237,6 +3461,22 @@ const VoterMaster: React.FC = () => {
               <div>
                 <h3 className="text-lg font-semibold mb-4">Edit Volunteer</h3>
                 <div className="space-y-4">
+                <div>
+                    <Label>User Category</Label>
+                    <select
+                      className="w-full px-3 py-2 border rounded-md text-sm"
+                      value={volunteerFormData.category_id || ""}
+                      onChange={e => setVolunteerFormData({ ...volunteerFormData, category_id: e.target.value ? Number(e.target.value) : null })}
+                      disabled={loadingCategories}
+                    >
+                      <option value="">Select Category</option>
+                      {categories.map(cat => (
+                        <option key={cat.category_id} value={cat.category_id}>
+                          {cat.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                   <div>
                     <Label>Volunteer Name *</Label>
                     <input
@@ -3266,6 +3506,7 @@ const VoterMaster: React.FC = () => {
                       <option value="Inactive">Inactive</option>
                     </select>
                   </div>
+               
                   <div className="flex justify-end gap-2 mt-6">
                     <button
                       type="button"
@@ -3276,6 +3517,7 @@ const VoterMaster: React.FC = () => {
                           volunteer_name: "",
                           contact_no: "",
                           status: "Active",
+                          category_id: null,
                         });
                       }}
                       className="px-4 py-2 text-sm rounded border border-gray-300 hover:bg-gray-50"

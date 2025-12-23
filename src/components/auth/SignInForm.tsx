@@ -48,7 +48,7 @@ export default function SignInForm() {
         return;
       }
 
-      // Backend has already validated category_id === 1, so we can safely store data
+      // Backend has already validated category_id === 1 or 6, so we can safely store data
       // ✅ Store user data in session storage
       if (data.user) {
         if (data.user.name) {
@@ -59,7 +59,7 @@ export default function SignInForm() {
           sessionStorage.setItem('category_name', String(data.user.category_name));
         }
         
-        // category_id is guaranteed to be 1 from backend validation
+        // category_id is guaranteed to be 1 or 6 from backend validation
         if (data.user.category_id !== undefined && data.user.category_id !== null) {
           sessionStorage.setItem('category_id', String(data.user.category_id));
         }

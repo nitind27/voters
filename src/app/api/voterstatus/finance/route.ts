@@ -6,7 +6,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page') || '1', 10);
-    const limit = parseInt(searchParams.get('limit') || '10000', 10);
+    const limit = parseInt(searchParams.get('limit') || '30000', 10);
 
     const validPage = Math.max(1, page);
     const validLimit = Math.min(Math.max(1, limit), 50000);

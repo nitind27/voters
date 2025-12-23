@@ -64,6 +64,15 @@ interface ColonyWiseData {
   totalHouses: number;
 }
 
+// Family wise survey colony grouped data
+interface FamilyWiseColonyData {
+  colony_id: string;
+  colony_name: string;
+  primaryPersons: FamilyWiseSurveyData[];
+  primaryPersonCount: number;
+  totalVoterCount: number; // Primary persons + all family members
+}
+
 // Female voter data type (from tbl_voters_search table)
 interface FemaleVoterData {
   id: number;
@@ -158,7 +167,13 @@ const Newdashboard: React.FC = () => {
   const [selectedFamilyMemberId, setSelectedFamilyMemberId] = useState<string>('');
   const [primaryPersonName, setPrimaryPersonName] = useState<string>('');
   const [familyMemberDetails, setFamilyMemberDetails] = useState<FamilyMemberDetail[]>([]);
-  const [loadingFamilyMembers, setLoadingFamilyMembers] = useState(false);
+
+  // Family wise colony voter modal state
+  const [familyWiseColonyModalOpen, setFamilyWiseColonyModalOpen] = useState(false);
+  const [selectedFamilyWiseColonyData, setSelectedFamilyWiseColonyData] = useState<FamilyWiseColonyData | null>(null);
+  const [familyWiseColonyVoters, setFamilyWiseColonyVoters] = useState<FamilyWiseSurveyData[]>([]);
+  const [loadingFamilyWiseColonyVoters, setLoadingFamilyWiseColonyVoters] = useState(false);
+  const [familyWiseColonySearchTerm, setFamilyWiseColonySearchTerm] = useState("");
 
   // Edit modal state - Only 3 fields
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -290,29 +305,7 @@ const Newdashboard: React.FC = () => {
     }
   }, []);
 
-  // Fetch family members by family_member_id
-  const fetchFamilyMembers = useCallback(async (familyMemberId: string) => {
-    setLoadingFamilyMembers(true);
-    try {
-      const response = await fetch(`/api/familywisesurvey?family_member_id=${familyMemberId}`);
-      if (!response.ok) throw new Error('Failed to fetch family members');
-      const result = await response.json();
-      setFamilyMemberDetails(result);
-    } catch {
-      toast.error('Failed to load family member details');
-      setFamilyMemberDetails([]);
-    } finally {
-      setLoadingFamilyMembers(false);
-    }
-  }, []);
 
-  // Open family member modal
-  const openFamilyMemberModal = useCallback(async (familyMemberId: string, primaryPersonName: string) => {
-    setSelectedFamilyMemberId(familyMemberId);
-    setPrimaryPersonName(primaryPersonName);
-    setFamilyMemberModalOpen(true);
-    await fetchFamilyMembers(familyMemberId);
-  }, [fetchFamilyMembers]);
 
   // Close family member modal
   const closeFamilyMemberModal = () => {
@@ -349,6 +342,48 @@ const Newdashboard: React.FC = () => {
 
     setFilteredFamilyWiseData(filtered);
   }, [selectedUserId, familyWiseSurveyData]);
+
+  // Group family wise survey data by colony
+  const familyWiseColonyGroupedData = useMemo(() => {
+    if (!filteredFamilyWiseData || filteredFamilyWiseData.length === 0) {
+      return [];
+    }
+
+    const colonyMap = new Map<string, FamilyWiseSurveyData[]>();
+
+    // Group primary persons by colony
+    filteredFamilyWiseData.forEach(primaryPerson => {
+      const colonyId = primaryPerson.Updated_colony || "0";
+      if (!colonyMap.has(colonyId)) {
+        colonyMap.set(colonyId, []);
+      }
+      colonyMap.get(colonyId)!.push(primaryPerson);
+    });
+
+    const result: FamilyWiseColonyData[] = [];
+
+    colonyMap.forEach((primaryPersons, colonyId) => {
+      const colony = colonyList.find(c => String(c.colony_id) === colonyId);
+      const colonyName = colony?.colony_name || (colonyId === "0" ? "Not Assigned" : `Colony ID: ${colonyId}`);
+      
+      // Calculate total voter count: primary persons + their family members
+      const totalVoterCount = primaryPersons.reduce((sum, person) => {
+        const familyCount = person.family_member_count || 0;
+        return sum + 1 + familyCount; // 1 for primary person + family members
+      }, 0);
+
+      result.push({
+        colony_id: colonyId,
+        colony_name: colonyName,
+        primaryPersons: primaryPersons,
+        primaryPersonCount: primaryPersons.length,
+        totalVoterCount: totalVoterCount,
+      });
+    });
+
+    // Sort by colony name
+    return result.sort((a, b) => a.colony_name.localeCompare(b.colony_name));
+  }, [filteredFamilyWiseData, colonyList]);
 
   // Initial load
   useEffect(() => {
@@ -515,63 +550,64 @@ const Newdashboard: React.FC = () => {
   // Export colony wise data to PDF
   const exportColonyWiseToPDF = async () => {
     try {
-      // Create HTML content for all colonies
-      let allTablesHtml = '';
+      // Calculate totals
+      const totalHouses = colonyWiseGroupedData.reduce((sum, c) => sum + c.totalHouses, 0);
+      const totalVoters = colonyWiseGroupedData.reduce((sum, c) => sum + c.totalVoters, 0);
 
-      colonyWiseGroupedData.forEach((colony, index) => {
-        const tableRows = colony.voters.map((voter, idx) => `
-          <tr>
-            <td style="padding: 4px; border: 1px solid #000; font-size: 8px;">${idx + 1}</td>
-            <td style="padding: 4px; border: 1px solid #000; font-size: 8px;">${voter.full_name || "N/A"}</td>
-            <td style="padding: 4px; border: 1px solid #000; font-size: 8px;">${voter.Father_name || "N/A"}</td>
-            <td style="padding: 4px; border: 1px solid #000; font-size: 8px;">${voter.Age || "N/A"}</td>
-            <td style="padding: 4px; border: 1px solid #000; font-size: 8px;">${voter.Gender || "N/A"}</td>
-            <td style="padding: 4px; border: 1px solid #000; font-size: 8px;">${voter.updated_house_number || voter.House_Number || "N/A"}</td>
-            <td style="padding: 4px; border: 1px solid #000; font-size: 8px;">${voter.updated_mobile_no || "N/A"}</td>
-            <td style="padding: 4px; border: 1px solid #000; font-size: 8px;">${voter.Voter_Id || "N/A"}</td>
-          </tr>
-        `).join('');
+      // Create summary table rows
+      const tableRows = colonyWiseGroupedData.map((colony, index) => `
+        <tr>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 12px; text-align: center;">${index + 1}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 12px;">${colony.colony_name}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 12px; text-align: center;">${colony.totalHouses}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 12px; text-align: center;">${colony.totalVoters}</td>
+        </tr>
+      `).join('');
 
-        allTablesHtml += `
-          <div style="margin-bottom: 20px; page-break-after: always;">
-            <h2 style="font-size: 14px; margin-bottom: 5px;">${index + 1}. ${colony.colony_name}</h2>
-            <p style="font-size: 10px; margin-bottom: 10px;">Total Voters: ${colony.totalVoters} | Total Houses: ${colony.totalHouses}</p>
-            <table style="width: 100%; border-collapse: collapse; font-size: 8px;">
-              <thead>
-                <tr style="background-color: #f0f0f0;">
-                  <th style="padding: 4px; border: 1px solid #000; font-weight: bold;">Sr</th>
-                  <th style="padding: 4px; border: 1px solid #000; font-weight: bold;">Full Name</th>
-                  <th style="padding: 4px; border: 1px solid #000; font-weight: bold;">Father Name</th>
-                  <th style="padding: 4px; border: 1px solid #000; font-weight: bold;">Age</th>
-                  <th style="padding: 4px; border: 1px solid #000; font-weight: bold;">Gender</th>
-                  <th style="padding: 4px; border: 1px solid #000; font-weight: bold;">House No</th>
-                  <th style="padding: 4px; border: 1px solid #000; font-weight: bold;">Mobile</th>
-                  <th style="padding: 4px; border: 1px solid #000; font-weight: bold;">Voter ID</th>
-                </tr>
-              </thead>
-              <tbody>${tableRows}</tbody>
-            </table>
-          </div>
-        `;
-      });
+      // Add total row
+      const totalRow = `
+        <tr style="background-color: #f0f0f0; font-weight: bold;">
+          <td style="padding: 8px; border: 1px solid #000; font-size: 12px; text-align: center;" colspan="2">Total</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 12px; text-align: center;">${totalHouses}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 12px; text-align: center;">${totalVoters}</td>
+        </tr>
+      `;
 
       const htmlContent = `
         <html>
           <head>
-            <title>Colony Wise Voter Details Report</title>
+            <title>Colony Wise Voter Summary Report</title>
             <style>
-              @page { size: A4 landscape; margin: 10mm; }
-              body { font-family: Arial, sans-serif; margin: 0; padding: 10px; }
-              h1 { text-align: center; margin-bottom: 10px; font-size: 16px; }
-              .info { text-align: center; margin-bottom: 15px; font-size: 12px; }
+              @page { size: A4 portrait; margin: 15mm; }
+              body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
+              h1 { text-align: center; margin-bottom: 10px; font-size: 20px; font-weight: bold; }
+              .info { text-align: center; margin-bottom: 20px; font-size: 14px; color: #666; }
+              table { width: 100%; border-collapse: collapse; margin: 0 auto; font-size: 12px; }
+              th { background-color: #4a5568; color: white; padding: 12px; border: 1px solid #000; font-weight: bold; text-align: center; }
+              td { padding: 8px; border: 1px solid #000; }
+              .summary-table { margin-top: 20px; }
             </style>
           </head>
           <body>
-            <h1>Colony Wise Voter Details Report</h1>
+            <h1>Colony Wise Voter Summary Report</h1>
             <div class="info">
-              <p>Generated on: ${new Date().toLocaleDateString()} | Total Colonies: ${colonyWiseGroupedData.length}</p>
+              <p>Generated on: ${new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
+              <p>Total Colonies: ${colonyWiseGroupedData.length}</p>
             </div>
-            ${allTablesHtml}
+            <table class="summary-table">
+              <thead>
+                <tr>
+                  <th style="width: 10%;">Sr No</th>
+                  <th style="width: 50%;">Colony Name</th>
+                  <th style="width: 20%;">Total Houses</th>
+                  <th style="width: 20%;">Total Voters</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${tableRows}
+                ${totalRow}
+              </tbody>
+            </table>
           </body>
         </html>
       `;
@@ -583,12 +619,19 @@ const Newdashboard: React.FC = () => {
         printWindow.document.close();
 
         // Wait for content to load then print
-        setTimeout(() => {
-          //printWindow.print();
+        printWindow.onload = () => {
           setTimeout(() => {
-            //printWindow.close();
-          }, 1000);
-        }, 500);
+            printWindow.print();
+          }, 250);
+        };
+
+        // Fallback: if onload doesn't fire, use setTimeout
+        setTimeout(() => {
+          if (printWindow && !printWindow.closed) {
+            printWindow.focus();
+            printWindow.print();
+          }
+        }, 1000);
 
         toast.success('PDF print dialog opened! Click print to save as PDF.');
       } else {
@@ -812,136 +855,136 @@ const Newdashboard: React.FC = () => {
   ], []);
 
   // Define columns for family wise survey table
-  const familyWiseColumns: Column<FamilyWiseSurveyData>[] = useMemo(() => [
-    {
-      key: 'user_name',
-      label: 'User Name',
-      accessor: 'user_name',
-      render: (data) => (
-        <span className="text-sm font-medium text-purple-600">{data.user_name || 'N/A'}</span>
-      ),
-    },
-    {
-      key: 'colony_name',
-      label: 'Colony Name',
-      accessor: 'colony_name',
-      render: (data) => (
-        <span className="text-sm">{data.colony_name || 'Not Assigned'}</span>
-      ),
-    },
-    {
-      key: 'House_Number',
-      label: 'House No',
-      accessor: 'House_Number',
-      render: (data) => (
-        <span className="text-sm">{data.updated_house_number || data.House_Number || 'N/A'}</span>
-      ),
-    },
-    {
-      key: 'full_name',
-      label: 'Full Name',
-      accessor: 'full_name',
-      render: (data) => (
-        <div className="flex flex-col">
-          <span className="font-medium">{data.full_name || 'N/A'}</span>
-          {data.ENG_Full_name && <span className="text-xs text-gray-500">English: {data.ENG_Full_name}</span>}
-        </div>
-      ),
-    },
-    {
-      key: 'updated_mobile_no',
-      label: 'Mobile',
-      accessor: 'updated_mobile_no',
-      render: (data) => (
-        <span className="font-mono">{data.updated_mobile_no || 'N/A'}</span>
-      ),
-    },
-    {
-      key: 'Updated_photo',
-      label: 'Photo',
-      accessor: 'Updated_photo',
-      render: (data) => (
-        <div className="flex items-center">
-          {data.Updated_photo ? (
-            <img
-              src={`https://voterbackend.weclocks.online/uploads/voter_photos/${data.Updated_photo}`}
-              alt="Voter Photo"
-              className="w-10 h-10 rounded-full object-cover border-2 border-gray-200 cursor-pointer"
-              title="Click to preview"
-              onClick={() =>
-                setPreviewImg(`https://voterbackend.weclocks.online/uploads/voter_photos/${data.Updated_photo}`)
-              }
-              onError={(e) => {
-                e.currentTarget.src = '/images/user/npimg.jpg';
-              }}
-            />
-          ) : (
-            <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
-              <img
-                src={`/images/user/npimg.jpg`}
-                alt="No Photo"
-                className="w-10 h-10 rounded-full object-cover border-2 border-gray-200"
-              />
-            </div>
-          )}
-        </div>
-      ),
-    },
-    {
-      key: 'Gender',
-      label: 'Gender',
-      accessor: 'Gender',
-      render: (data) => (
-        <span className="px-2 py-1 text-xs font-medium bg-pink-100 text-pink-700 rounded-full">
-          {data.Gender === 'F' || data.Gender === 'Female' || data.Gender === 'female' ? 'स्त्री' : data.Gender}
-        </span>
-      ),
-    },
-    {
-      key: 'Age',
-      label: 'Age',
-      accessor: 'Age',
-      render: (data) => (
-        <span className="text-sm">{data.Age || 'N/A'}</span>
-      ),
-    },
-    {
-      key: 'Voter_Id',
-      label: 'Voter ID',
-      accessor: 'Voter_Id',
-      render: (data) => (
-        <span className="font-mono text-blue-600 text-sm">{data.Voter_Id || 'N/A'}</span>
-      ),
-    },
-    {
-      key: 'family_member_count',
-      label: 'Family Members',
-      accessor: 'family_member_count',
-      render: (data) => {
-        const count = data.family_member_count || 0;
-        return (
-          <button
-            onClick={() => openFamilyMemberModal(data.Voter_Id, data.full_name || data.ENG_Full_name || data.Voter_Id)}
-            className={`px-3 py-1 text-xs font-medium rounded-full cursor-pointer transition-colors ${count > 0
-                ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-                : 'bg-gray-100 text-gray-500'
-              }`}
-            title="Click to view family members"
-          >
-            {count} {count === 1 ? 'Member' : 'Members'}
-          </button>
-        );
-      },
-    },
-    {
-      key: 'family_member',
-      label: 'Family Member ID',
-      accessor: 'family_member',
-      render: (data) => (
-        <span className="font-mono text-sm">{data.family_member || 'N/A'}</span>
-      ),
-    },
-  ], [openFamilyMemberModal]);
+  // const familyWiseColumns: Column<FamilyWiseSurveyData>[] = useMemo(() => [
+  //   {
+  //     key: 'user_name',
+  //     label: 'User Name',
+  //     accessor: 'user_name',
+  //     render: (data) => (
+  //       <span className="text-sm font-medium text-purple-600">{data.user_name || 'N/A'}</span>
+  //     ),
+  //   },
+  //   {
+  //     key: 'colony_name',
+  //     label: 'Colony Name',
+  //     accessor: 'colony_name',
+  //     render: (data) => (
+  //       <span className="text-sm">{data.colony_name || 'Not Assigned'}</span>
+  //     ),
+  //   },
+  //   {
+  //     key: 'House_Number',
+  //     label: 'House No',
+  //     accessor: 'House_Number',
+  //     render: (data) => (
+  //       <span className="text-sm">{data.updated_house_number || data.House_Number || 'N/A'}</span>
+  //     ),
+  //   },
+  //   {
+  //     key: 'full_name',
+  //     label: 'Full Name',
+  //     accessor: 'full_name',
+  //     render: (data) => (
+  //       <div className="flex flex-col">
+  //         <span className="font-medium">{data.full_name || 'N/A'}</span>
+  //         {data.ENG_Full_name && <span className="text-xs text-gray-500">English: {data.ENG_Full_name}</span>}
+  //       </div>
+  //     ),
+  //   },
+  //   {
+  //     key: 'updated_mobile_no',
+  //     label: 'Mobile',
+  //     accessor: 'updated_mobile_no',
+  //     render: (data) => (
+  //       <span className="font-mono">{data.updated_mobile_no || 'N/A'}</span>
+  //     ),
+  //   },
+  //   {
+  //     key: 'Updated_photo',
+  //     label: 'Photo',
+  //     accessor: 'Updated_photo',
+  //     render: (data) => (
+  //       <div className="flex items-center">
+  //         {data.Updated_photo ? (
+  //           <img
+  //             src={`https://voterbackend.weclocks.online/uploads/voter_photos/${data.Updated_photo}`}
+  //             alt="Voter Photo"
+  //             className="w-10 h-10 rounded-full object-cover border-2 border-gray-200 cursor-pointer"
+  //             title="Click to preview"
+  //             onClick={() =>
+  //               setPreviewImg(`https://voterbackend.weclocks.online/uploads/voter_photos/${data.Updated_photo}`)
+  //             }
+  //             onError={(e) => {
+  //               e.currentTarget.src = '/images/user/npimg.jpg';
+  //             }}
+  //           />
+  //         ) : (
+  //           <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
+  //             <img
+  //               src={`/images/user/npimg.jpg`}
+  //               alt="No Photo"
+  //               className="w-10 h-10 rounded-full object-cover border-2 border-gray-200"
+  //             />
+  //           </div>
+  //         )}
+  //       </div>
+  //     ),
+  //   },
+  //   {
+  //     key: 'Gender',
+  //     label: 'Gender',
+  //     accessor: 'Gender',
+  //     render: (data) => (
+  //       <span className="px-2 py-1 text-xs font-medium bg-pink-100 text-pink-700 rounded-full">
+  //         {data.Gender === 'F' || data.Gender === 'Female' || data.Gender === 'female' ? 'स्त्री' : data.Gender}
+  //       </span>
+  //     ),
+  //   },
+  //   {
+  //     key: 'Age',
+  //     label: 'Age',
+  //     accessor: 'Age',
+  //     render: (data) => (
+  //       <span className="text-sm">{data.Age || 'N/A'}</span>
+  //     ),
+  //   },
+  //   {
+  //     key: 'Voter_Id',
+  //     label: 'Voter ID',
+  //     accessor: 'Voter_Id',
+  //     render: (data) => (
+  //       <span className="font-mono text-blue-600 text-sm">{data.Voter_Id || 'N/A'}</span>
+  //     ),
+  //   },
+  //   {
+  //     key: 'family_member_count',
+  //     label: 'Family Members',
+  //     accessor: 'family_member_count',
+  //     render: (data) => {
+  //       const count = data.family_member_count || 0;
+  //       return (
+  //         <button
+  //           onClick={() => openFamilyMemberModal(data.Voter_Id, data.full_name || data.ENG_Full_name || data.Voter_Id)}
+  //           className={`px-3 py-1 text-xs font-medium rounded-full cursor-pointer transition-colors ${count > 0
+  //               ? 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+  //               : 'bg-gray-100 text-gray-500'
+  //             }`}
+  //           title="Click to view family members"
+  //         >
+  //           {count} {count === 1 ? 'Member' : 'Members'}
+  //         </button>
+  //       );
+  //     },
+  //   },
+  //   {
+  //     key: 'family_member',
+  //     label: 'Family Member ID',
+  //     accessor: 'family_member',
+  //     render: (data) => (
+  //       <span className="font-mono text-sm">{data.family_member || 'N/A'}</span>
+  //     ),
+  //   },
+  // ], [openFamilyMemberModal]);
 
   // Calculate survey counts per user
   const userSurveyCounts = useMemo(() => {
@@ -953,6 +996,374 @@ const Newdashboard: React.FC = () => {
     });
     return counts;
   }, [familyWiseSurveyData]);
+
+  // Fetch all family members for a colony (primary persons + their family members)
+  const fetchAllFamilyMembersForColony = useCallback(async (colonyId: string): Promise<FamilyWiseSurveyData[]> => {
+    try {
+      const colonyData = familyWiseColonyGroupedData.find(c => c.colony_id === colonyId);
+      if (!colonyData) return [];
+
+      const allMembers: FamilyWiseSurveyData[] = [];
+      
+      // For each primary person, fetch their family members
+      for (const primaryPerson of colonyData.primaryPersons) {
+        // Add primary person
+        allMembers.push(primaryPerson);
+        
+        // Fetch family members
+        try {
+          const response = await fetch(`/api/familywisesurvey?family_member_id=${primaryPerson.Voter_Id}`);
+          if (response.ok) {
+            const familyMembers = await response.json();
+            allMembers.push(...familyMembers);
+          }
+        } catch (error) {
+          console.error(`Error fetching family members for ${primaryPerson.Voter_Id}:`, error);
+        }
+      }
+      
+      return allMembers;
+    } catch (error) {
+      console.error('Error fetching all family members for colony:', error);
+      return [];
+    }
+  }, [familyWiseColonyGroupedData]);
+
+  // Export family wise survey colony data to Excel
+  const exportFamilyWiseColonyToExcel = async (colonyData: FamilyWiseColonyData) => {
+    try {
+      const allMembers = await fetchAllFamilyMembersForColony(colonyData.colony_id);
+      
+      const exportData = allMembers.map((member, idx) => ({
+        'Sr No': idx + 1,
+        'Voter ID': member.Voter_Id || "N/A",
+        'Full Name': member.full_name || "N/A",
+        'English Name': member.ENG_Full_name || "N/A",
+        'Age': member.Age || "N/A",
+        'Gender': member.Gender || "N/A",
+        'House Number': member.updated_house_number || member.House_Number || "N/A",
+        'Mobile': member.updated_mobile_no || "N/A",
+        'Colony': colonyData.colony_name,
+        'Primary Person ID': member.family_member || member.Voter_Id || "N/A",
+        'User Name': member.user_name || "N/A",
+      }));
+
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(exportData);
+
+      ws['!cols'] = [
+        { wch: 8 },   // Sr No
+        { wch: 15 },  // Voter ID
+        { wch: 25 },  // Full Name
+        { wch: 25 },  // English Name
+        { wch: 8 },   // Age
+        { wch: 10 },  // Gender
+        { wch: 15 },  // House Number
+        { wch: 15 },  // Mobile
+        { wch: 20 },  // Colony
+        { wch: 18 },  // Primary Person ID
+        { wch: 15 },  // User Name
+      ];
+
+      const sheetName = colonyData.colony_name.replace(/[\[\]:*?\/\\]/g, '').substring(0, 31) || 'Sheet';
+      XLSX.utils.book_append_sheet(wb, ws, sheetName);
+
+      const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      const data = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+
+      const fileName = `${colonyData.colony_name.replace(/[^a-zA-Z0-9]/g, '_')}_FamilyWiseSurvey_${new Date().toISOString().split('T')[0]}.xlsx`;
+      saveAs(data, fileName);
+
+      toast.success(`${colonyData.colony_name} Excel file downloaded successfully!`);
+    } catch (error) {
+      console.error('Error exporting family wise survey colony to Excel:', error);
+      toast.error('Failed to export Excel file');
+    }
+  };
+
+  // Open family wise colony voter modal
+  const openFamilyWiseColonyModal = async (colonyData: FamilyWiseColonyData) => {
+    setSelectedFamilyWiseColonyData(colonyData);
+    setFamilyWiseColonySearchTerm("");
+    setFamilyWiseColonyModalOpen(true);
+    setLoadingFamilyWiseColonyVoters(true);
+    
+    try {
+      const allMembers = await fetchAllFamilyMembersForColony(colonyData.colony_id);
+      setFamilyWiseColonyVoters(allMembers);
+    } catch (error) {
+      console.error('Error loading colony voters:', error);
+      toast.error('Failed to load colony voters');
+      setFamilyWiseColonyVoters([]);
+    } finally {
+      setLoadingFamilyWiseColonyVoters(false);
+    }
+  };
+
+  // Close family wise colony voter modal
+  const closeFamilyWiseColonyModal = () => {
+    setFamilyWiseColonyModalOpen(false);
+    setSelectedFamilyWiseColonyData(null);
+    setFamilyWiseColonySearchTerm("");
+    setFamilyWiseColonyVoters([]);
+  };
+
+  // Filtered voters in family wise colony modal
+  const filteredFamilyWiseColonyVoters = useMemo(() => {
+    if (!familyWiseColonyVoters || familyWiseColonyVoters.length === 0) return [];
+    if (!familyWiseColonySearchTerm.trim()) return familyWiseColonyVoters;
+
+    const term = familyWiseColonySearchTerm.toLowerCase();
+    return familyWiseColonyVoters.filter(voter => {
+      return (
+        (voter.full_name || "").toLowerCase().includes(term) ||
+        (voter.Voter_Id || "").toLowerCase().includes(term) ||
+        (voter.updated_house_number || "").toLowerCase().includes(term) ||
+        (voter.updated_mobile_no || "").toLowerCase().includes(term) ||
+        (voter.family_member || "").toLowerCase().includes(term)
+      );
+    });
+  }, [familyWiseColonyVoters, familyWiseColonySearchTerm]);
+
+  // Export all family wise survey data to Excel
+  const exportAllFamilyWiseToExcel = async () => {
+    try {
+      const wb = XLSX.utils.book_new();
+
+      // Helper function to sanitize sheet name
+      const sanitizeSheetName = (name: string): string => {
+        const sanitized = name
+          .replace(/[\[\]:*?\/\\]/g, '')
+          .substring(0, 31);
+        return sanitized || 'Sheet';
+      };
+
+      // Create one sheet per colony
+      for (const colony of familyWiseColonyGroupedData) {
+        const allMembers = await fetchAllFamilyMembersForColony(colony.colony_id);
+        
+        const exportData = allMembers.map((member, idx) => ({
+          'Sr No': idx + 1,
+          'Voter ID': member.Voter_Id || "N/A",
+          'Full Name': member.full_name || "N/A",
+          'English Name': member.ENG_Full_name || "N/A",
+          'Age': member.Age || "N/A",
+          'Gender': member.Gender || "N/A",
+          'House Number': member.updated_house_number || member.House_Number || "N/A",
+          'Mobile': member.updated_mobile_no || "N/A",
+          'Colony': colony.colony_name,
+          'Primary Person ID': member.family_member || member.Voter_Id || "N/A",
+          'User Name': member.user_name || "N/A",
+        }));
+
+        const ws = XLSX.utils.json_to_sheet(exportData);
+
+        ws['!cols'] = [
+          { wch: 8 }, { wch: 15 }, { wch: 25 }, { wch: 25 },
+          { wch: 8 }, { wch: 10 }, { wch: 15 }, { wch: 15 },
+          { wch: 20 }, { wch: 18 }, { wch: 15 },
+        ];
+
+        const sheetName = sanitizeSheetName(colony.colony_name);
+        XLSX.utils.book_append_sheet(wb, ws, sheetName);
+      }
+
+      // Generate Excel file
+      const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      const data = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+
+      // Save file
+      const fileName = `All_FamilyWiseSurvey_${new Date().toISOString().split('T')[0]}.xlsx`;
+      saveAs(data, fileName);
+
+      toast.success(`Excel file downloaded successfully with ${familyWiseColonyGroupedData.length} sheets!`);
+    } catch (error) {
+      console.error('Error exporting all family wise survey data to Excel:', error);
+      toast.error('Failed to export Excel file');
+    }
+  };
+
+  // Export all family wise survey data to PDF
+  const exportAllFamilyWiseToPDF = async () => {
+    try {
+      // Calculate totals
+      const totalPrimaryPersons = familyWiseColonyGroupedData.reduce((sum, c) => sum + c.primaryPersonCount, 0);
+      const totalVoters = familyWiseColonyGroupedData.reduce((sum, c) => sum + c.totalVoterCount, 0);
+
+      // Create summary table rows
+      const tableRows = familyWiseColonyGroupedData.map((colony, index) => `
+        <tr>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 12px; text-align: center;">${index + 1}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 12px;">${colony.colony_name}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 12px; text-align: center;">${colony.primaryPersonCount}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 12px; text-align: center;">${colony.totalVoterCount}</td>
+        </tr>
+      `).join('');
+
+      // Add total row
+      const totalRow = `
+        <tr style="background-color: #f0f0f0; font-weight: bold;">
+          <td style="padding: 8px; border: 1px solid #000; font-size: 12px; text-align: center;" colspan="2">Total</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 12px; text-align: center;">${totalPrimaryPersons}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 12px; text-align: center;">${totalVoters}</td>
+        </tr>
+      `;
+
+      const htmlContent = `
+        <html>
+          <head>
+            <title>Family Wise Survey Summary Report</title>
+            <style>
+              @page { size: A4 portrait; margin: 15mm; }
+              body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
+              h1 { text-align: center; margin-bottom: 10px; font-size: 20px; font-weight: bold; }
+              .info { text-align: center; margin-bottom: 20px; font-size: 14px; color: #666; }
+              table { width: 100%; border-collapse: collapse; margin: 0 auto; font-size: 12px; }
+              th { background-color: #4a5568; color: white; padding: 12px; border: 1px solid #000; font-weight: bold; text-align: center; }
+              td { padding: 8px; border: 1px solid #000; }
+              .summary-table { margin-top: 20px; }
+            </style>
+          </head>
+          <body>
+            <h1>Family Wise Survey Summary Report</h1>
+            <div class="info">
+              <p>Generated on: ${new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
+              <p>Total Colonies: ${familyWiseColonyGroupedData.length}</p>
+            </div>
+            <table class="summary-table">
+              <thead>
+                <tr>
+                  <th style="width: 10%;">Sr No</th>
+                  <th style="width: 50%;">Colony Name</th>
+                  <th style="width: 20%;">Primary Person Count</th>
+                  <th style="width: 20%;">Total Voter Count</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${tableRows}
+                ${totalRow}
+              </tbody>
+            </table>
+          </body>
+        </html>
+      `;
+
+      // Open in new window and trigger print
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.write(htmlContent);
+        printWindow.document.close();
+
+        // Wait for content to load then print
+        printWindow.onload = () => {
+          setTimeout(() => {
+            printWindow.print();
+          }, 250);
+        };
+
+        // Fallback: if onload doesn't fire, use setTimeout
+        setTimeout(() => {
+          if (printWindow && !printWindow.closed) {
+            printWindow.focus();
+            printWindow.print();
+          }
+        }, 1000);
+
+        toast.success('PDF print dialog opened! Click print to save as PDF.');
+      } else {
+        toast.error('Please allow popups to download PDF');
+      }
+    } catch (error) {
+      console.error('Error exporting all family wise survey data to PDF:', error);
+      toast.error('Failed to export PDF file');
+    }
+  };
+
+  // Export family wise survey colony data to PDF
+  const exportFamilyWiseColonyToPDF = async (colonyData: FamilyWiseColonyData) => {
+    try {
+      const allMembers = await fetchAllFamilyMembersForColony(colonyData.colony_id);
+      
+      const tableRows = allMembers.map((member, idx) => `
+        <tr>
+          <td style="padding: 4px; border: 1px solid #000; font-size: 9px; text-align: center;">${idx + 1}</td>
+          <td style="padding: 4px; border: 1px solid #000; font-size: 9px;">${member.Voter_Id || "N/A"}</td>
+          <td style="padding: 4px; border: 1px solid #000; font-size: 9px;">${member.full_name || "N/A"}</td>
+          <td style="padding: 4px; border: 1px solid #000; font-size: 9px;">${member.ENG_Full_name || "N/A"}</td>
+          <td style="padding: 4px; border: 1px solid #000; font-size: 9px; text-align: center;">${member.Age || "N/A"}</td>
+          <td style="padding: 4px; border: 1px solid #000; font-size: 9px; text-align: center;">${member.Gender || "N/A"}</td>
+          <td style="padding: 4px; border: 1px solid #000; font-size: 9px;">${member.updated_house_number || member.House_Number || "N/A"}</td>
+          <td style="padding: 4px; border: 1px solid #000; font-size: 9px;">${member.updated_mobile_no || "N/A"}</td>
+          <td style="padding: 4px; border: 1px solid #000; font-size: 9px;">${member.family_member || member.Voter_Id || "N/A"}</td>
+        </tr>
+      `).join('');
+
+      const htmlContent = `
+        <html>
+          <head>
+            <title>${colonyData.colony_name} - Family Wise Survey Report</title>
+            <style>
+              @page { size: A4 landscape; margin: 10mm; }
+              body { font-family: Arial, sans-serif; margin: 0; padding: 10px; }
+              h1 { text-align: center; margin-bottom: 10px; font-size: 16px; }
+              .info { text-align: center; margin-bottom: 15px; font-size: 12px; }
+              table { width: 100%; border-collapse: collapse; font-size: 8px; }
+              th { background-color: #f0f0f0; padding: 4px; border: 1px solid #000; font-weight: bold; text-align: center; }
+              td { padding: 4px; border: 1px solid #000; }
+            </style>
+          </head>
+          <body>
+            <h1>${colonyData.colony_name} - Family Wise Survey Report</h1>
+            <div class="info">
+              <p>Generated on: ${new Date().toLocaleDateString()} | Primary Persons: ${colonyData.primaryPersonCount} | Total Voters: ${colonyData.totalVoterCount}</p>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Sr</th>
+                  <th>Voter ID</th>
+                  <th>Full Name</th>
+                  <th>English Name</th>
+                  <th>Age</th>
+                  <th>Gender</th>
+                  <th>House No</th>
+                  <th>Mobile</th>
+                  <th>Primary Person ID</th>
+                </tr>
+              </thead>
+              <tbody>${tableRows}</tbody>
+            </table>
+          </body>
+        </html>
+      `;
+
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.write(htmlContent);
+        printWindow.document.close();
+
+        printWindow.onload = () => {
+          setTimeout(() => {
+            printWindow.print();
+          }, 250);
+        };
+
+        setTimeout(() => {
+          if (printWindow && !printWindow.closed) {
+            printWindow.focus();
+            printWindow.print();
+          }
+        }, 1000);
+
+        toast.success(`${colonyData.colony_name} PDF print dialog opened! Click print to save as PDF.`);
+      } else {
+        toast.error('Please allow popups to download PDF');
+      }
+    } catch (error) {
+      console.error('Error exporting family wise survey colony to PDF:', error);
+      toast.error('Failed to export PDF file');
+    }
+  };
 
   // Sort users by survey count (descending) for dropdown
   const sortedUserList = useMemo(() => {
@@ -1072,8 +1483,8 @@ const Newdashboard: React.FC = () => {
         return "Male Female Voters";
       case "familywisesurvey":
         return "Family Wise Survey";
-      case "voterstatus":
-        return "Voter Status";
+      // case "voterstatus":
+      //   return "Voter Status";
       default:
         return "Total Voters";
     }
@@ -1091,7 +1502,7 @@ const Newdashboard: React.FC = () => {
       </div>
 
       {/* Button grid tabs */}
-      <div className="grid grid-cols-4 gap-3 mb-5" role="tablist" aria-label="Voter tabs">
+      <div className="grid grid-cols-3 gap-3 mb-5" role="tablist" aria-label="Voter tabs">
         <button
           type="button"
           role="tab"
@@ -1144,7 +1555,7 @@ const Newdashboard: React.FC = () => {
         >
           Family Wise Survey
         </button>
-        <button
+        {/* <button
           type="button"
           role="tab"
           aria-selected={active === "voterstatus"}
@@ -1156,7 +1567,7 @@ const Newdashboard: React.FC = () => {
               : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"}`}
         >
           Voter Status
-        </button>
+        </button> */}
 
       </div>
 
@@ -1359,12 +1770,20 @@ const Newdashboard: React.FC = () => {
                                       printWindow.document.write(htmlContent);
                                       printWindow.document.close();
 
-                                      setTimeout(() => {
-                                        //printWindow.print();
+                                      // Wait for content to load then print
+                                      printWindow.onload = () => {
                                         setTimeout(() => {
-                                          //printWindow.close();
-                                        }, 1000);
-                                      }, 500);
+                                          printWindow.print();
+                                        }, 250);
+                                      };
+
+                                      // Fallback: if onload doesn't fire, use setTimeout
+                                      setTimeout(() => {
+                                        if (printWindow && !printWindow.closed) {
+                                          printWindow.focus();
+                                          printWindow.print();
+                                        }
+                                      }, 1000);
 
                                       toast.success(`${colony.colony_name} PDF print dialog opened! Click print to save as PDF.`);
                                     } else {
@@ -1526,16 +1945,14 @@ const Newdashboard: React.FC = () => {
         className="focus:outline-none"
       >
         {active === "familywisesurvey" && (
-          <div className="">
-            {familyWiseLoading && <Loader />}
-            <Withoutbtn
-              data={filteredFamilyWiseData}
-              columns={familyWiseColumns}
-              title="Family Wise Survey"
-              filterOptions={[]}
-              searchKey="full_name"
-              inputfiled={
-                <div className="inline-flex items-center gap-2 w-full md:w-auto">
+          <div className="bg-white rounded-2xl shadow-md border p-4">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-gray-800">
+                Family Wise Survey - Colony Wise
+              </h2>
+              <div className="flex items-center gap-2">
+                <div className="inline-flex items-center gap-2">
                   <select
                     value={selectedUserId}
                     onChange={e => setSelectedUserId(e.target.value)}
@@ -1560,22 +1977,126 @@ const Newdashboard: React.FC = () => {
                   >
                     Clear Filter
                   </button>
-
-                  <button
-                    type="button"
-                    onClick={fetchFamilyWiseSurveyData}
-                    disabled={familyWiseLoading}
-                    className="px-4 py-2 text-sm font-medium text-white bg-purple-600 border border-purple-600 rounded-lg hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {familyWiseLoading ? 'Loading...' : 'Refresh'}
-                  </button>
-
-                  <span className="text-sm text-gray-600">
-                    Total: <span className="font-semibold text-purple-600">{filteredFamilyWiseData.length}</span>
-                  </span>
                 </div>
-              }
-            />
+                <button
+                  onClick={exportAllFamilyWiseToExcel}
+                  disabled={familyWiseLoading || familyWiseColonyGroupedData.length === 0}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Export All to Excel"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  Excel All
+                </button>
+                <button
+                  onClick={exportAllFamilyWiseToPDF}
+                  disabled={familyWiseLoading || familyWiseColonyGroupedData.length === 0}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Export All to PDF"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                  </svg>
+                  PDF All
+                </button>
+                <button
+                  onClick={fetchFamilyWiseSurveyData}
+                  disabled={familyWiseLoading}
+                  className="px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 disabled:opacity-50"
+                >
+                  {familyWiseLoading ? "Loading..." : "Refresh"}
+                </button>
+                {familyWiseColonyGroupedData.length > 0 && (
+                  <span className="text-sm text-gray-600">
+                    Total Colonies: <span className="font-semibold text-purple-600">{familyWiseColonyGroupedData.length}</span>
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Table */}
+            {familyWiseLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-purple-600"></div>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-50">
+                      <th className="px-3 py-2 border text-left">Sr</th>
+                      <th className="px-3 py-2 border text-left">Colony</th>
+                      <th className="px-3 py-2 border text-left">Primary Person Count</th>
+                      <th className="px-3 py-2 border text-left">Total Voter Count</th>
+                      <th className="px-3 py-2 border text-left">Export</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {familyWiseColonyGroupedData.length === 0 ? (
+                      <tr>
+                        <td className="px-3 py-2 border" colSpan={5}>
+                          No data found
+                        </td>
+                      </tr>
+                    ) : (
+                      familyWiseColonyGroupedData.map((colony, idx) => (
+                        <tr key={colony.colony_id} className="hover:bg-gray-50">
+                          <td className="px-3 py-2 border">{idx + 1}</td>
+                          <td className="px-3 py-2 border font-medium">{colony.colony_name}</td>
+                          <td className="px-3 py-2 border text-center">{colony.primaryPersonCount}</td>
+                          <td className="px-3 py-2 border text-center">
+                            <button
+                              onClick={() => openFamilyWiseColonyModal(colony)}
+                              className="font-semibold text-purple-600 underline hover:text-purple-800 cursor-pointer"
+                              title="Click to view all voters"
+                            >
+                              {colony.totalVoterCount}
+                            </button>
+                          </td>
+                          <td className="px-3 py-2 border">
+                            <div className="flex gap-1">
+                              <button
+                                onClick={() => exportFamilyWiseColonyToExcel(colony)}
+                                className="p-1 text-green-600 hover:text-green-800 hover:bg-green-50 rounded"
+                                title="Export to Excel"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                              </button>
+                              <button
+                                onClick={() => exportFamilyWiseColonyToPDF(colony)}
+                                className="p-1 text-red-600 hover:text-red-800 hover:bg-red-50 rounded"
+                                title="Export to PDF"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                </svg>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                  {familyWiseColonyGroupedData.length > 0 && (
+                    <tfoot>
+                      <tr className="bg-gray-100 font-semibold">
+                        <td className="px-3 py-2 border" colSpan={2}>Total</td>
+                        <td className="px-3 py-2 border text-center">
+                          {familyWiseColonyGroupedData.reduce((sum, c) => sum + c.primaryPersonCount, 0)}
+                        </td>
+                        <td className="px-3 py-2 border text-center">
+                          {familyWiseColonyGroupedData.reduce((sum, c) => sum + c.totalVoterCount, 0)}
+                        </td>
+                        <td className="px-3 py-2 border"></td>
+                      </tr>
+                    </tfoot>
+                  )}
+                </table>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -1897,12 +2418,7 @@ const Newdashboard: React.FC = () => {
 
             {/* Modal Body */}
             <div className="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
-              {loadingFamilyMembers ? (
-                <div className="flex items-center justify-center py-12">
-                  <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-purple-600"></div>
-                </div>
-              ) : (
-                <table className="min-w-full text-sm">
+              <table className="min-w-full text-sm">
                   <thead className="bg-gray-50 sticky top-0">
                     <tr>
                       <th className="px-3 py-2 border text-left">Sr</th>
@@ -1971,7 +2487,6 @@ const Newdashboard: React.FC = () => {
                     )}
                   </tbody>
                 </table>
-              )}
             </div>
 
             {/* Modal Footer */}
@@ -1979,6 +2494,176 @@ const Newdashboard: React.FC = () => {
               <button
                 type="button"
                 onClick={closeFamilyMemberModal}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Family Wise Colony Voters Modal */}
+      {familyWiseColonyModalOpen && selectedFamilyWiseColonyData && (
+        <div
+          className="fixed inset-0 z-9999 flex items-center justify-center bg-black/50"
+          role="dialog"
+          aria-modal="true"
+          onClick={closeFamilyWiseColonyModal}
+        >
+          <div
+            className="relative w-[95vw] max-w-6xl max-h-[90vh] overflow-hidden rounded-xl bg-white shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b bg-gray-50">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-800">
+                  {selectedFamilyWiseColonyData.colony_name} - All Voters
+                </h3>
+                <p className="text-sm text-gray-500">
+                  Primary Persons: {selectedFamilyWiseColonyData.primaryPersonCount} | Total Voters: {selectedFamilyWiseColonyData.totalVoterCount}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => exportFamilyWiseColonyToExcel(selectedFamilyWiseColonyData)}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700"
+                  title="Export to Excel"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  Excel
+                </button>
+                <button
+                  onClick={() => exportFamilyWiseColonyToPDF(selectedFamilyWiseColonyData)}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700"
+                  title="Export to PDF"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                  </svg>
+                  PDF
+                </button>
+                <button
+                  type="button"
+                  className="p-2 rounded-lg hover:bg-gray-200 transition-colors"
+                  onClick={closeFamilyWiseColonyModal}
+                  aria-label="Close"
+                >
+                  <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Search Box */}
+            <div className="px-6 py-3 border-b">
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Search by name, voter ID, house number, mobile, primary person ID..."
+                  value={familyWiseColonySearchTerm}
+                  onChange={(e) => setFamilyWiseColonySearchTerm(e.target.value)}
+                  className="w-full h-10 px-4 pr-10 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                />
+                <svg className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
+              {familyWiseColonySearchTerm && (
+                <p className="text-sm text-gray-600 mt-2">
+                  Showing {filteredFamilyWiseColonyVoters.length} of {selectedFamilyWiseColonyData.totalVoterCount} voters
+                </p>
+              )}
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
+              {loadingFamilyWiseColonyVoters ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-purple-600"></div>
+                </div>
+              ) : (
+                <table className="min-w-full text-sm">
+                  <thead className="bg-gray-50 sticky top-0">
+                    <tr>
+                      <th className="px-3 py-2 border text-left">Sr</th>
+                      <th className="px-3 py-2 border text-left">Photo</th>
+                      <th className="px-3 py-2 border text-left">Voter ID</th>
+                      <th className="px-3 py-2 border text-left">Full Name</th>
+                      <th className="px-3 py-2 border text-left">English Name</th>
+                      <th className="px-3 py-2 border text-left">Age</th>
+                      <th className="px-3 py-2 border text-left">Gender</th>
+                      <th className="px-3 py-2 border text-left">House No</th>
+                      <th className="px-3 py-2 border text-left">Mobile</th>
+                      <th className="px-3 py-2 border text-left">Primary Person ID</th>
+                      <th className="px-3 py-2 border text-left">User</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredFamilyWiseColonyVoters.length === 0 ? (
+                      <tr>
+                        <td className="px-3 py-2 border text-center" colSpan={11}>
+                          {familyWiseColonySearchTerm ? "No voters found matching your search" : "No voters found"}
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredFamilyWiseColonyVoters.map((voter, idx) => (
+                        <tr key={voter.id} className="hover:bg-gray-50">
+                          <td className="px-3 py-2 border">{idx + 1}</td>
+                          <td className="px-3 py-2 border">
+                            {voter.Updated_photo ? (
+                              <img
+                                src={`https://voterbackend.weclocks.online/uploads/voter_photos/${voter.Updated_photo}`}
+                                alt="Voter Photo"
+                                className="w-10 h-10 rounded-full object-cover border-2 border-gray-200 cursor-pointer"
+                                onClick={() =>
+                                  setPreviewImg(`https://voterbackend.weclocks.online/uploads/voter_photos/${voter.Updated_photo}`)
+                                }
+                                onError={(e) => {
+                                  e.currentTarget.src = '/images/user/npimg.jpg';
+                                }}
+                              />
+                            ) : (
+                              <img
+                                src="/images/user/npimg.jpg"
+                                alt="No Photo"
+                                className="w-10 h-10 rounded-full object-cover border-2 border-gray-200"
+                              />
+                            )}
+                          </td>
+                          <td className="px-3 py-2 border font-mono text-blue-600">{voter.Voter_Id || "N/A"}</td>
+                          <td className="px-3 py-2 border font-medium">{voter.full_name || "N/A"}</td>
+                          <td className="px-3 py-2 border">{voter.ENG_Full_name || "N/A"}</td>
+                          <td className="px-3 py-2 border">{voter.Age || "N/A"}</td>
+                          <td className="px-3 py-2 border">
+                            <span className={`px-2 py-0.5 rounded-full text-xs ${voter.Gender === "M" || voter.Gender === "Male"
+                              ? "bg-blue-100 text-blue-700"
+                              : "bg-pink-100 text-pink-700"
+                              }`}>
+                              {voter.Gender || "N/A"}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 border">{voter.updated_house_number || voter.House_Number || "N/A"}</td>
+                          <td className="px-3 py-2 border font-mono">{voter.updated_mobile_no || "N/A"}</td>
+                          <td className="px-3 py-2 border font-mono text-purple-600">{voter.family_member || voter.Voter_Id || "N/A"}</td>
+                          <td className="px-3 py-2 border text-purple-600">{voter.user_name || "N/A"}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t bg-gray-50">
+              <button
+                type="button"
+                onClick={closeFamilyWiseColonyModal}
                 className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
               >
                 Close

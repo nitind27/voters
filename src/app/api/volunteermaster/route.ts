@@ -29,6 +29,7 @@ export async function GET(request: NextRequest) {
         vm.status,
         vm.username,
         vm.password,
+        vm.category_id,
         vm.created_at,
         vm.updated_at
       FROM volunteer_master vm
@@ -85,10 +86,12 @@ export async function POST(request: NextRequest) {
       volunteer_name,
       contact_no,
       status,
+      category_id,
     } = body as {
       volunteer_name?: string;
       contact_no?: string | null;
       status?: 'Active' | 'Inactive';
+      category_id?: number | null;
     };
 
     if (!volunteer_name) {
@@ -100,6 +103,7 @@ export async function POST(request: NextRequest) {
 
     const volunteerStatus = status || 'Active';
     const mobile = contact_no?.trim() || null;
+    const categoryId = category_id || null;
     
     // Auto-generate username and password from contact_no
     const username = mobile || '';
@@ -132,10 +136,11 @@ export async function POST(request: NextRequest) {
         username,
         password,
         status,
+        category_id,
         created_at,
         updated_at
-      ) VALUES (?, ?, ?, ?, ?, NOW(), NOW())`,
-      [volunteer_name, mobile, username, password, volunteerStatus],
+      ) VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+      [volunteer_name, mobile, username, password, volunteerStatus, categoryId],
     );
 
     return NextResponse.json({
@@ -163,11 +168,15 @@ export async function PUT(request: NextRequest) {
       volunteer_name,
       contact_no,
       status,
+      category_id,
+      password: providedPassword,
     } = body as {
       user_id: number;
       volunteer_name?: string;
       contact_no?: string | null;
       status?: 'Active' | 'Inactive';
+      category_id?: number | null;
+      password?: string;
     };
 
     if (!user_id) {
@@ -186,10 +195,11 @@ export async function PUT(request: NextRequest) {
 
     const volunteerStatus = status || 'Active';
     const mobile = contact_no?.trim() || null;
+    const categoryId = category_id || null;
     
-    // Auto-generate username and password from contact_no
+    // Auto-generate username and password from contact_no, or use provided password
     const username = mobile || '';
-    const password = mobile || '';
+    const password = providedPassword !== undefined ? providedPassword : (mobile || '');
 
     // Check if contact_no already exists for another volunteer
     if (mobile) {
@@ -218,9 +228,10 @@ export async function PUT(request: NextRequest) {
            username = ?,
            password = ?,
            status = ?,
+           category_id = ?,
            updated_at = NOW()
        WHERE user_id = ?`,
-      [volunteer_name, mobile, username, password, volunteerStatus, user_id],
+      [volunteer_name, mobile, username, password, volunteerStatus, categoryId, user_id],
     );
 
     if (result.affectedRows === 0) {
