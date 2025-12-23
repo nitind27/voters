@@ -175,6 +175,11 @@ const Newdashboard: React.FC = () => {
   const [loadingFamilyWiseColonyVoters, setLoadingFamilyWiseColonyVoters] = useState(false);
   const [familyWiseColonySearchTerm, setFamilyWiseColonySearchTerm] = useState("");
 
+  // Primary persons modal state
+  const [primaryPersonsModalOpen, setPrimaryPersonsModalOpen] = useState(false);
+  const [selectedPrimaryPersonsColonyData, setSelectedPrimaryPersonsColonyData] = useState<FamilyWiseColonyData | null>(null);
+  const [primaryPersonsSearchTerm, setPrimaryPersonsSearchTerm] = useState("");
+
   // Edit modal state - Only 3 fields
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editingVoter, setEditingVoter] = useState<VoterDetailsData | null>(null);
@@ -1107,6 +1112,38 @@ const Newdashboard: React.FC = () => {
     setFamilyWiseColonySearchTerm("");
     setFamilyWiseColonyVoters([]);
   };
+
+  // Open primary persons modal
+  const openPrimaryPersonsModal = (colonyData: FamilyWiseColonyData) => {
+    setSelectedPrimaryPersonsColonyData(colonyData);
+    setPrimaryPersonsSearchTerm("");
+    setPrimaryPersonsModalOpen(true);
+  };
+
+  // Close primary persons modal
+  const closePrimaryPersonsModal = () => {
+    setPrimaryPersonsModalOpen(false);
+    setSelectedPrimaryPersonsColonyData(null);
+    setPrimaryPersonsSearchTerm("");
+  };
+
+  // Filtered primary persons in modal
+  const filteredPrimaryPersons = useMemo(() => {
+    if (!selectedPrimaryPersonsColonyData) return [];
+    const primaryPersons = selectedPrimaryPersonsColonyData.primaryPersons;
+    if (!primaryPersonsSearchTerm.trim()) return primaryPersons;
+
+    const term = primaryPersonsSearchTerm.toLowerCase();
+    return primaryPersons.filter(person => {
+      return (
+        (person.full_name || "").toLowerCase().includes(term) ||
+        (person.Voter_Id || "").toLowerCase().includes(term) ||
+        (person.updated_house_number || "").toLowerCase().includes(term) ||
+        (person.updated_mobile_no || "").toLowerCase().includes(term) ||
+        (person.family_member || "").toLowerCase().includes(term)
+      );
+    });
+  }, [selectedPrimaryPersonsColonyData, primaryPersonsSearchTerm]);
 
   // Filtered voters in family wise colony modal
   const filteredFamilyWiseColonyVoters = useMemo(() => {
@@ -2044,7 +2081,15 @@ const Newdashboard: React.FC = () => {
                         <tr key={colony.colony_id} className="hover:bg-gray-50">
                           <td className="px-3 py-2 border">{idx + 1}</td>
                           <td className="px-3 py-2 border font-medium">{colony.colony_name}</td>
-                          <td className="px-3 py-2 border text-center">{colony.primaryPersonCount}</td>
+                          <td className="px-3 py-2 border text-center">
+                            <button
+                              onClick={() => openPrimaryPersonsModal(colony)}
+                              className="font-semibold text-blue-600 underline hover:text-blue-800 cursor-pointer"
+                              title="Click to view primary persons"
+                            >
+                              {colony.primaryPersonCount}
+                            </button>
+                          </td>
                           <td className="px-3 py-2 border text-center">
                             <button
                               onClick={() => openFamilyWiseColonyModal(colony)}
@@ -2664,6 +2709,294 @@ const Newdashboard: React.FC = () => {
               <button
                 type="button"
                 onClick={closeFamilyWiseColonyModal}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Primary Persons Modal */}
+      {primaryPersonsModalOpen && selectedPrimaryPersonsColonyData && (
+        <div
+          className="fixed inset-0 z-9999 flex items-center justify-center bg-black/50"
+          role="dialog"
+          aria-modal="true"
+          onClick={closePrimaryPersonsModal}
+        >
+          <div
+            className="relative w-[95vw] max-w-6xl max-h-[90vh] overflow-hidden rounded-xl bg-white shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b bg-gray-50">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-800">
+                  {selectedPrimaryPersonsColonyData.colony_name} - Primary Persons
+                </h3>
+                <p className="text-sm text-gray-500">
+                  Total Primary Persons: {selectedPrimaryPersonsColonyData.primaryPersonCount}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    try {
+                      const exportData = selectedPrimaryPersonsColonyData.primaryPersons.map((person, idx) => ({
+                        'Sr No': idx + 1,
+                        'Voter ID': person.Voter_Id || "N/A",
+                        'Full Name': person.full_name || "N/A",
+                        'English Name': person.ENG_Full_name || "N/A",
+                        'Age': person.Age || "N/A",
+                        'Gender': person.Gender || "N/A",
+                        'House Number': person.updated_house_number || person.House_Number || "N/A",
+                        'Mobile': person.updated_mobile_no || "N/A",
+                        'Colony': selectedPrimaryPersonsColonyData.colony_name,
+                        'Family Member Count': person.family_member_count || 0,
+                        'User Name': person.user_name || "N/A",
+                      }));
+
+                      const wb = XLSX.utils.book_new();
+                      const ws = XLSX.utils.json_to_sheet(exportData);
+
+                      ws['!cols'] = [
+                        { wch: 8 }, { wch: 15 }, { wch: 25 }, { wch: 25 },
+                        { wch: 8 }, { wch: 10 }, { wch: 15 }, { wch: 15 },
+                        { wch: 20 }, { wch: 18 }, { wch: 15 },
+                      ];
+
+                      const sheetName = selectedPrimaryPersonsColonyData.colony_name.replace(/[\[\]:*?\/\\]/g, '').substring(0, 31) || 'Sheet';
+                      XLSX.utils.book_append_sheet(wb, ws, sheetName);
+
+                      const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+                      const data = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+
+                      const fileName = `${selectedPrimaryPersonsColonyData.colony_name.replace(/[^a-zA-Z0-9]/g, '_')}_PrimaryPersons_${new Date().toISOString().split('T')[0]}.xlsx`;
+                      saveAs(data, fileName);
+
+                      toast.success(`${selectedPrimaryPersonsColonyData.colony_name} Primary Persons Excel file downloaded successfully!`);
+                    } catch (error) {
+                      console.error('Error exporting primary persons to Excel:', error);
+                      toast.error('Failed to export Excel file');
+                    }
+                  }}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700"
+                  title="Export to Excel"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  Excel
+                </button>
+                <button
+                  onClick={() => {
+                    try {
+                      const tableRows = selectedPrimaryPersonsColonyData.primaryPersons.map((person, idx) => `
+                        <tr>
+                          <td style="padding: 4px; border: 1px solid #000; font-size: 9px; text-align: center;">${idx + 1}</td>
+                          <td style="padding: 4px; border: 1px solid #000; font-size: 9px;">${person.Voter_Id || "N/A"}</td>
+                          <td style="padding: 4px; border: 1px solid #000; font-size: 9px;">${person.full_name || "N/A"}</td>
+                          <td style="padding: 4px; border: 1px solid #000; font-size: 9px;">${person.ENG_Full_name || "N/A"}</td>
+                          <td style="padding: 4px; border: 1px solid #000; font-size: 9px; text-align: center;">${person.Age || "N/A"}</td>
+                          <td style="padding: 4px; border: 1px solid #000; font-size: 9px; text-align: center;">${person.Gender || "N/A"}</td>
+                          <td style="padding: 4px; border: 1px solid #000; font-size: 9px;">${person.updated_house_number || person.House_Number || "N/A"}</td>
+                          <td style="padding: 4px; border: 1px solid #000; font-size: 9px;">${person.updated_mobile_no || "N/A"}</td>
+                          <td style="padding: 4px; border: 1px solid #000; font-size: 9px; text-align: center;">${person.family_member_count || 0}</td>
+                        </tr>
+                      `).join('');
+
+                      const htmlContent = `
+                        <html>
+                          <head>
+                            <title>${selectedPrimaryPersonsColonyData.colony_name} - Primary Persons Report</title>
+                            <style>
+                              @page { size: A4 landscape; margin: 10mm; }
+                              body { font-family: Arial, sans-serif; margin: 0; padding: 10px; }
+                              h1 { text-align: center; margin-bottom: 10px; font-size: 16px; }
+                              .info { text-align: center; margin-bottom: 15px; font-size: 12px; }
+                              table { width: 100%; border-collapse: collapse; font-size: 8px; }
+                              th { background-color: #f0f0f0; padding: 4px; border: 1px solid #000; font-weight: bold; text-align: center; }
+                              td { padding: 4px; border: 1px solid #000; }
+                            </style>
+                          </head>
+                          <body>
+                            <h1>${selectedPrimaryPersonsColonyData.colony_name} - Primary Persons Report</h1>
+                            <div class="info">
+                              <p>Generated on: ${new Date().toLocaleDateString()} | Total Primary Persons: ${selectedPrimaryPersonsColonyData.primaryPersonCount}</p>
+                            </div>
+                            <table>
+                              <thead>
+                                <tr>
+                                  <th>Sr</th>
+                                  <th>Voter ID</th>
+                                  <th>Full Name</th>
+                                  <th>English Name</th>
+                                  <th>Age</th>
+                                  <th>Gender</th>
+                                  <th>House No</th>
+                                  <th>Mobile</th>
+                                  <th>Family Members</th>
+                                </tr>
+                              </thead>
+                              <tbody>${tableRows}</tbody>
+                            </table>
+                          </body>
+                        </html>
+                      `;
+
+                      const printWindow = window.open('', '_blank');
+                      if (printWindow) {
+                        printWindow.document.write(htmlContent);
+                        printWindow.document.close();
+
+                        printWindow.onload = () => {
+                          setTimeout(() => {
+                            printWindow.print();
+                          }, 250);
+                        };
+
+                        setTimeout(() => {
+                          if (printWindow && !printWindow.closed) {
+                            printWindow.focus();
+                            printWindow.print();
+                          }
+                        }, 1000);
+
+                        toast.success(`${selectedPrimaryPersonsColonyData.colony_name} PDF print dialog opened! Click print to save as PDF.`);
+                      } else {
+                        toast.error('Please allow popups to download PDF');
+                      }
+                    } catch (error) {
+                      console.error('Error exporting primary persons to PDF:', error);
+                      toast.error('Failed to export PDF file');
+                    }
+                  }}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700"
+                  title="Export to PDF"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                  </svg>
+                  PDF
+                </button>
+                <button
+                  type="button"
+                  className="p-2 rounded-lg hover:bg-gray-200 transition-colors"
+                  onClick={closePrimaryPersonsModal}
+                  aria-label="Close"
+                >
+                  <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Search Box */}
+            <div className="px-6 py-3 border-b">
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Search by name, voter ID, house number, mobile, primary person ID..."
+                  value={primaryPersonsSearchTerm}
+                  onChange={(e) => setPrimaryPersonsSearchTerm(e.target.value)}
+                  className="w-full h-10 px-4 pr-10 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+                <svg className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
+              {primaryPersonsSearchTerm && (
+                <p className="text-sm text-gray-600 mt-2">
+                  Showing {filteredPrimaryPersons.length} of {selectedPrimaryPersonsColonyData.primaryPersonCount} primary persons
+                </p>
+              )}
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
+              <table className="min-w-full text-sm">
+                <thead className="bg-gray-50 sticky top-0">
+                  <tr>
+                    <th className="px-3 py-2 border text-left">Sr</th>
+                    <th className="px-3 py-2 border text-left">Photo</th>
+                    <th className="px-3 py-2 border text-left">Voter ID</th>
+                    <th className="px-3 py-2 border text-left">Full Name</th>
+                    <th className="px-3 py-2 border text-left">English Name</th>
+                    <th className="px-3 py-2 border text-left">Age</th>
+                    <th className="px-3 py-2 border text-left">Gender</th>
+                    <th className="px-3 py-2 border text-left">House No</th>
+                    <th className="px-3 py-2 border text-left">Mobile</th>
+                    <th className="px-3 py-2 border text-left">Family Members</th>
+                    <th className="px-3 py-2 border text-left">User</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredPrimaryPersons.length === 0 ? (
+                    <tr>
+                      <td className="px-3 py-2 border text-center" colSpan={11}>
+                        {primaryPersonsSearchTerm ? "No primary persons found matching your search" : "No primary persons found"}
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredPrimaryPersons.map((person, idx) => (
+                      <tr key={person.id} className="hover:bg-gray-50">
+                        <td className="px-3 py-2 border">{idx + 1}</td>
+                        <td className="px-3 py-2 border">
+                          {person.Updated_photo ? (
+                            <img
+                              src={`https://voterbackend.weclocks.online/uploads/voter_photos/${person.Updated_photo}`}
+                              alt="Voter Photo"
+                              className="w-10 h-10 rounded-full object-cover border-2 border-gray-200 cursor-pointer"
+                              onClick={() =>
+                                setPreviewImg(`https://voterbackend.weclocks.online/uploads/voter_photos/${person.Updated_photo}`)
+                              }
+                              onError={(e) => {
+                                e.currentTarget.src = '/images/user/npimg.jpg';
+                              }}
+                            />
+                          ) : (
+                            <img
+                              src="/images/user/npimg.jpg"
+                              alt="No Photo"
+                              className="w-10 h-10 rounded-full object-cover border-2 border-gray-200"
+                            />
+                          )}
+                        </td>
+                        <td className="px-3 py-2 border font-mono text-blue-600">{person.Voter_Id || "N/A"}</td>
+                        <td className="px-3 py-2 border font-medium">{person.full_name || "N/A"}</td>
+                        <td className="px-3 py-2 border">{person.ENG_Full_name || "N/A"}</td>
+                        <td className="px-3 py-2 border">{person.Age || "N/A"}</td>
+                        <td className="px-3 py-2 border">
+                          <span className={`px-2 py-0.5 rounded-full text-xs ${person.Gender === "M" || person.Gender === "Male"
+                            ? "bg-blue-100 text-blue-700"
+                            : "bg-pink-100 text-pink-700"
+                            }`}>
+                            {person.Gender || "N/A"}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 border">{person.updated_house_number || person.House_Number || "N/A"}</td>
+                        <td className="px-3 py-2 border font-mono">{person.updated_mobile_no || "N/A"}</td>
+                        <td className="px-3 py-2 border text-center">
+                          <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-700 rounded-full">
+                            {person.family_member_count || 0}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 border text-blue-600">{person.user_name || "N/A"}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t bg-gray-50">
+              <button
+                type="button"
+                onClick={closePrimaryPersonsModal}
                 className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
               >
                 Close
