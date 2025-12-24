@@ -51,7 +51,8 @@ export async function GET(request: Request) {
         const page = parseInt(searchParams.get('page') || '1', 10);
         const limit = parseInt(searchParams.get('limit') || '100', 10);
         const validPage = Math.max(1, page);
-        const validLimit = Math.min(Math.max(1, limit), 1000); // Max 1000 per page
+        // Allow up to 50000 records per page to handle large datasets
+        const validLimit = Math.min(Math.max(1, limit), 50000); // Max 50000 per page
         const offset = (validPage - 1) * validLimit;
         
         // Optimized query using subquery instead of self-join for better performance

@@ -6,15 +6,17 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page') || '1', 10);
-    const limit = parseInt(searchParams.get('limit') || '30000', 10);
+    const limitParam = searchParams.get('limit');
+    const limit = limitParam ? parseInt(limitParam, 10) : null;
 
     const validPage = Math.max(1, page);
-    const validLimit = Math.min(Math.max(1, limit), 50000);
-    const offset = (validPage - 1) * validLimit;
+    // If limit is not provided or is 0, fetch all records
+    const validLimit = limit && limit > 0 ? limit : null;
+    const offset = validLimit ? (validPage - 1) * validLimit : 0;
 
-    // Get finance list - voters where any installment is paid (inst_1_paid, inst_2_paid, inst_3_paid, or voting_paid)
-    const [rows] = await pool.query<RowDataPacket[]>(
-      `SELECT 
+    // Get finance list - voters where any installment is paid (inst_1_paid, inst_2_paid, or inst_3_paid = '1')
+    // OR all three installments are unpaid (all = '0') for Total Unpaid filter
+    let query = `SELECT 
          v.id,
          v.Voter_Id,
          v.full_name,
@@ -46,22 +48,29 @@ export async function GET(request: NextRequest) {
          c.colony_name
        FROM tbl_voters_search v
        LEFT JOIN colony c ON v.Updated_colony = c.colony_id
-       WHERE (v.inst_1_paid = 'Yes' OR v.inst_1_paid = 1 OR v.inst_1_paid = '1' OR
-             v.inst_2_paid = 'Yes' OR v.inst_2_paid = 1 OR v.inst_2_paid = '1' OR
-             v.inst_3_paid = 'Yes' OR v.inst_3_paid = 1 OR v.inst_3_paid = '1' OR
-             v.voting_paid = 'Yes' OR v.voting_paid = 1 OR v.voting_paid = '1')
-       ORDER BY v.id DESC
-       LIMIT ? OFFSET ?`,
-      [validLimit, offset],
-    );
+       WHERE (v.inst_1_paid = '1' OR v.inst_2_paid = '1' OR v.inst_3_paid = '1' OR
+             v.inst_1_paid = 1 OR v.inst_2_paid = 1 OR v.inst_3_paid = 1)
+          OR ((v.inst_1_paid = '0' OR v.inst_1_paid = 0 OR v.inst_1_paid IS NULL OR v.inst_1_paid = '') 
+              AND (v.inst_2_paid = '0' OR v.inst_2_paid = 0 OR v.inst_2_paid IS NULL OR v.inst_2_paid = '') 
+              AND (v.inst_3_paid = '0' OR v.inst_3_paid = 0 OR v.inst_3_paid IS NULL OR v.inst_3_paid = ''))
+       ORDER BY v.id DESC`;
+    
+    const queryParams: number[] = [];
+    if (validLimit) {
+      query += ` LIMIT ? OFFSET ?`;
+      queryParams.push(validLimit, offset);
+    }
+
+    const [rows] = await pool.query<RowDataPacket[]>(query, queryParams.length > 0 ? queryParams : undefined);
 
     const [countRows] = await pool.query<RowDataPacket[]>(
       `SELECT COUNT(*) as total 
        FROM tbl_voters_search 
-       WHERE (inst_1_paid = 'Yes' OR inst_1_paid = 1 OR inst_1_paid = '1' OR
-             inst_2_paid = 'Yes' OR inst_2_paid = 1 OR inst_2_paid = '1' OR
-             inst_3_paid = 'Yes' OR inst_3_paid = 1 OR inst_3_paid = '1' OR
-             voting_paid = 'Yes' OR voting_paid = 1 OR voting_paid = '1')`,
+       WHERE (inst_1_paid = '1' OR inst_2_paid = '1' OR inst_3_paid = '1' OR
+             inst_1_paid = 1 OR inst_2_paid = 1 OR inst_3_paid = 1)
+          OR ((inst_1_paid = '0' OR inst_1_paid = 0 OR inst_1_paid IS NULL OR inst_1_paid = '') 
+              AND (inst_2_paid = '0' OR inst_2_paid = 0 OR inst_2_paid IS NULL OR inst_2_paid = '') 
+              AND (inst_3_paid = '0' OR inst_3_paid = 0 OR inst_3_paid IS NULL OR inst_3_paid = ''))`,
     );
     const totalRecords = Number(countRows[0]?.total || 0);
 
@@ -69,9 +78,9 @@ export async function GET(request: NextRequest) {
       data: rows,
       pagination: {
         currentPage: validPage,
-        totalPages: Math.ceil(totalRecords / validLimit),
+        totalPages: validLimit ? Math.ceil(totalRecords / validLimit) : 1,
         totalRecords: totalRecords,
-        recordsPerPage: validLimit,
+        recordsPerPage: validLimit || totalRecords,
       },
     });
   } catch (error) {

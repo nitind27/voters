@@ -6,15 +6,16 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page') || '1', 10);
-    const limit = parseInt(searchParams.get('limit') || '10000', 10);
+    const limitParam = searchParams.get('limit');
+    const limit = limitParam ? parseInt(limitParam, 10) : null;
 
     const validPage = Math.max(1, page);
-    const validLimit = Math.min(Math.max(1, limit), 50000);
-    const offset = (validPage - 1) * validLimit;
+    // If limit is not provided or is 0, fetch all records
+    const validLimit = limit && limit > 0 ? limit : null;
+    const offset = validLimit ? (validPage - 1) * validLimit : 0;
 
     // Get all voter list data with colony name
-    const [rows] = await pool.query<RowDataPacket[]>(
-      `SELECT 
+    let query = `SELECT 
          v.id,
          v.Voter_Id,
          v.full_name,
@@ -46,10 +47,15 @@ export async function GET(request: NextRequest) {
          c.colony_name
        FROM tbl_voters_search v
        LEFT JOIN colony c ON v.Updated_colony = c.colony_id
-       ORDER BY v.id DESC
-       LIMIT ? OFFSET ?`,
-      [validLimit, offset],
-    );
+       ORDER BY v.id DESC`;
+    
+    const queryParams: number[] = [];
+    if (validLimit) {
+      query += ` LIMIT ? OFFSET ?`;
+      queryParams.push(validLimit, offset);
+    }
+
+    const [rows] = await pool.query<RowDataPacket[]>(query, queryParams.length > 0 ? queryParams : undefined);
 
     const [countRows] = await pool.query<RowDataPacket[]>(
       `SELECT COUNT(*) as total FROM tbl_voters_search`,
@@ -60,9 +66,9 @@ export async function GET(request: NextRequest) {
       data: rows,
       pagination: {
         currentPage: validPage,
-        totalPages: Math.ceil(totalRecords / validLimit),
+        totalPages: validLimit ? Math.ceil(totalRecords / validLimit) : 1,
         totalRecords: totalRecords,
-        recordsPerPage: validLimit,
+        recordsPerPage: validLimit || totalRecords,
       },
     });
   } catch (error) {

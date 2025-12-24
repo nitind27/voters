@@ -113,16 +113,6 @@ const VoterStatusDashboard: React.FC = () => {
   const [assignedList, setAssignedList] = useState<Array<{ volunteer_name: string; primary_person: string; count: number }>>([]);
 
 
-  // Voting Done modal state
-  const [votingDoneModalOpen, setVotingDoneModalOpen] = useState(false);
-  const [votingDoneFormData, setVotingDoneFormData] = useState({
-    volunteer_name: "",
-    primary_person_id: "",
-  });
-  const [familyMembers, setFamilyMembers] = useState<Array<{ Voter_Id: string; full_name: string; voting_status: string }>>([]);
-  const [selectedVoters, setSelectedVoters] = useState<Set<string>>(new Set());
-  const [loadingFamilyMembers, setLoadingFamilyMembers] = useState(false);
-  const [markingDone, setMarkingDone] = useState(false);
 
   // Fetch Voter List data
   const fetchVoterList = useCallback(async () => {
@@ -443,89 +433,6 @@ const VoterStatusDashboard: React.FC = () => {
   };
 
 
-  // Voting Done handlers
-  const openVotingDoneModal = () => {
-    setVotingDoneModalOpen(true);
-    setSelectedVoters(new Set());
-    setFamilyMembers([]);
-  };
-
-  const closeVotingDoneModal = () => {
-    setVotingDoneModalOpen(false);
-    setVotingDoneFormData({
-      volunteer_name: "",
-      primary_person_id: "",
-    });
-    setFamilyMembers([]);
-    setSelectedVoters(new Set());
-  };
-
-  const handleVotingDoneChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setVotingDoneFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-    if (name === 'primary_person_id' && value) {
-      fetchFamilyMembersForVoting(value);
-    }
-  };
-
-  const fetchFamilyMembersForVoting = async (primaryPersonId: string) => {
-    setLoadingFamilyMembers(true);
-    try {
-      const response = await fetch(`/api/voterstatus/familymembers?primary_person_id=${primaryPersonId}`);
-      if (!response.ok) throw new Error('Failed to fetch family members');
-      const data = await response.json();
-      setFamilyMembers(data);
-    } catch (error) {
-      console.error('Error fetching family members:', error);
-      toast.error('Failed to load family members');
-      setFamilyMembers([]);
-    } finally {
-      setLoadingFamilyMembers(false);
-    }
-  };
-
-  const handleVoterCheckboxChange = (voterId: string) => {
-    setSelectedVoters(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(voterId)) {
-        newSet.delete(voterId);
-      } else {
-        newSet.add(voterId);
-      }
-      return newSet;
-    });
-  };
-
-  const handleMarkVotingDone = async () => {
-    if (selectedVoters.size === 0) {
-      toast.error('Please select at least one voter');
-      return;
-    }
-    setMarkingDone(true);
-    try {
-      const res = await fetch('/api/voterstatus/markvotingdone', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ voter_ids: Array.from(selectedVoters) }),
-      });
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.error || 'Failed to mark voting done');
-      }
-      const result = await res.json();
-      toast.success(result.message || 'Voting marked as done successfully!');
-      closeVotingDoneModal();
-      handleRefreshVotingDone();
-    } catch (error) {
-      console.error('Error marking voting done:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to mark voting done');
-    } finally {
-      setMarkingDone(false);
-    }
-  };
 
   // Load all data on initial mount to show counts immediately
   useEffect(() => {
@@ -649,38 +556,87 @@ const VoterStatusDashboard: React.FC = () => {
   const filteredFinanceListData = useMemo(() => {
     let filtered = financeListData;
 
+    // Check if "Total Unpaid" filter is selected
+    const isTotalUnpaidSelected = financeInstallmentFilter.includes('Pending');
+
+    // Helper function to normalize installment value
+    const normalizeValue = (value: string | number | null | undefined | boolean): string => {
+      if (value === null || value === undefined) return '';
+      const str = String(value).trim();
+      // Handle '0', 0, 'false', false, empty string, etc. as unpaid
+      if (str === '' || str === '0' || str === 'false' || str === 'False' || value === 0 || value === false) {
+        return '0';
+      }
+      return str;
+    };
+
+    // Helper function to check if value is '1' (paid)
+    const isPaid = (value: string | number | null | undefined | boolean): boolean => {
+      const normalized = normalizeValue(value);
+      return normalized === '1' || normalized === 'true' || normalized === 'True' || value === 1 || value === true;
+    };
+
+    // Helper function to check if value is unpaid ('0', null, empty, etc.)
+    const isUnpaid = (value: string | number | null | undefined | boolean): boolean => {
+      const normalized = normalizeValue(value);
+      return normalized === '0' || normalized === '';
+    };
+
+    // Default: Show only records where at least one installment is '1'
+    // If no filter is selected OR only "Total Unpaid" is selected, apply appropriate filter
+    if (financeInstallmentFilter.length === 0) {
+      // Default: Show records where at least one installment is '1'
+      filtered = filtered.filter(item => {
+        return isPaid(item.inst_1_paid) || isPaid(item.inst_2_paid) || isPaid(item.inst_3_paid);
+      });
+    } else if (isTotalUnpaidSelected && financeInstallmentFilter.length === 1) {
+      // Only "Total Unpaid" is selected: Show records where all three installments are '0' (or null/empty)
+      filtered = filtered.filter(item => {
+        return isUnpaid(item.inst_1_paid) && isUnpaid(item.inst_2_paid) && isUnpaid(item.inst_3_paid);
+      });
+    }
+
+    // Apply volunteer filter
     if (financeVolunteerFilter) {
       filtered = filtered.filter(item => item.volunteer_name === financeVolunteerFilter);
     }
 
+    // Apply primary person filter
     if (financePrimaryPersonFilter) {
       filtered = filtered.filter(item => item.family_member === financePrimaryPersonFilter);
     }
 
-    if (financeInstallmentFilter.length > 0) {
+    // Apply installment filters (if other filters are selected along with or without "Total Unpaid")
+    if (financeInstallmentFilter.length > 0 && !(isTotalUnpaidSelected && financeInstallmentFilter.length === 1)) {
       filtered = filtered.filter(item => {
         return financeInstallmentFilter.some(filter => {
           if (filter === 'inst_1_paid') {
             const value = String(item.inst_1_paid || '');
-            return value === 'Yes' || value === '1' || value === 'true';
+            return value === '1';
           }
           if (filter === 'inst_2_paid') {
             const value = String(item.inst_2_paid || '');
-            return value === 'Yes' || value === '1' || value === 'true';
+            return value === '1';
           }
           if (filter === 'inst_3_paid') {
             const value = String(item.inst_3_paid || '');
-            return value === 'Yes' || value === '1' || value === 'true';
+            return value === '1';
           }
           if (filter === 'Pending') {
-            // Total Unpaid - none of the installments are paid
-            const inst1 = String(item.inst_1_paid || '');
-            const inst2 = String(item.inst_2_paid || '');
-            const inst3 = String(item.inst_3_paid || '');
-            const inst1Paid = inst1 === 'Yes' || inst1 === '1' || inst1 === 'true';
-            const inst2Paid = inst2 === 'Yes' || inst2 === '1' || inst2 === 'true';
-            const inst3Paid = inst3 === 'Yes' || inst3 === '1' || inst3 === 'true';
-            return !inst1Paid && !inst2Paid && !inst3Paid;
+            // Total Unpaid - all three installments must be unpaid ('0', null, empty, etc.)
+            const normalizeValue = (value: string | number | null | undefined | boolean): string => {
+              if (value === null || value === undefined) return '';
+              const str = String(value).trim();
+              if (str === '' || str === '0' || str === 'false' || str === 'False' || value === 0 || value === false) {
+                return '0';
+              }
+              return str;
+            };
+            const isUnpaid = (value: string | number | null | undefined | boolean): boolean => {
+              const normalized = normalizeValue(value);
+              return normalized === '0' || normalized === '';
+            };
+            return isUnpaid(item.inst_1_paid) && isUnpaid(item.inst_2_paid) && isUnpaid(item.inst_3_paid);
           }
           return false;
         });
@@ -734,11 +690,10 @@ const VoterStatusDashboard: React.FC = () => {
       accessor: 'inst_1_paid',
       render: (data) => (
         <div className="flex gap-1 flex-wrap">
-          {data.inst_1_paid === 'Yes' && <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded font-medium">Inst 1</span>}
-          {data.inst_2_paid === 'Yes' && <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded font-medium">Inst 2</span>}
-          {data.inst_3_paid === 'Yes' && <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded font-medium">Inst 3</span>}
-          {data.voting_paid === 'Yes' && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded font-medium">Voting</span>}
-          {data.inst_1_paid !== 'Yes' && data.inst_2_paid !== 'Yes' && data.inst_3_paid !== 'Yes' && data.voting_paid !== 'Yes' && (
+          {String(data.inst_1_paid || '') === '1' && <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded font-medium">Inst 1</span>}
+          {String(data.inst_2_paid || '') === '1' && <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded font-medium">Inst 2</span>}
+          {String(data.inst_3_paid || '') === '1' && <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded font-medium">Inst 3</span>}
+          {String(data.inst_1_paid || '') !== '1' && String(data.inst_2_paid || '') !== '1' && String(data.inst_3_paid || '') !== '1' && (
             <span className="text-xs text-gray-400">None</span>
           )}
         </div>
@@ -1879,20 +1834,6 @@ const VoterStatusDashboard: React.FC = () => {
               searchKey="full_name"
               inputfiled={
                 <div className="flex flex-wrap items-center gap-3">
-                  {/* Action Buttons Group */}
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={openVotingDoneModal}
-                      className="h-11 px-4 text-sm font-medium text-white bg-pink-600 border border-pink-600 rounded-lg hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-pink-500 flex items-center gap-2"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      Mark Voting Done
-                    </button>
-                  </div>
-
                   {/* Export Buttons Group */}
                   <div className="flex items-center gap-2">
                     <button
@@ -2159,94 +2100,6 @@ const VoterStatusDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* Voting Done Modal */}
-      {votingDoneModalOpen && (
-        <div className="fixed inset-0 z-9999 flex items-center justify-center bg-black/50" onClick={closeVotingDoneModal}>
-          <div className="relative w-[95vw] max-w-4xl max-h-[90vh] overflow-hidden rounded-xl bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-6 py-4 border-b bg-gray-50">
-              <h3 className="text-lg font-semibold text-gray-800">Mark Voting Done</h3>
-              <button type="button" className="p-2 rounded-lg hover:bg-gray-200 transition-colors" onClick={closeVotingDoneModal}>
-                <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
-              </button>
-            </div>
-            <div className="p-6">
-              <div className="space-y-4 mb-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Select Volunteer <span className="text-red-500">*</span></label>
-                  <select name="volunteer_name" value={votingDoneFormData.volunteer_name} onChange={handleVotingDoneChange} className="w-full h-11 px-4 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 text-sm">
-                    <option value="">Select Volunteer</option>
-                    {volunteers.map((v, idx) => (
-                      <option key={idx} value={v.volunteer_name}>{v.volunteer_name} {v.volunteer_mobile && `(${v.volunteer_mobile})`}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Select Primary Person <span className="text-red-500">*</span></label>
-                  <select name="primary_person_id" value={votingDoneFormData.primary_person_id} onChange={handleVotingDoneChange} className="w-full h-11 px-4 rounded-lg border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 text-sm">
-                    <option value="">Select Primary Person</option>
-                    {primaryPersons.map((p) => (
-                      <option key={p.Voter_Id} value={p.Voter_Id}>{p.full_name} - {p.Voter_Id}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              {loadingFamilyMembers ? (
-                <div className="flex items-center justify-center py-12">
-                  <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-purple-600"></div>
-                </div>
-              ) : familyMembers.length > 0 ? (
-                <div className="border-t pt-4">
-                  <h4 className="text-sm font-semibold text-gray-700 mb-3">Select Voters to Mark as Done</h4>
-                  <div className="max-h-96 overflow-y-auto">
-                    <table className="min-w-full text-sm">
-                      <thead className="bg-gray-50 sticky top-0">
-                        <tr>
-                          <th className="px-3 py-2 border text-left w-12">
-                            <input type="checkbox" checked={selectedVoters.size === familyMembers.length} onChange={(e) => {
-                              if (e.target.checked) {
-                                setSelectedVoters(new Set(familyMembers.map(m => m.Voter_Id)));
-                              } else {
-                                setSelectedVoters(new Set());
-                              }
-                            }} className="rounded" />
-                          </th>
-                          <th className="px-3 py-2 border text-left">Voter ID</th>
-                          <th className="px-3 py-2 border text-left">Full Name</th>
-                          <th className="px-3 py-2 border text-left">Status</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {familyMembers.map((member) => (
-                          <tr key={member.Voter_Id} className="hover:bg-gray-50">
-                            <td className="px-3 py-2 border">
-                              <input type="checkbox" checked={selectedVoters.has(member.Voter_Id)} onChange={() => handleVoterCheckboxChange(member.Voter_Id)} className="rounded" />
-                            </td>
-                            <td className="px-3 py-2 border font-mono text-blue-600">{member.Voter_Id}</td>
-                            <td className="px-3 py-2 border">{member.full_name}</td>
-                            <td className="px-3 py-2 border">
-                              <span className={`px-2 py-0.5 rounded-full text-xs ${member.voting_status === 'Done' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}`}>
-                                {member.voting_status || 'Pending'}
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  <div className="mt-4 flex items-center justify-end gap-3">
-                    <span className="text-sm text-gray-600">Selected: {selectedVoters.size} of {familyMembers.length}</span>
-                    <button type="button" onClick={handleMarkVotingDone} disabled={markingDone || selectedVoters.size === 0} className="px-4 py-2 text-sm font-medium text-white bg-pink-600 rounded-lg hover:bg-pink-700 disabled:opacity-50">
-                      {markingDone ? 'Marking...' : 'Submit'}
-                    </button>
-                  </div>
-                </div>
-              ) : votingDoneFormData.primary_person_id ? (
-                <div className="text-center py-12 text-gray-500">No family members found</div>
-              ) : null}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

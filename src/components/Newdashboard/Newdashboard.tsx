@@ -294,13 +294,32 @@ const Newdashboard: React.FC = () => {
   const fetchFamilyWiseSurveyData = useCallback(async () => {
     setFamilyWiseLoading(true);
     try {
-      const response = await fetch('/api/familywisesurvey');
-      if (!response.ok) throw new Error('Failed to fetch family wise survey data');
-      const result = await response.json();
-      // Handle new response structure with pagination
-      const data = Array.isArray(result) ? result : (result.data || []);
-      setFamilyWiseSurveyData(data);
-      setFilteredFamilyWiseData(data);
+      // Fetch all records by using a high limit
+      let allData: FamilyWiseSurveyData[] = [];
+      let currentPage = 1;
+      let hasMore = true;
+      
+      while (hasMore) {
+        const response = await fetch(`/api/familywisesurvey?page=${currentPage}&limit=5000`);
+        if (!response.ok) throw new Error('Failed to fetch family wise survey data');
+        const result = await response.json();
+        
+        // Handle new response structure with pagination
+        const pageData = Array.isArray(result) ? result : (result.data || []);
+        allData = [...allData, ...pageData];
+        
+        // Check if there are more pages
+        if (result.pagination) {
+          hasMore = currentPage < result.pagination.totalPages;
+          currentPage++;
+        } else {
+          // If no pagination info, assume single page
+          hasMore = false;
+        }
+      }
+      
+      setFamilyWiseSurveyData(allData);
+      setFilteredFamilyWiseData(allData);
     } catch {
       toast.error('Failed to load family wise survey data');
       setFamilyWiseSurveyData([]);
