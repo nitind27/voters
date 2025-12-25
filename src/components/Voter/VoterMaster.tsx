@@ -8,6 +8,8 @@ import Label from "../form/Label";
 import { Modal } from "../ui/modal";
 // import { Simpletableshowdata } from "../tables/Simpletableshowdata";
 import { Withoutbtn } from "../tables/Withoutbtn";
+import * as XLSX from 'xlsx';
+import { saveAs } from 'file-saver';
 
 type VoterMasterRow = {
   id: number;
@@ -42,12 +44,14 @@ type ApiResponse = {
 };
 
 const VoterMaster: React.FC = () => {
-  const [rows, setRows] = useState<VoterMasterRow[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [rows, setRows] = useState<VoterMasterRow[]>([]); // setRows used in fetchData and updateRow
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   // const [search, setSearch] = useState("");
-  const [savingId, setSavingId] = useState<number | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [savingId, setSavingId] = useState<number | null>(null); // setSavingId used in handleSaveRow
   const [activeTab, setActiveTab] = useState<"A" | "B" | "C" | "D">("A");
 
   // B tab state
@@ -65,6 +69,7 @@ const VoterMaster: React.FC = () => {
     colony_names: string;
     colony_ids: number[];
     category_id?: number | null;
+    primary_person_id?: string | null;
   };
   type AssignRow = {
     id: number;
@@ -134,11 +139,22 @@ const VoterMaster: React.FC = () => {
     updated_house_number?: string | null;
     House_Number?: string | null;
     colony_name?: string | null;
+    member_count?: number;
   }>>([]);
   const [loadingPrimaryPersons, setLoadingPrimaryPersons] = useState(false);
   const [selectedPrimaryPersonIds, setSelectedPrimaryPersonIds] = useState<string[]>([]);
   const [primaryPersonSearchTerm, setPrimaryPersonSearchTerm] = useState("");
   const [primaryPersonAssignments, setPrimaryPersonAssignments] = useState<Record<string, string>>({});
+
+  // Family Members Modal state
+  const [isFamilyMembersModalOpen, setIsFamilyMembersModalOpen] = useState(false);
+  const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
+  const [loadingFamilyMembers, setLoadingFamilyMembers] = useState(false);
+  const [selectedPrimaryPersonForFamilyModal, setSelectedPrimaryPersonForFamilyModal] = useState<{
+    id: number;
+    Voter_Id: string;
+    full_name: string;
+  } | null>(null);
 
   // Primary Person Modal state
   const [isPrimaryPersonModalOpen, setIsPrimaryPersonModalOpen] = useState(false);
@@ -216,36 +232,67 @@ const VoterMaster: React.FC = () => {
   } | null>(null);
 
   // Tab D - Voting Status state
-  const [votingVolunteerSearchTerm, setVotingVolunteerSearchTerm] = useState("");
+  // const [votingVolunteerSearchTerm, setVotingVolunteerSearchTerm] = useState(""); // Unused
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [votingAvailableVolunteers, setVotingAvailableVolunteers] = useState<VolunteerMasterApiItem[]>([]);
-  const [loadingVotingVolunteers, setLoadingVotingVolunteers] = useState(false);
+  // const [loadingVotingVolunteers, setLoadingVotingVolunteers] = useState(false); // Unused
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [selectedVotingVolunteerId, setSelectedVotingVolunteerId] = useState<number | null>(null);
   const [isVotingVolunteerDropdownOpen, setIsVotingVolunteerDropdownOpen] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [selectedVotingColonyId, setSelectedVotingColonyId] = useState<number | null>(null);
+
+  // Tab D - Voting Status Summary Table
+  type VotingStatusSummaryRow = {
+    volunteer_id: number;
+    volunteer_name: string;
+    volunteer_contact: string;
+    assigned_colony: string;
+    total_voters: number;
+    in_transit_count: number;
+    voting_done_count: number;
+    pending_count: number;
+    percentage: number;
+    _allMembers?: FamilyMember[]; // All family members for this volunteer
+  };
+  const [votingStatusSummary, setVotingStatusSummary] = useState<VotingStatusSummaryRow[]>([]);
+  const [loadingVotingStatusSummary, setLoadingVotingStatusSummary] = useState(false);
+
+  // Tab D - Status List Modals
+  const [isStatusListModalOpen, setIsStatusListModalOpen] = useState(false);
+  const [statusListModalType, setStatusListModalType] = useState<"in_transit" | "voting_done" | "pending" | null>(null);
+  const [statusListData, setStatusListData] = useState<FamilyMember[]>([]);
+  const [statusListVolunteerName, setStatusListVolunteerName] = useState<string>("");
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [loadingStatusList, setLoadingStatusList] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [votingPrimaryPersons, setVotingPrimaryPersons] = useState<Array<{
     id: number;
     Voter_Id: string;
     full_name: string;
     ENG_Full_name?: string;
     Updated_colony: string | number | null;
-    updated_mobile_no?: string | null;
     updated_house_number?: string | null;
     House_Number?: string | null;
     colony_name?: string | null;
     member_count?: number;
   }>>([]);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [loadingVotingPrimaryPersons, setLoadingVotingPrimaryPersons] = useState(false);
   const [selectedVotingPrimaryPersonIds, setSelectedVotingPrimaryPersonIds] = useState<string[]>([]);
-  const [votingPrimaryPersonSearchTerm, setVotingPrimaryPersonSearchTerm] = useState("");
+  // const [votingPrimaryPersonSearchTerm, setVotingPrimaryPersonSearchTerm] = useState(""); // Unused
   const [isVotingPrimaryPersonDropdownOpen, setIsVotingPrimaryPersonDropdownOpen] = useState(false);
   
   // Tab D - Members data
   const [votingMembers, setVotingMembers] = useState<FamilyMember[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [loadingVotingMembers, setLoadingVotingMembers] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [memberVotingStatus, setMemberVotingStatus] = useState<Record<number, boolean>>({});
   // Track original voting status from database to detect if user is unchecking a saved "Completed" status
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [originalVotingStatus, setOriginalVotingStatus] = useState<Record<number, boolean>>({});
-  const [submittingVotingData, setSubmittingVotingData] = useState(false);
+  // const [submittingVotingData, setSubmittingVotingData] = useState(false); // Unused
   
   // Confirmation modal state for unchecking saved voting status
   const [showVotingUncheckConfirmation, setShowVotingUncheckConfirmation] = useState(false);
@@ -449,6 +496,8 @@ const VoterMaster: React.FC = () => {
       fetchVolunteerMasterData();
     } else if (activeTab === "C") {
       loadFinancialVolunteers();
+    } else if (activeTab === "D") {
+      loadVotingStatusSummary();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
@@ -551,6 +600,31 @@ const VoterMaster: React.FC = () => {
       setPrimaryPersons([]);
     } finally {
       setLoadingPrimaryPersons(false);
+    }
+  };
+
+  // Load family members for a primary person
+  const loadFamilyMembers = async (primaryPersonVoterId: string, primaryPersonId: number, primaryPersonName: string) => {
+    setLoadingFamilyMembers(true);
+    setSelectedPrimaryPersonForFamilyModal({
+      id: primaryPersonId,
+      Voter_Id: primaryPersonVoterId,
+      full_name: primaryPersonName,
+    });
+    try {
+      const res = await fetch(`/api/voterstatus/familymembers?primary_person_id=${encodeURIComponent(primaryPersonVoterId)}`, {
+        cache: "no-store",
+      });
+      if (!res.ok) throw new Error("Failed to load family members");
+      const json = await res.json();
+      setFamilyMembers(json || []);
+      setIsFamilyMembersModalOpen(true);
+    } catch (e) {
+      console.error(e);
+      toast.error("Family members load होत नाही.");
+      setFamilyMembers([]);
+    } finally {
+      setLoadingFamilyMembers(false);
     }
   };
 
@@ -676,6 +750,7 @@ const VoterMaster: React.FC = () => {
     };
 
     loadMembersForSelectedPrimaryPersons();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedFinancialPrimaryPersonIds]);
 
   // Tab C - Filter colonies based on selected volunteer
@@ -881,57 +956,497 @@ const VoterMaster: React.FC = () => {
   };
 
   // Tab D - Load voting volunteers
-  const loadVotingVolunteers = async (searchText = "") => {
-    setLoadingVotingVolunteers(true);
+  // const loadVotingVolunteers = async (searchText = "") => { // Unused
+  //   setLoadingVotingVolunteers(true);
+  //   try {
+  //     const params = new URLSearchParams();
+  //     if (searchText.trim()) params.set("search", searchText.trim());
+  //     
+  //     const res = await fetch(`/api/volunteermaster?${params.toString()}`, {
+  //       cache: "no-store",
+  //     });
+  //     if (!res.ok) throw new Error("Failed to load volunteers");
+  //     const json = await res.json();
+  //     // Filter out inactive volunteers
+  //     setVotingAvailableVolunteers((json.data || []).filter((v: VolunteerMasterApiItem) => v.status === "Active"));
+  //   } catch (e) {
+  //     console.error(e);
+  //     toast.error("Volunteers load होत नाही.");
+  //   } finally {
+  //     setLoadingVotingVolunteers(false);
+  //   }
+  // };
+
+  // Tab D - Load voting status summary
+  const loadVotingStatusSummary = async () => {
+    setLoadingVotingStatusSummary(true);
     try {
-      const params = new URLSearchParams();
-      if (searchText.trim()) params.set("search", searchText.trim());
-      
-      const res = await fetch(`/api/volunteermaster?${params.toString()}`, {
+      // Fetch all primary persons once (with member_count) to avoid multiple API calls
+      const primaryPersonsRes = await fetch("/api/voterstatus/primarypersons?only_assigned=false", {
+        cache: "no-store",
+      });
+      const allPrimaryPersons = primaryPersonsRes.ok ? await primaryPersonsRes.json() : [];
+
+      const res = await fetch("/api/volunteermaster", {
         cache: "no-store",
       });
       if (!res.ok) throw new Error("Failed to load volunteers");
       const json = await res.json();
-      // Filter out inactive volunteers
-      setVotingAvailableVolunteers((json.data || []).filter((v: VolunteerMasterApiItem) => v.status === "Active"));
+      const activeVolunteers = (json.data || []).filter((v: VolunteerMasterApiItem) => v.status === "Active");
+      
+      // Fetch voting status data for each volunteer
+      const summaryPromises = activeVolunteers.map(async (volunteer: VolunteerMasterApiItem) => {
+        try {
+          // Get all family members for this volunteer's assigned primary persons
+          const primaryPersonIds = volunteer.primary_person_id 
+            ? volunteer.primary_person_id.split(',').map((id: string) => id.trim()).filter(Boolean)
+            : [];
+          
+          if (primaryPersonIds.length === 0) {
+            return {
+              volunteer_id: volunteer.user_id,
+              volunteer_name: volunteer.volunteer_name,
+              volunteer_contact: volunteer.contact_no || "",
+              assigned_colony: volunteer.colony_names || "",
+              total_voters: 0,
+              in_transit_count: 0,
+              voting_done_count: 0,
+              pending_count: 0,
+              percentage: 0,
+              _allMembers: [],
+            } as VotingStatusSummaryRow;
+          }
+
+          // Find primary persons data from the pre-fetched list to get correct Voter_Id
+          // primary_person_id in volunteer_master can be stored as either id or Voter_Id
+          type PrimaryPersonType = {
+            Voter_Id: string;
+            id: number;
+            member_count?: number;
+          };
+          const primaryPersonsData = primaryPersonIds
+            .map((primaryPersonId: string) => {
+              return allPrimaryPersons.find((pp: PrimaryPersonType) => 
+                String(pp.Voter_Id) === primaryPersonId || String(pp.id) === primaryPersonId
+              );
+            })
+            .filter(Boolean) as PrimaryPersonType[];
+
+          // Extract Voter_Id values (the API needs Voter_Id, not id)
+          const primaryPersonVoterIds = primaryPersonsData.map((pp: PrimaryPersonType) => pp.Voter_Id).filter(Boolean);
+
+          if (primaryPersonVoterIds.length === 0) {
+            return {
+              volunteer_id: volunteer.user_id,
+              volunteer_name: volunteer.volunteer_name,
+              volunteer_contact: volunteer.contact_no || "",
+              assigned_colony: volunteer.colony_names || "",
+              total_voters: 0,
+              in_transit_count: 0,
+              voting_done_count: 0,
+              pending_count: 0,
+              percentage: 0,
+              _allMembers: [],
+            } as VotingStatusSummaryRow;
+          }
+
+          // Fetch all family members for all primary persons using Voter_Id
+          // This gets all voters (including primary persons) where family_member = Voter_Id
+          const memberPromises = primaryPersonVoterIds.map(async (voterId: string) => {
+            try {
+              const controller = new AbortController();
+              const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+              
+              const res = await fetch(`/api/voterstatus/familymembers?primary_person_id=${encodeURIComponent(voterId)}`, {
+                cache: "no-store",
+                signal: controller.signal,
+              });
+              clearTimeout(timeoutId);
+              if (!res.ok) return [];
+              return res.json();
+            } catch (e: unknown) {
+              const error = e as { name?: string };
+              if (error.name !== 'AbortError') {
+                console.error(`Error fetching members for Voter_Id ${voterId}:`, e);
+              }
+              return [];
+            }
+          });
+
+          const memberArrays = await Promise.allSettled(memberPromises).then(results => 
+            results.map(result => result.status === 'fulfilled' ? result.value : [])
+          );
+          const allMembersFlat = memberArrays.flat() as FamilyMember[];
+          
+          // Remove duplicates based on id (since same voter might be in multiple primary person families)
+          // This ensures we count each voter only once
+          const uniqueMembersMap = new Map<number, FamilyMember>();
+          allMembersFlat.forEach(member => {
+            if (member.id && !uniqueMembersMap.has(member.id)) {
+              uniqueMembersMap.set(member.id, member);
+            }
+          });
+          const allMembers = Array.from(uniqueMembersMap.values());
+
+          // Calculate total_voters: sum of member_count from each primary person
+          // This matches exactly how B tab shows FamilyMember Count (sum of all member_count values)
+          // member_count = COUNT(*) WHERE family_member = Voter_Id (includes primary person + all family members)
+          const totalVoters = primaryPersonsData.reduce((sum: number, pp: PrimaryPersonType) => {
+            return sum + (pp.member_count || 0);
+          }, 0);
+
+          // Count by voting_status from tbl_voters_search
+          // In Transit: voting_status = "In Transit"
+          const inTransitCount = allMembers.filter(m => m.voting_status === "In Transit").length;
+          // Voting Done: voting_status = "Completed" OR "Direct" (both considered as voting done)
+          const votingDoneCount = allMembers.filter(m => m.voting_status === "Completed" || m.voting_status === "Direct").length;
+          // Pending: voting_status = "Pending" or NULL or empty
+          const pendingCount = allMembers.filter(m => !m.voting_status || m.voting_status === "" || m.voting_status === "Pending").length;
+          // Percentage: (Completed + Direct) / Total * 100
+          const percentage = totalVoters > 0 ? Math.round((votingDoneCount / totalVoters) * 100) : 0;
+
+          return {
+            volunteer_id: volunteer.user_id,
+            volunteer_name: volunteer.volunteer_name,
+            volunteer_contact: volunteer.contact_no || "",
+            assigned_colony: volunteer.colony_names || "",
+            total_voters: totalVoters,
+            in_transit_count: inTransitCount,
+            voting_done_count: votingDoneCount,
+            pending_count: pendingCount,
+            percentage: percentage,
+            _allMembers: allMembers, // Store for modal access
+          } as VotingStatusSummaryRow;
+        } catch (e) {
+          console.error(`Error loading data for volunteer ${volunteer.volunteer_name}:`, e);
+          return {
+            volunteer_id: volunteer.user_id,
+            volunteer_name: volunteer.volunteer_name,
+            volunteer_contact: volunteer.contact_no || "",
+            assigned_colony: volunteer.colony_names || "",
+            total_voters: 0,
+            in_transit_count: 0,
+            voting_done_count: 0,
+            pending_count: 0,
+            percentage: 0,
+            _allMembers: [],
+          } as VotingStatusSummaryRow;
+        }
+      });
+
+      // Use Promise.allSettled to ensure all promises complete even if some fail
+      const summaryResults = await Promise.allSettled(summaryPromises);
+      const summary = summaryResults
+        .map(result => result.status === 'fulfilled' ? result.value : null)
+        .filter(s => s !== null) as VotingStatusSummaryRow[];
+
+      // Sort by total_voters count in descending order (highest count first)
+      summary.sort((a, b) => b.total_voters - a.total_voters);
+
+      console.log("Voting status summary loaded:", summary.length, "volunteers");
+      setVotingStatusSummary(summary);
+      
+      if (summary.length === 0 && activeVolunteers.length > 0) {
+        toast.info("No voting status data available for active volunteers.");
+      }
     } catch (e) {
-      console.error(e);
-      toast.error("Volunteers load होत नाही.");
+      console.error("Error loading voting status summary:", e);
+      toast.error("Voting status summary load होत नाही.");
+      setVotingStatusSummary([]);
     } finally {
-      setLoadingVotingVolunteers(false);
+      setLoadingVotingStatusSummary(false);
+    }
+  };
+
+  // Tab D - Open status list modal
+  const openStatusListModal = (type: "in_transit" | "voting_done" | "pending", volunteerId: number, volunteerName: string) => {
+    const summaryRow = votingStatusSummary.find(row => row.volunteer_id === volunteerId);
+    if (!summaryRow) return;
+
+    const allMembers = summaryRow._allMembers || [];
+    let filteredMembers: FamilyMember[] = [];
+
+    if (type === "in_transit") {
+      // In Transit: voting_status = "In Transit"
+      filteredMembers = allMembers.filter((m: FamilyMember) => m.voting_status === "In Transit");
+    } else if (type === "voting_done") {
+      // Voting Done: voting_status = "Completed" OR "Direct" (both considered as voting done)
+      filteredMembers = allMembers.filter((m: FamilyMember) => m.voting_status === "Completed" || m.voting_status === "Direct");
+    } else if (type === "pending") {
+      // Pending: voting_status = "Pending" or NULL or empty
+      filteredMembers = allMembers.filter((m: FamilyMember) => !m.voting_status || m.voting_status === "" || m.voting_status === "Pending");
+    }
+
+    setStatusListData(filteredMembers);
+    setStatusListVolunteerName(volunteerName);
+    setStatusListModalType(type);
+    setIsStatusListModalOpen(true);
+  };
+
+  // Tab D - Export status list to Excel
+  const exportStatusListToExcel = () => {
+    if (statusListData.length === 0) {
+      toast.error("No data to export");
+      return;
+    }
+
+    try {
+      const statusLabel = statusListModalType === "in_transit" ? "In Transit" : statusListModalType === "voting_done" ? "Voting Done" : "Pending";
+      const exportData = statusListData.map((member, idx) => ({
+        'Sr No': idx + 1,
+        'Voter ID': member.Voter_Id || 'N/A',
+        'Name': member.full_name || 'N/A',
+        'English Name': member.ENG_Full_name || 'N/A',
+        'Age': member.Age || 'N/A',
+        'Gender': member.Gender || 'N/A',
+        'Contact No': member.updated_mobile_no || 'N/A',
+        'Colony': member.colony_name || 'N/A',
+        'Voting Status': member.voting_status || 'N/A',
+      }));
+
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      ws['!cols'] = [
+        { wch: 8 }, { wch: 15 }, { wch: 25 }, { wch: 25 }, { wch: 8 }, { wch: 10 }, { wch: 12 }, { wch: 20 }, { wch: 15 }
+      ];
+      XLSX.utils.book_append_sheet(wb, ws, statusLabel);
+      const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      const data = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const fileName = `${statusListVolunteerName}_${statusLabel}_${new Date().toISOString().split('T')[0]}.xlsx`;
+      saveAs(data, fileName);
+      toast.success('Excel file downloaded successfully!');
+    } catch (error) {
+      console.error('Error exporting to Excel:', error);
+      toast.error('Failed to export Excel file');
+    }
+  };
+
+  // Tab D - Export status list to PDF
+  const exportVolunteerDataToExcel = (volunteerRow: VotingStatusSummaryRow) => {
+    if (!volunteerRow._allMembers || volunteerRow._allMembers.length === 0) {
+      toast.error("No data to export");
+      return;
+    }
+
+    try {
+      const exportData = volunteerRow._allMembers.map((member: FamilyMember, idx: number) => ({
+        'Sr No': idx + 1,
+        'Voter ID': member.Voter_Id || 'N/A',
+        'Name': member.full_name || 'N/A',
+        'English Name': member.ENG_Full_name || 'N/A',
+        'Age': member.Age || 'N/A',
+        'Gender': member.Gender || 'N/A',
+        'Contact No': member.updated_mobile_no || 'N/A',
+        'Colony': member.colony_name || 'N/A',
+        'Voting Status': member.voting_status || 'N/A',
+      }));
+
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      ws['!cols'] = [
+        { wch: 8 }, { wch: 15 }, { wch: 25 }, { wch: 25 }, { wch: 8 }, { wch: 10 }, { wch: 12 }, { wch: 20 }, { wch: 15 }
+      ];
+      XLSX.utils.book_append_sheet(wb, ws, volunteerRow.volunteer_name);
+      const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      const data = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const fileName = `${volunteerRow.volunteer_name}_Voting_Status_${new Date().toISOString().split('T')[0]}.xlsx`;
+      saveAs(data, fileName);
+      toast.success('Excel file downloaded successfully!');
+    } catch (error) {
+      console.error('Error exporting to Excel:', error);
+      toast.error('Failed to export Excel file');
+    }
+  };
+
+  const exportVolunteerDataToPDF = (volunteerRow: VotingStatusSummaryRow) => {
+    if (!volunteerRow._allMembers || volunteerRow._allMembers.length === 0) {
+      toast.error("No data to export");
+      return;
+    }
+
+    try {
+      const tableRows = volunteerRow._allMembers.map((member: FamilyMember, index: number) => `
+        <tr>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 11px; text-align: center;">${index + 1}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 11px;">${member.Voter_Id || "-"}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 11px;">${member.full_name || "-"}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 11px;">${member.ENG_Full_name || "-"}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 11px;">${member.Age || "-"}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 11px;">${member.Gender || "-"}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 11px;">${member.updated_mobile_no || "-"}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 11px;">${member.colony_name || "-"}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 11px;">${member.voting_status || "-"}</td>
+        </tr>
+      `).join('');
+
+      const htmlContent = `
+        <html>
+          <head>
+            <title>Voting Status - ${volunteerRow.volunteer_name}</title>
+            <style>
+              @page { size: A4 landscape; margin: 10mm; }
+              body { font-family: Arial, sans-serif; margin: 0; padding: 10px; }
+              h1 { text-align: center; margin-bottom: 5px; font-size: 18px; font-weight: bold; }
+              h2 { text-align: center; margin-bottom: 15px; font-size: 14px; color: #666; }
+              table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+              th { background-color: #f3f4f6; font-weight: bold; padding: 8px; border: 1px solid #000; font-size: 11px; text-align: left; }
+              td { padding: 8px; border: 1px solid #000; font-size: 11px; }
+            </style>
+          </head>
+          <body>
+            <h1>Voting Status Report</h1>
+            <h2>Volunteer: ${volunteerRow.volunteer_name} | Colony: ${volunteerRow.assigned_colony || "N/A"} | Total Voters: ${volunteerRow.total_voters}</h2>
+            <table>
+              <thead>
+                <tr>
+                  <th style="text-align: center;">Sr No</th>
+                  <th>Voter ID</th>
+                  <th>Name</th>
+                  <th>English Name</th>
+                  <th>Age</th>
+                  <th>Gender</th>
+                  <th>Contact No</th>
+                  <th>Colony</th>
+                  <th>Voting Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${tableRows}
+              </tbody>
+            </table>
+          </body>
+        </html>
+      `;
+
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.write(htmlContent);
+        printWindow.document.close();
+        printWindow.onload = () => {
+          printWindow.print();
+        };
+      }
+      toast.success('PDF generated successfully!');
+    } catch (error) {
+      console.error('Error exporting to PDF:', error);
+      toast.error('Failed to export PDF file');
+    }
+  };
+
+  const exportStatusListToPDF = () => {
+    if (statusListData.length === 0) {
+      toast.error("No data to export");
+      return;
+    }
+
+    try {
+      const statusLabel = statusListModalType === "in_transit" ? "In Transit" : statusListModalType === "voting_done" ? "Voting Done" : "Pending";
+      const tableRows = statusListData.map((member, index) => `
+        <tr>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 11px; text-align: center;">${index + 1}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 11px;">${member.Voter_Id || "-"}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 11px;">${member.full_name || "-"}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 11px;">${member.ENG_Full_name || "-"}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 11px;">${member.Age || "-"}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 11px;">${member.Gender || "-"}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 11px;">${member.updated_mobile_no || "-"}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 11px;">${member.colony_name || "-"}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 11px;">${member.voting_status || "-"}</td>
+        </tr>
+      `).join('');
+
+      const htmlContent = `
+        <html>
+          <head>
+            <title>${statusLabel} - ${statusListVolunteerName}</title>
+            <style>
+              @page { size: A4 landscape; margin: 10mm; }
+              body { font-family: Arial, sans-serif; margin: 0; padding: 10px; }
+              h1 { text-align: center; margin-bottom: 5px; font-size: 18px; font-weight: bold; }
+              h2 { text-align: center; margin-bottom: 15px; font-size: 14px; color: #666; }
+              .info { text-align: center; margin-bottom: 15px; font-size: 12px; color: #666; }
+              table { width: 100%; border-collapse: collapse; margin: 0 auto; font-size: 10px; }
+              th { background-color: #4a5568; color: white; padding: 8px; border: 1px solid #000; font-weight: bold; text-align: center; }
+              td { padding: 6px; border: 1px solid #000; }
+            </style>
+          </head>
+          <body>
+            <h1>${statusLabel} List</h1>
+            <h2>Volunteer: ${statusListVolunteerName}</h2>
+            <div class="info">
+              <p>Generated on: ${new Date().toLocaleString()}</p>
+              <p>Total Records: ${statusListData.length}</p>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Sr No</th>
+                  <th>Voter ID</th>
+                  <th>Name</th>
+                  <th>English Name</th>
+                  <th>Age</th>
+                  <th>Gender</th>
+                  <th>Contact No</th>
+                  <th>Colony</th>
+                  <th>Voting Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${tableRows}
+              </tbody>
+            </table>
+          </body>
+        </html>
+      `;
+
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.write(htmlContent);
+        printWindow.document.close();
+        setTimeout(() => {
+          printWindow.print();
+        }, 500);
+        toast.success('PDF print dialog opened!');
+      } else {
+        toast.error('Please allow popups to download PDF');
+      }
+    } catch (error) {
+      console.error('Error exporting to PDF:', error);
+      toast.error('Failed to export PDF file');
     }
   };
 
   // Tab D - Filter colonies based on selected volunteer
-  const filteredVotingColonies = useMemo(() => {
-    if (!selectedVotingVolunteerId) {
-      return colonies;
-    }
-
-    const selectedVolunteer = votingAvailableVolunteers.find(v => v.user_id === selectedVotingVolunteerId);
-    if (!selectedVolunteer) {
-      return colonies;
-    }
-
-    // Use colony_ids array if available, otherwise parse colony_id string
-    let volunteerColonyIds: number[] = [];
-    if (selectedVolunteer.colony_ids && selectedVolunteer.colony_ids.length > 0) {
-      volunteerColonyIds = selectedVolunteer.colony_ids;
-    } else if (selectedVolunteer.colony_id) {
-      volunteerColonyIds = selectedVolunteer.colony_id
-        .split(',')
-        .map(id => Number(id.trim()))
-        .filter(id => !isNaN(id) && id > 0);
-    }
-
-    if (volunteerColonyIds.length === 0) {
-      return colonies;
-    }
-
-    return colonies.filter(c => volunteerColonyIds.includes(c.colony_id));
-  }, [colonies, selectedVotingVolunteerId, votingAvailableVolunteers]);
+  // const filteredVotingColonies = useMemo(() => { // Unused
+  //   if (!selectedVotingVolunteerId) {
+  //     return colonies;
+  //   }
+  //
+  //   const selectedVolunteer = votingAvailableVolunteers.find(v => v.user_id === selectedVotingVolunteerId);
+  //   if (!selectedVolunteer) {
+  //     return colonies;
+  //   }
+  //
+  //   // Use colony_ids array if available, otherwise parse colony_id string
+  //   let volunteerColonyIds: number[] = [];
+  //   if (selectedVolunteer.colony_ids && selectedVolunteer.colony_ids.length > 0) {
+  //     volunteerColonyIds = selectedVolunteer.colony_ids;
+  //   } else if (selectedVolunteer.colony_id) {
+  //     volunteerColonyIds = selectedVolunteer.colony_id
+  //       .split(',')
+  //       .map(id => Number(id.trim()))
+  //       .filter(id => !isNaN(id) && id > 0);
+    //   }
+    //
+    //   if (volunteerColonyIds.length === 0) {
+    //     return colonies;
+    //   }
+    //
+    //   return colonies.filter(c => volunteerColonyIds.includes(c.colony_id));
+    // }, [colonies, selectedVotingVolunteerId, votingAvailableVolunteers]);
 
   // Tab D - Load primary persons when colony is selected
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const loadVotingPrimaryPersons = async (colonyId: number | null) => {
     if (!colonyId || colonyId === -1) {
       // Load from all colonies if "All" is selected
@@ -988,13 +1503,13 @@ const VoterMaster: React.FC = () => {
   };
 
   // Tab D - Handle colony change
-  const handleVotingColonyChange = (colonyId: number) => {
-    setSelectedVotingColonyId(colonyId);
-    setSelectedVotingPrimaryPersonIds([]);
-    setVotingMembers([]);
-    setMemberVotingStatus({});
-    loadVotingPrimaryPersons(colonyId);
-  };
+  // const handleVotingColonyChange = (colonyId: number) => { // Unused
+  //   setSelectedVotingColonyId(colonyId);
+  //   setSelectedVotingPrimaryPersonIds([]);
+  //   setVotingMembers([]);
+  //   setMemberVotingStatus({});
+  //   loadVotingPrimaryPersons(colonyId);
+  // };
 
   // Tab D - Clear colony and primary persons when volunteer changes
   useEffect(() => {
@@ -1071,31 +1586,31 @@ const VoterMaster: React.FC = () => {
   }, [selectedVotingPrimaryPersonIds]);
 
   // Tab D - Handle voting status checkbox change
-  const handleVotingStatusChange = (memberId: number, checked: boolean) => {
-    // Check if user is trying to uncheck a voting status that was originally "Completed" in database
-    const originalValue = originalVotingStatus[memberId];
-    const member = votingMembers.find(m => m.id === memberId);
-    const memberName = member?.full_name || member?.Voter_Id || "Member";
-    
-    // If unchecking and it was originally "Completed" in database, show confirmation
-    // Check both originalVotingStatus and current member's voting_status from database
-    const wasCompleted = originalValue === true || (originalValue === undefined && member?.voting_status === "Completed");
-    
-    if (!checked && wasCompleted) {
-      setPendingVotingUncheck({
-        memberId,
-        memberName,
-      });
-      setShowVotingUncheckConfirmation(true);
-      return;
-    }
-    
-    // Otherwise, proceed with the change
-    setMemberVotingStatus(prev => ({
-      ...prev,
-      [memberId]: checked,
-    }));
-  };
+  // const handleVotingStatusChange = (memberId: number, checked: boolean) => { // Unused
+  //   // Check if user is trying to uncheck a voting status that was originally "Completed" in database
+  //   const originalValue = originalVotingStatus[memberId];
+  //   const member = votingMembers.find(m => m.id === memberId);
+  //   const memberName = member?.full_name || member?.Voter_Id || "Member";
+  //   
+  //   // If unchecking and it was originally "Completed" in database, show confirmation
+  //   // Check both originalVotingStatus and current member's voting_status from database
+  //   const wasCompleted = originalValue === true || (originalValue === undefined && member?.voting_status === "Completed");
+  //   
+  //   if (!checked && wasCompleted) {
+  //     setPendingVotingUncheck({
+  //       memberId,
+  //       memberName,
+  //     });
+  //     setShowVotingUncheckConfirmation(true);
+  //     return;
+  //   }
+  //   
+  //   // Otherwise, proceed with the change
+  //   setMemberVotingStatus(prev => ({
+  //     ...prev,
+  //     [memberId]: checked,
+  //   }));
+  // };
 
   // Tab D - Confirm unchecking saved voting status
   const handleConfirmVotingUncheck = () => {
@@ -1141,85 +1656,85 @@ const VoterMaster: React.FC = () => {
   };
 
   // Tab D - Submit voting status
-  const handleSubmitVotingData = async () => {
-    if (votingMembers.length === 0) {
-      toast.error("कृपया सदस्य निवडा.");
-      return;
-    }
-
-    try {
-      setSubmittingVotingData(true);
-      
-      // Update each member's voting status
-      const updatePromises = votingMembers.map(async (member) => {
-        const isCompleted = memberVotingStatus[member.id] || false;
-        const votingStatus = isCompleted ? "Completed" : "In Transit";
-
-        const res = await fetch(`/api/voterdetailsdata/Voterdetailslist/${member.id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            Updated_colony: member.Updated_colony,
-            updated_house_number: null,
-            updated_mobile_no: member.updated_mobile_no,
-            volunteer_name: null,
-            volunteer_mobile: null,
-            volunteer_status: null,
-            assigned_colony_name: null,
-            inst_1_paid: member.inst_1_paid ?? 0,
-            inst_2_paid: member.inst_2_paid ?? 0,
-            inst_3_paid: member.inst_3_paid ?? 0,
-            voting_paid: member.voting_paid ?? 0,
-            voting_in_transit: isCompleted ? 0 : 1,
-            voting_status: votingStatus,
-          }),
-        });
-
-        if (!res.ok) {
-          const json = await res.json();
-          throw new Error(json?.error || `Failed to update member ${member.full_name}`);
-        }
-      });
-
-      await Promise.all(updatePromises);
-      toast.success("Voting status सेव्ह झाला.");
-      
-      // Reload members to reflect updated data
-      const memberPromises = selectedVotingPrimaryPersonIds.map(async (primaryPersonVoterId) => {
-        const res = await fetch(`/api/voterstatus/familymembers?primary_person_id=${encodeURIComponent(primaryPersonVoterId)}`, {
-          cache: "no-store",
-        });
-        if (!res.ok) throw new Error(`Failed to reload members for ${primaryPersonVoterId}`);
-        return res.json();
-      });
-
-      const memberArrays = await Promise.all(memberPromises);
-      const allMembers = memberArrays.flat() as FamilyMember[];
-      const uniqueMembers = Array.from(
-        new Map(allMembers.map(m => [m.id, m])).values()
-      );
-      setVotingMembers(uniqueMembers);
-
-      // Update voting status state with fresh data from database
-      const updatedStatus: Record<number, boolean> = {};
-      const updatedOriginal: Record<number, boolean> = {};
-      
-      uniqueMembers.forEach(member => {
-        const dbValue = member.voting_status === "Completed";
-        updatedStatus[member.id] = dbValue;
-        // Update original values to reflect new saved state
-        updatedOriginal[member.id] = dbValue;
-      });
-      
-      setMemberVotingStatus(updatedStatus);
-      setOriginalVotingStatus(prev => ({ ...prev, ...updatedOriginal }));
-    } catch (e) {
-      console.error(e);
-      toast.error(e instanceof Error ? e.message : "Voting status सेव्ह होत नाही.");
-    } finally {
-      setSubmittingVotingData(false);
-    }
-  };
+  // const handleSubmitVotingData = async () => { // Unused
+  //   if (votingMembers.length === 0) {
+  //     toast.error("कृपया सदस्य निवडा.");
+  //     return;
+  //   }
+  //
+  //   try {
+  //     setSubmittingVotingData(true);
+  //     
+  //     // Update each member's voting status
+  //     const updatePromises = votingMembers.map(async (member) => {
+  //       const isCompleted = memberVotingStatus[member.id] || false;
+  //       const votingStatus = isCompleted ? "Completed" : "In Transit";
+  //
+  //       const res = await fetch(`/api/voterdetailsdata/Voterdetailslist/${member.id}`, {
+  //         method: "PUT",
+  //         headers: { "Content-Type": "application/json" },
+  //         body: JSON.stringify({
+  //           Updated_colony: member.Updated_colony,
+  //           updated_house_number: null,
+  //           updated_mobile_no: member.updated_mobile_no,
+  //           volunteer_name: null,
+  //           volunteer_mobile: null,
+  //           volunteer_status: null,
+  //           assigned_colony_name: null,
+  //           inst_1_paid: member.inst_1_paid ?? 0,
+  //           inst_2_paid: member.inst_2_paid ?? 0,
+  //           inst_3_paid: member.inst_3_paid ?? 0,
+  //           voting_paid: member.voting_paid ?? 0,
+  //           voting_in_transit: isCompleted ? 0 : 1,
+  //           voting_status: votingStatus,
+  //         }),
+  //       });
+  //
+  //       if (!res.ok) {
+  //         const json = await res.json();
+  //         throw new Error(json?.error || `Failed to update member ${member.full_name}`);
+  //       }
+  //     });
+  //
+  //     await Promise.all(updatePromises);
+  //     toast.success("Voting status सेव्ह झाला.");
+  //     
+  //     // Reload members to reflect updated data
+  //     const memberPromises = selectedVotingPrimaryPersonIds.map(async (primaryPersonVoterId) => {
+  //       const res = await fetch(`/api/voterstatus/familymembers?primary_person_id=${encodeURIComponent(primaryPersonVoterId)}`, {
+  //         cache: "no-store",
+  //       });
+  //       if (!res.ok) throw new Error(`Failed to reload members for ${primaryPersonVoterId}`);
+  //       return res.json();
+  //     });
+  //
+  //     const memberArrays = await Promise.all(memberPromises);
+  //     const allMembers = memberArrays.flat() as FamilyMember[];
+  //     const uniqueMembers = Array.from(
+  //       new Map(allMembers.map(m => [m.id, m])).values()
+  //     );
+  //     setVotingMembers(uniqueMembers);
+  //
+  //     // Update voting status state with fresh data from database
+  //     const updatedStatus: Record<number, boolean> = {};
+  //     const updatedOriginal: Record<number, boolean> = {};
+  //     
+  //     uniqueMembers.forEach(member => {
+  //       const dbValue = member.voting_status === "Completed";
+  //       updatedStatus[member.id] = dbValue;
+  //       // Update original values to reflect new saved state
+  //       updatedOriginal[member.id] = dbValue;
+  //     });
+  //     
+  //     setMemberVotingStatus(updatedStatus);
+  //     setOriginalVotingStatus(prev => ({ ...prev, ...updatedOriginal }));
+  //   } catch (e) {
+  //     console.error(e);
+  //     toast.error(e instanceof Error ? e.message : "Voting status सेव्ह होत नाही.");
+  //   } finally {
+  //     setSubmittingVotingData(false);
+  //   }
+  // };
 
   // Tab C - Submit financial data
   const handleSubmitFinancialData = async () => {
@@ -1265,41 +1780,18 @@ const VoterMaster: React.FC = () => {
       await Promise.all(updatePromises);
       toast.success("Financial data सेव्ह झाला.");
       
-      // Reload members to reflect updated data
-      const memberPromises = selectedFinancialPrimaryPersonIds.map(async (primaryPersonVoterId) => {
-        const res = await fetch(`/api/voterstatus/familymembers?primary_person_id=${encodeURIComponent(primaryPersonVoterId)}`, {
-          cache: "no-store",
-        });
-        if (!res.ok) throw new Error(`Failed to reload members for ${primaryPersonVoterId}`);
-        return res.json();
-      });
-
-      const memberArrays = await Promise.all(memberPromises);
-      const allMembers = memberArrays.flat() as FamilyMember[];
-      const uniqueMembers = Array.from(
-        new Map(allMembers.map(m => [m.id, m])).values()
-      );
-      setFinancialMembers(uniqueMembers);
-
-      // After submit, update installment state with fresh data from database
-      // This ensures saved data is reflected, but preserves any unchecked state for other members
-      const updatedInstallments: Record<number, { inst_1_paid: number; inst_2_paid: number; inst_3_paid: number }> = {};
-      const updatedOriginal: Record<number, { inst_1_paid: number; inst_2_paid: number; inst_3_paid: number }> = {};
-      
-      uniqueMembers.forEach(member => {
-        const dbValue = {
-          inst_1_paid: Number(member.inst_1_paid) === 1 ? 1 : 0,
-          inst_2_paid: Number(member.inst_2_paid) === 1 ? 1 : 0,
-          inst_3_paid: Number(member.inst_3_paid) === 1 ? 1 : 0,
-        };
-        // Update with fresh database values for submitted members
-        updatedInstallments[member.id] = dbValue;
-        // Update original values to reflect new saved state (so confirmation won't show for newly saved values)
-        updatedOriginal[member.id] = dbValue;
-      });
-      
-      setMemberInstallments(updatedInstallments);
-      setOriginalInstallments(prev => ({ ...prev, ...updatedOriginal }));
+      // Clear all filters after successful submit
+      setFinancialVolunteerSearchTerm("");
+      setSelectedFinancialVolunteerId(null);
+      setIsFinancialVolunteerDropdownOpen(false);
+      setSelectedFinancialColonyId(null);
+      setFinancialPrimaryPersons([]);
+      setSelectedFinancialPrimaryPersonIds([]);
+      setFinancialPrimaryPersonSearchTerm("");
+      setIsFinancialPrimaryPersonDropdownOpen(false);
+      setFinancialMembers([]);
+      setMemberInstallments({});
+      setOriginalInstallments({});
     } catch (e) {
       console.error(e);
       toast.error(e instanceof Error ? e.message : "Financial data सेव्ह होत नाही.");
@@ -1418,6 +1910,7 @@ const VoterMaster: React.FC = () => {
     }
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const handleSaveRow = async (row: VoterMasterRow) => {
     try {
       setSavingId(row.id);
@@ -1455,6 +1948,7 @@ const VoterMaster: React.FC = () => {
     }
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const updateRow = (id: number, patch: Partial<VoterMasterRow>) => {
     setRows(prev => prev.map(r => (r.id === id ? { ...r, ...patch } : r)));
   };
@@ -1522,7 +2016,10 @@ const VoterMaster: React.FC = () => {
         }
         
         // Also reload voter data
-          await fetchData(1);
+        await fetchData(1);
+        
+        // Reload colony counts to reflect updated assignments after submit
+        await loadColonyCounts();
       }
     } catch (e) {
       console.error(e);
@@ -1549,6 +2046,132 @@ const VoterMaster: React.FC = () => {
       toast.error("Primary person data load होत नाही.");
     } finally {
       setLoadingModalPrimaryPersons(false);
+    }
+  };
+
+  // Export Primary Persons to Excel
+  const exportPrimaryPersonsToExcel = () => {
+    if (modalPrimaryPersons.length === 0) {
+      toast.error("No data to export");
+      return;
+    }
+
+    try {
+      const exportData = modalPrimaryPersons.map((person, idx) => {
+        const houseNumber = person.updated_house_number || person.House_Number || "N/A";
+        return {
+          'Sr No': idx + 1,
+          'Name': person.full_name || 'N/A',
+          'English Name': person.ENG_Full_name || 'N/A',
+          'Voter ID': person.Voter_Id || 'N/A',
+          'House No': houseNumber,
+          'Mobile': person.updated_mobile_no || 'N/A',
+          'Colony': person.colony_name || 'N/A',
+        };
+      });
+
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      ws['!cols'] = [
+        { wch: 8 },   // Sr No
+        { wch: 25 },  // Name
+        { wch: 25 },  // English Name
+        { wch: 15 },  // Voter ID
+        { wch: 15 },  // House No
+        { wch: 12 },  // Mobile
+        { wch: 20 }   // Colony
+      ];
+      XLSX.utils.book_append_sheet(wb, ws, 'Primary Persons');
+      const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      const data = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const fileName = `${selectedVolunteerForModal}_Primary_Persons_${new Date().toISOString().split('T')[0]}.xlsx`;
+      saveAs(data, fileName);
+      toast.success('Excel file downloaded successfully!');
+    } catch (error) {
+      console.error('Error exporting to Excel:', error);
+      toast.error('Failed to export Excel file');
+    }
+  };
+
+  // Export Primary Persons to PDF
+  const exportPrimaryPersonsToPDF = () => {
+    if (modalPrimaryPersons.length === 0) {
+      toast.error("No data to export");
+      return;
+    }
+
+    try {
+      const tableRows = modalPrimaryPersons.map((person, index) => {
+        const houseNumber = person.updated_house_number || person.House_Number || "N/A";
+        return `
+          <tr>
+            <td style="padding: 8px; border: 1px solid #000; font-size: 11px; text-align: center;">${index + 1}</td>
+            <td style="padding: 8px; border: 1px solid #000; font-size: 11px;">${person.full_name || "-"}</td>
+            <td style="padding: 8px; border: 1px solid #000; font-size: 11px;">${person.ENG_Full_name || "-"}</td>
+            <td style="padding: 8px; border: 1px solid #000; font-size: 11px;">${person.Voter_Id || "-"}</td>
+            <td style="padding: 8px; border: 1px solid #000; font-size: 11px;">${houseNumber}</td>
+            <td style="padding: 8px; border: 1px solid #000; font-size: 11px;">${person.updated_mobile_no || "-"}</td>
+            <td style="padding: 8px; border: 1px solid #000; font-size: 11px;">${person.colony_name || "-"}</td>
+          </tr>
+        `;
+      }).join('');
+
+      const htmlContent = `
+        <html>
+          <head>
+            <title>Primary Persons - ${selectedVolunteerForModal}</title>
+            <style>
+              @page { size: A4 landscape; margin: 10mm; }
+              body { font-family: Arial, sans-serif; margin: 0; padding: 10px; }
+              h1 { text-align: center; margin-bottom: 5px; font-size: 18px; font-weight: bold; }
+              h2 { text-align: center; margin-bottom: 15px; font-size: 14px; color: #666; }
+              .info { text-align: center; margin-bottom: 15px; font-size: 12px; color: #666; }
+              table { width: 100%; border-collapse: collapse; margin: 0 auto; font-size: 10px; }
+              th { background-color: #4a5568; color: white; padding: 8px; border: 1px solid #000; font-weight: bold; text-align: center; }
+              td { padding: 6px; border: 1px solid #000; }
+            </style>
+          </head>
+          <body>
+            <h1>Primary Persons List</h1>
+            <h2>Volunteer Name: ${selectedVolunteerForModal}</h2>
+            <div class="info">
+              <p>Generated on: ${new Date().toLocaleString()}</p>
+              <p>Total Records: ${modalPrimaryPersons.length}</p>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Sr No</th>
+                  <th>Name</th>
+                  <th>English Name</th>
+                  <th>Voter ID</th>
+                  <th>House No</th>
+                  <th>Mobile</th>
+                  <th>Colony</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${tableRows}
+              </tbody>
+            </table>
+          </body>
+        </html>
+      `;
+
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.write(htmlContent);
+        printWindow.document.close();
+        setTimeout(() => {
+          printWindow.print();
+        }, 500);
+        toast.success('PDF print dialog opened!');
+      } else {
+        toast.error('Please allow popups to download PDF');
+      }
+    } catch (error) {
+      console.error('Error exporting to PDF:', error);
+      toast.error('Failed to export PDF file');
     }
   };
 
@@ -1902,81 +2525,81 @@ const VoterMaster: React.FC = () => {
   // );
 
   // D) Voting status
-  const votingColumns: Column<VoterMasterRow>[] = useMemo(
-    () => [
-      {
-        key: "Voter_Id",
-        label: "Voter ID",
-        accessor: "Voter_Id",
-      },
-      {
-        key: "full_name",
-        label: "Voter Name",
-        accessor: "full_name",
-        render: row => <span className="font-medium">{row.full_name}</span>,
-      },
-      {
-        key: "Updated_colony",
-        label: "Colony",
-        accessor: "Updated_colony",
-      },
-      {
-        key: "House_Number",
-        label: "House No.",
-        accessor: "House_Number",
-      },
-      {
-        key: "voting_paid",
-        label: "Paid",
-        accessor: "voting_paid",
-        render: row => (
-          <select
-            className="px-2 py-1 border rounded text-xs"
-            value={row.voting_paid ?? 0}
-            onChange={e => updateRow(row.id, { voting_paid: Number(e.target.value) })}
-          >
-            <option value={0}>No</option>
-            <option value={1}>Yes</option>
-          </select>
-        ),
-      },
-      {
-        key: "voting_status",
-        label: "Voting Status",
-        accessor: "voting_status",
-        render: row => (
-          <select
-            className="px-2 py-1 border rounded text-xs"
-            value={row.voting_status ?? "Pending"}
-            onChange={e =>
-              updateRow(row.id, {
-                voting_status: e.target.value as VoterMasterRow["voting_status"],
-              })
-            }
-          >
-            <option value="Pending">Pending</option>
-            <option value="In Transit">In Transit</option>
-            <option value="Completed">Completed</option>
-          </select>
-        ),
-      },
-      {
-        key: "actions",
-        label: "Save",
-        render: row => (
-          <button
-            type="button"
-            className="px-3 py-1 text-xs rounded bg-blue-600 text-white disabled:opacity-60"
-            onClick={() => handleSaveRow(row)}
-            disabled={savingId === row.id}
-          >
-            {savingId === row.id ? "Saving..." : "Save"}
-          </button>
-        ),
-      },
-    ],
-    [savingId, handleSaveRow],
-  );
+  // const votingColumns: Column<VoterMasterRow>[] = useMemo( // Unused
+  //   () => [
+  //     {
+  //       key: "Voter_Id",
+  //       label: "Voter ID",
+  //       accessor: "Voter_Id",
+  //     },
+  //     {
+  //       key: "full_name",
+  //       label: "Voter Name",
+  //       accessor: "full_name",
+  //       render: row => <span className="font-medium">{row.full_name}</span>,
+  //     },
+  //     {
+  //       key: "Updated_colony",
+  //       label: "Colony",
+  //       accessor: "Updated_colony",
+  //     },
+  //     {
+  //       key: "House_Number",
+  //       label: "House No.",
+  //       accessor: "House_Number",
+  //     },
+  //     {
+  //       key: "voting_paid",
+  //       label: "Paid",
+  //       accessor: "voting_paid",
+  //       render: row => (
+  //         <select
+  //           className="px-2 py-1 border rounded text-xs"
+  //           value={row.voting_paid ?? 0}
+  //           onChange={e => updateRow(row.id, { voting_paid: Number(e.target.value) })}
+  //         >
+  //           <option value={0}>No</option>
+  //           <option value={1}>Yes</option>
+  //         </select>
+  //       ),
+  //     },
+  //     {
+  //       key: "voting_status",
+  //       label: "Voting Status",
+  //       accessor: "voting_status",
+  //       render: row => (
+  //         <select
+  //           className="px-2 py-1 border rounded text-xs"
+  //           value={row.voting_status ?? "Pending"}
+  //           onChange={e =>
+  //             updateRow(row.id, {
+  //               voting_status: e.target.value as VoterMasterRow["voting_status"],
+  //             })
+  //           }
+  //         >
+  //           <option value="Pending">Pending</option>
+  //           <option value="In Transit">In Transit</option>
+  //           <option value="Completed">Completed</option>
+  //         </select>
+  //       ),
+  //     },
+  //     {
+  //       key: "actions",
+  //       label: "Save",
+  //       render: row => (
+  //         <button
+  //           type="button"
+  //           className="px-3 py-1 text-xs rounded bg-blue-600 text-white disabled:opacity-60"
+  //           onClick={() => handleSaveRow(row)}
+  //           disabled={savingId === row.id}
+  //         >
+  //           {savingId === row.id ? "Saving..." : "Save"}
+  //         </button>
+  //       ),
+  //     },
+  //   ],
+  //   [savingId, handleSaveRow],
+  // );
 
   return (
     <div className="space-y-4">
@@ -2298,25 +2921,26 @@ const VoterMaster: React.FC = () => {
                                 }}
                               />
                             </th>
+                            <th className="px-3 py-2 text-left border-b font-medium text-gray-700">Sr</th>
                             <th className="px-3 py-2 text-left border-b font-medium text-gray-700">Name</th>
                             <th className="px-3 py-2 text-left border-b font-medium text-gray-700">English Name</th>
-                            <th className="px-3 py-2 text-left border-b font-medium text-gray-700">Voter ID</th>
-                            <th className="px-3 py-2 text-left border-b font-medium text-gray-700">House No</th>
-                            <th className="px-3 py-2 text-left border-b font-medium text-gray-700">Mobile</th>
+                            <th className="px-3 py-2 text-left border-b font-medium text-gray-700">FamilyMember Count</th>
+                            <th className="px-3 py-2 text-left border-b font-medium text-gray-700">Contact No</th>
                             <th className="px-3 py-2 text-left border-b font-medium text-gray-700">Status</th>
+                            <th className="px-3 py-2 text-left border-b font-medium text-gray-700">Voter ID</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {filteredPersons.map(person => {
+                          {filteredPersons.map((person, index) => {
                             const personId = String(person.id);
                             const isChecked = selectedPrimaryPersonIds.includes(personId);
-                            const houseNumber = person.updated_house_number || person.House_Number || "N/A";
                             
                             // Check if this primary person is already assigned to another volunteer
                             const assignedVolunteerName = primaryPersonAssignments[personId];
                             const isAssignedToCurrentVolunteer = assignedVolunteerName === selectedVolunteerName;
                             const isAssignedToOtherVolunteer = !!(assignedVolunteerName && assignedVolunteerName !== selectedVolunteerName);
                             const isDisabled: boolean = isAssignedToOtherVolunteer;
+                            const memberCount = person.member_count || 0;
                             
                             return (
                               <tr
@@ -2353,17 +2977,30 @@ const VoterMaster: React.FC = () => {
                                     }}
                                   />
                                 </td>
+                                <td className="px-3 py-2 border-b text-gray-600 font-medium">
+                                  {index + 1}
+                                </td>
                                 <td className="px-3 py-2 border-b font-medium text-gray-900">
                                   {highlightText(person.full_name || "", searchTerm)}
                                 </td>
                                 <td className="px-3 py-2 border-b text-gray-500">
                                   {person.ENG_Full_name ? highlightText(person.ENG_Full_name, searchTerm) : "-"}
                                 </td>
-                                <td className="px-3 py-2 border-b text-gray-400">
-                                  {highlightText(person.Voter_Id || "", searchTerm)}
-                                </td>
-                                <td className="px-3 py-2 border-b text-gray-600 font-medium">
-                                  {highlightText(houseNumber, searchTerm)}
+                                <td className="px-3 py-2 border-b" onClick={e => e.stopPropagation()}>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (memberCount > 0) {
+                                        loadFamilyMembers(person.Voter_Id, person.id, person.full_name || "");
+                                      }
+                                    }}
+                                    className={`text-blue-600 hover:text-blue-800 font-medium underline ${
+                                      memberCount === 0 ? "text-gray-400 cursor-not-allowed" : "cursor-pointer"
+                                    }`}
+                                    disabled={memberCount === 0}
+                                  >
+                                    {memberCount}
+                                  </button>
                                 </td>
                                 <td className="px-3 py-2 border-b text-gray-400">
                                   {person.updated_mobile_no ? highlightText(person.updated_mobile_no, searchTerm) : "-"}
@@ -2382,6 +3019,9 @@ const VoterMaster: React.FC = () => {
                                   {!isAssignedToOtherVolunteer && !isAssignedToCurrentVolunteer && (
                                     <span className="text-gray-400 text-xs">-</span>
                                   )}
+                                </td>
+                                <td className="px-3 py-2 border-b text-gray-400">
+                                  {highlightText(person.Voter_Id || "", searchTerm)}
                                 </td>
                               </tr>
                             );
@@ -2446,14 +3086,36 @@ const VoterMaster: React.FC = () => {
                 <h3 className="text-lg font-semibold mb-4">Volunteer Name - {selectedVolunteerForModal}</h3>
                 
                 {/* Search Filter */}
-                <div className="mb-4">
+                <div className="mb-4 flex gap-2 items-center">
                   <input
                     type="text"
-                    className="w-full px-3 py-2 border rounded-md text-sm"
+                    className="flex-1 px-3 py-2 border rounded-md text-sm"
                     placeholder="Search by Name, Voter ID, House No, Mobile, Colony..."
                     value={modalSearchTerm}
                     onChange={(e) => setModalSearchTerm(e.target.value)}
                   />
+                  <button
+                    type="button"
+                    onClick={exportPrimaryPersonsToExcel}
+                    disabled={modalPrimaryPersons.length === 0}
+                    className="px-4 py-2 text-sm rounded bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Excel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={exportPrimaryPersonsToPDF}
+                    disabled={modalPrimaryPersons.length === 0}
+                    className="px-4 py-2 text-sm rounded bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                    </svg>
+                    PDF
+                  </button>
                 </div>
 
                 <div className="max-h-[70vh] overflow-y-auto">
@@ -2532,6 +3194,77 @@ const VoterMaster: React.FC = () => {
                       setModalPrimaryPersons([]);
                       setSelectedVolunteerForModal("");
                       setModalSearchTerm("");
+                    }}
+                    className="px-4 py-2 text-sm rounded border border-gray-300 hover:bg-gray-50"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </Modal>
+          )}
+
+          {/* Family Members Modal */}
+          {isFamilyMembersModalOpen && (
+            <Modal
+              isOpen={isFamilyMembersModalOpen}
+              onClose={() => {
+                setIsFamilyMembersModalOpen(false);
+                setFamilyMembers([]);
+                setSelectedPrimaryPersonForFamilyModal(null);
+              }}
+              className="max-w-6xl p-6"
+            >
+              <div>
+                <h3 className="text-lg font-semibold mb-4">
+                  Family Members - {selectedPrimaryPersonForFamilyModal?.full_name} ({selectedPrimaryPersonForFamilyModal?.Voter_Id})
+                </h3>
+                
+                <div className="max-h-[70vh] overflow-y-auto">
+                  {loadingFamilyMembers ? (
+                    <div className="text-center py-8 text-gray-500">Loading family members...</div>
+                  ) : familyMembers.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">No family members found.</div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full text-sm">
+                        <thead className="sticky top-0 bg-gray-100 border-b">
+                          <tr>
+                            <th className="px-4 py-3 text-left font-semibold text-gray-700">Sr No</th>
+                            <th className="px-4 py-3 text-left font-semibold text-gray-700">Name</th>
+                            <th className="px-4 py-3 text-left font-semibold text-gray-700">English Name</th>
+                            <th className="px-4 py-3 text-left font-semibold text-gray-700">Voter ID</th>
+                            <th className="px-4 py-3 text-left font-semibold text-gray-700">Age</th>
+                            <th className="px-4 py-3 text-left font-semibold text-gray-700">Gender</th>
+                            <th className="px-4 py-3 text-left font-semibold text-gray-700">Contact No</th>
+                            <th className="px-4 py-3 text-left font-semibold text-gray-700">Colony</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {familyMembers.map((member, index) => (
+                            <tr key={member.id} className="border-b hover:bg-gray-50">
+                              <td className="px-4 py-3 text-gray-600">{index + 1}</td>
+                              <td className="px-4 py-3 font-medium text-gray-900">{member.full_name || "-"}</td>
+                              <td className="px-4 py-3 text-gray-500">{member.ENG_Full_name || "-"}</td>
+                              <td className="px-4 py-3 text-gray-400">{member.Voter_Id || "-"}</td>
+                              <td className="px-4 py-3 text-gray-600">{member.Age || "-"}</td>
+                              <td className="px-4 py-3 text-gray-600">{member.Gender || "-"}</td>
+                              <td className="px-4 py-3 text-gray-400">{member.updated_mobile_no || "-"}</td>
+                              <td className="px-4 py-3 text-gray-500">{member.colony_name || "-"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+                <div className="flex justify-end mt-4 pt-4 border-t">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsFamilyMembersModalOpen(false);
+                      setFamilyMembers([]);
+                      setSelectedPrimaryPersonForFamilyModal(null);
                     }}
                     className="px-4 py-2 text-sm rounded border border-gray-300 hover:bg-gray-50"
                   >
@@ -2962,391 +3695,224 @@ const VoterMaster: React.FC = () => {
             </>
           ) : activeTab === "D" ? (
             <>
-              {/* Tab D - Voting Status Filters */}
-              <div className="border rounded-md p-4 space-y-3 bg-white">
-                <h3 className="font-semibold text-sm">Voting Status</h3>
-                <div className="flex flex-wrap items-end gap-3">
-                  <div className="flex-1 min-w-[250px]">
-                    <Label>Search & Select Volunteer *</Label>
-                    <div className="relative volunteer-dropdown-container">
-                      <div
-                        className="w-full px-3 py-2 border rounded-md text-sm bg-white cursor-pointer flex items-center justify-between"
-                        onClick={() => {
-                          setIsVotingVolunteerDropdownOpen(!isVotingVolunteerDropdownOpen);
-                          if (!isVotingVolunteerDropdownOpen && votingAvailableVolunteers.length === 0) {
-                            loadVotingVolunteers("");
-                          }
-                        }}
-                      >
-                        <span className={selectedVotingVolunteerId ? "text-gray-900" : "text-gray-500"}>
-                          {selectedVotingVolunteerId
-                            ? votingAvailableVolunteers.find(v => v.user_id === selectedVotingVolunteerId)?.volunteer_name || "Select volunteer"
-                            : "Click to select volunteer"}
-                        </span>
-                        <svg
-                          className={`w-4 h-4 transition-transform ${isVotingVolunteerDropdownOpen ? "rotate-180" : ""}`}
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
-                      </div>
-                      {isVotingVolunteerDropdownOpen && (
-                        <div className="absolute z-10 w-full mt-1 bg-white border rounded-md shadow-lg">
-                          <div className="p-2 border-b">
-                            <input
-                              type="text"
-                              className="w-full px-3 py-2 border rounded-md text-sm"
-                              placeholder="Search volunteer by name or contact..."
-                              value={votingVolunteerSearchTerm}
-                              onChange={e => {
-                                setVotingVolunteerSearchTerm(e.target.value);
-                                loadVotingVolunteers(e.target.value);
-                              }}
-                              onClick={e => e.stopPropagation()}
-                              autoFocus
-                            />
-                          </div>
-                          <div className="max-h-60 overflow-y-auto">
-                            {loadingVotingVolunteers ? (
-                              <div className="p-3 text-xs text-gray-500 text-center">Loading...</div>
-                            ) : votingAvailableVolunteers.length === 0 ? (
-                              <div className="p-3 text-xs text-gray-500 text-center">No volunteers found</div>
-                            ) : (
-                              votingAvailableVolunteers
-                                .filter(v => 
-                                  !votingVolunteerSearchTerm || 
-                                  v.volunteer_name.toLowerCase().includes(votingVolunteerSearchTerm.toLowerCase()) ||
-                                  (v.contact_no && v.contact_no.includes(votingVolunteerSearchTerm))
-                                )
-                                .map(volunteer => (
-                                  <div
-                                    key={volunteer.user_id}
-                                    onClick={() => {
-                                      setSelectedVotingVolunteerId(volunteer.user_id);
-                                      setVotingVolunteerSearchTerm("");
-                                      setIsVotingVolunteerDropdownOpen(false);
-                                    }}
-                                    className={`p-3 text-sm cursor-pointer hover:bg-blue-50 border-b border-gray-100 last:border-b-0 ${
-                                      selectedVotingVolunteerId === volunteer.user_id ? "bg-blue-100" : ""
-                                    }`}
-                                  >
-                                    <div className="font-medium text-gray-900">{volunteer.volunteer_name}</div>
-                                    {volunteer.contact_no && (
-                                      <div className="text-xs text-gray-500 mt-1">{volunteer.contact_no}</div>
-                                    )}
-                                  </div>
-                                ))
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  
-                  <div className="flex-1 min-w-[200px]">
-                    <Label>Select Colony *</Label>
-                    <select
-                      className="w-full px-3 py-2 border rounded-md text-sm"
-                      value={selectedVotingColonyId || ""}
-                      onChange={e => {
-                        const colonyId = Number(e.target.value);
-                        const colony = filteredVotingColonies.find(c => c.colony_id === colonyId);
-                        if (colony) {
-                          handleVotingColonyChange(colonyId);
-                        }
-                      }}
-                      disabled={!selectedVotingVolunteerId}
-                    >
-                      <option value="">
-                        {selectedVotingVolunteerId ? "Select Colony" : "Select Volunteer First"}
-                      </option>
-                      {filteredVotingColonies.map(c => (
-                        <option key={c.colony_id} value={c.colony_id}>
-                          {c.colony_name}
-                        </option>
-                      ))}
-                    </select>
-                    {selectedVotingVolunteerId && filteredVotingColonies.length === 0 && (
-                      <p className="text-xs text-red-600 mt-1">No colonies assigned to this volunteer</p>
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-[200px]">
-                  {selectedVotingColonyId && (
-                  <div className="flex-1 min-w-[200px]">
-                    <Label>Select Primary Person (Multi) *</Label>
-                    <div className="relative primary-person-dropdown-container">
-                      <div
-                        className="w-full px-3 py-2 border rounded-md text-sm bg-white cursor-pointer flex items-center justify-between"
-                        onClick={() => {
-                          setIsVotingPrimaryPersonDropdownOpen(!isVotingPrimaryPersonDropdownOpen);
-                        }}
-                      >
-                        <span className={selectedVotingPrimaryPersonIds.length > 0 ? "text-gray-900" : "text-gray-500"}>
-                          {selectedVotingPrimaryPersonIds.length > 0
-                            ? `${selectedVotingPrimaryPersonIds.length} primary person(s) selected`
-                            : "Click to select primary persons"}
-                        </span>
-                        <svg
-                          className={`w-4 h-4 transition-transform ${isVotingPrimaryPersonDropdownOpen ? "rotate-180" : ""}`}
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
-                      </div>
-                      {isVotingPrimaryPersonDropdownOpen && (
-                        <div className="absolute z-10 w-full mt-1 bg-white border rounded-md shadow-lg">
-                          <div className="p-2 border-b">
-                            <input
-                              type="text"
-                              className="w-full px-3 py-2 border rounded-md text-sm"
-                              placeholder="Search primary person by name, ID, etc..."
-                              value={votingPrimaryPersonSearchTerm}
-                              onChange={e => setVotingPrimaryPersonSearchTerm(e.target.value)}
-                              onClick={e => e.stopPropagation()}
-                              autoFocus
-                            />
-                          </div>
-                          <div className="max-h-60 overflow-y-auto">
-                            {loadingVotingPrimaryPersons ? (
-                              <div className="p-3 text-xs text-gray-500 text-center">Loading primary persons...</div>
-                            ) : (() => {
-                              const filteredPersons = votingPrimaryPersons.filter(person => {
-                                if (!votingPrimaryPersonSearchTerm.trim()) return true;
-                                const searchTerm = votingPrimaryPersonSearchTerm.toLowerCase().trim();
-                                const fullName = (person.full_name || "").toLowerCase();
-                                const engName = (person.ENG_Full_name || "").toLowerCase();
-                                const voterId = (person.Voter_Id || "").toLowerCase();
-                                
-                                return (
-                                  fullName.includes(searchTerm) ||
-                                  engName.includes(searchTerm) ||
-                                  voterId.includes(searchTerm)
-                                );
-                              });
-
-                              if (filteredPersons.length === 0) {
-                                return <div className="p-3 text-xs text-gray-500 text-center">No primary persons found</div>;
-                              }
-
-                              return (
-                                <>
-                                  <div className="p-2 border-b bg-gray-50">
-                                    <label className="flex items-center gap-2 cursor-pointer">
-                                      <input
-                                        type="checkbox"
-                                        className="w-4 h-4"
-                                        checked={filteredPersons.length > 0 && filteredPersons.every(p => selectedVotingPrimaryPersonIds.includes(p.Voter_Id || String(p.id)))}
-                                        onChange={e => {
-                                          if (e.target.checked) {
-                                            const selectableIds = filteredPersons.map(p => p.Voter_Id || String(p.id));
-                                            setSelectedVotingPrimaryPersonIds(prev => [...new Set([...prev, ...selectableIds])]);
-                                          } else {
-                                            const filteredIds = filteredPersons.map(p => p.Voter_Id || String(p.id));
-                                            setSelectedVotingPrimaryPersonIds(prev => prev.filter(id => !filteredIds.includes(id)));
-                                          }
-                                        }}
-                                        onClick={e => e.stopPropagation()}
-                                      />
-                                      <span className="text-sm font-medium text-gray-700">Select All</span>
-                                    </label>
-                                  </div>
-                                  {filteredPersons.map(person => {
-                                    const personVoterId = person.Voter_Id || String(person.id);
-                                    const isChecked = selectedVotingPrimaryPersonIds.includes(personVoterId);
-                                    const memberCount = person.member_count || 0;
-                                    
-                                    return (
-                                      <div
-                                        key={person.id}
-                                        onClick={() => {
-                                          if (isChecked) {
-                                            setSelectedVotingPrimaryPersonIds(prev => prev.filter(id => id !== personVoterId));
-                                          } else {
-                                            setSelectedVotingPrimaryPersonIds(prev => [...prev, personVoterId]);
-                                          }
-                                        }}
-                                        className={`p-3 text-sm cursor-pointer hover:bg-blue-50 border-b border-gray-100 last:border-b-0 ${
-                                          isChecked ? "bg-blue-100" : ""
-                                        }`}
-                                      >
-                                        <label className="flex items-center gap-2 cursor-pointer">
-                                          <input
-                                            type="checkbox"
-                                            className="w-4 h-4"
-                                            checked={isChecked}
-                                            onChange={e => {
-                                              e.stopPropagation();
-                                              if (e.target.checked) {
-                                                setSelectedVotingPrimaryPersonIds(prev => [...prev, personVoterId]);
-                                              } else {
-                                                setSelectedVotingPrimaryPersonIds(prev => prev.filter(id => id !== personVoterId));
-                                              }
-                                            }}
-                                            onClick={e => e.stopPropagation()}
-                                          />
-                                          <div className="flex-1">
-                                            <div className="font-medium text-gray-900">{person.full_name || person.Voter_Id}</div>
-                                            <div className="text-xs text-gray-500 mt-1">
-                                              {memberCount} {memberCount === 1 ? 'member' : 'members'}
-                                            </div>
-                                          </div>
-                                        </label>
-                                      </div>
-                                    );
-                                  })}
-                                </>
-                              );
-                            })()}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-                  </div>
+              {/* Tab D - Voting Status Summary Table */}
+              <div className="border rounded-md p-4 bg-white">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="font-semibold text-lg">Voting Status Summary</h3>
+                  <button
+                    type="button"
+                    onClick={loadVotingStatusSummary}
+                    disabled={loadingVotingStatusSummary}
+                    className="px-4 py-2 text-sm rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {loadingVotingStatusSummary ? "Loading..." : "Refresh"}
+                  </button>
                 </div>
-
-            
-              </div>
-
-              {/* Tab D - Members Table */}
-              {loadingVotingMembers ? (
-                <div className="bg-white rounded-2xl shadow-md border p-8 text-center">
-                  <p className="text-gray-500 text-lg">Loading members...</p>
-                </div>
-              ) : votingMembers.length === 0 ? (
-                selectedVotingPrimaryPersonIds.length > 0 ? (
-                  <div className="bg-white rounded-2xl shadow-md border p-8 text-center">
-                    <p className="text-gray-500 text-lg">No members found for selected primary persons.</p>
-                  </div>
-                ) : null
-              ) : (
-                <div className="bg-white rounded-2xl shadow-md border">
-                  <div className="p-4 border-b">
-                    <h3 className="font-semibold text-lg">Members ({votingMembers.length})</h3>
-                  </div>
-                  <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
+                
+                {loadingVotingStatusSummary ? (
+                  <div className="text-center py-8 text-gray-500">Loading voting status summary...</div>
+                ) : votingStatusSummary.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">No data available</div>
+                ) : (
+                  <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead className="bg-gray-100 sticky top-0">
                         <tr>
-                          <th className="px-4 py-3 text-left border-b font-medium text-gray-700">Sr No</th>
-                          <th className="px-4 py-3 text-left border-b font-medium text-gray-700">Voter ID</th>
-                          <th className="px-4 py-3 text-left border-b font-medium text-gray-700">Name</th>
-                          <th className="px-4 py-3 text-left border-b font-medium text-gray-700">English Name</th>
-                          <th className="px-4 py-3 text-left border-b font-medium text-gray-700">Age</th>
-                          <th className="px-4 py-3 text-left border-b font-medium text-gray-700">Gender</th>
-                          <th className="px-4 py-3 text-left border-b font-medium text-gray-700">Mobile</th>
-                          <th className="px-4 py-3 text-center border-b font-medium text-gray-700">
-                            <div className="flex flex-col items-center gap-1">
-                              <span>Voting Status</span>
-                              <label className="flex items-center gap-1 cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  className="w-4 h-4"
-                                  checked={votingMembers.length > 0 && votingMembers.every(m => memberVotingStatus[m.id])}
-                                  onChange={e => {
-                                    // If unchecking, check if any members have "Completed" status originally
-                                    if (!e.target.checked) {
-                                      const membersWithCompleted = votingMembers.filter(member => {
-                                        const originalValue = originalVotingStatus[member.id] || false;
-                                        return originalValue === true;
-                                      });
-
-                                      if (membersWithCompleted.length > 0) {
-                                        // Show confirmation for unchecking all
-                                        setPendingVotingUncheck({
-                                          memberId: -1, // Special value for "all members"
-                                          memberName: `${membersWithCompleted.length} member(s)`,
-                                        });
-                                        setShowVotingUncheckConfirmation(true);
-                                        return;
-                                      }
-                                    }
-                                    
-                                    // Otherwise, proceed with the change (checking all or unchecking when no completed members)
-                                    setMemberVotingStatus(prev => {
-                                      const updated = { ...prev };
-                                      votingMembers.forEach(member => {
-                                        updated[member.id] = e.target.checked;
-                                      });
-                                      return updated;
-                                    });
-                                    
-                                    // Update original values if checking all
-                                    if (e.target.checked) {
-                                      setOriginalVotingStatus(prev => {
-                                        const updated = { ...prev };
-                                        votingMembers.forEach(member => {
-                                          updated[member.id] = true;
-                                        });
-                                        return updated;
-                                      });
-                                    }
-                                  }}
-                                  onClick={e => e.stopPropagation()}
-                                />
-                                <span className="text-xs text-gray-600">Select All</span>
-                              </label>
-                            </div>
-                          </th>
+                          <th className="px-4 py-3 text-left border-b font-medium text-gray-700">Sr</th>
+                          <th className="px-4 py-3 text-left border-b font-medium text-gray-700">Volunteer Name</th>
+                          <th className="px-4 py-3 text-left border-b font-medium text-gray-700">Volunteer Contact</th>
+                          <th className="px-4 py-3 text-left border-b font-medium text-gray-700">Assigned Colony</th>
+                          <th className="px-4 py-3 text-center border-b font-medium text-gray-700">Number of all Voters</th>
+                          <th className="px-4 py-3 text-center border-b font-medium text-gray-700">In-Transit (count)</th>
+                          <th className="px-4 py-3 text-center border-b font-medium text-gray-700">Voting Done (count)</th>
+                          <th className="px-4 py-3 text-center border-b font-medium text-gray-700">Pending (count)</th>
+                          <th className="px-4 py-3 text-center border-b font-medium text-gray-700">Percentage Voters</th>
+                          <th className="px-4 py-3 text-center border-b font-medium text-gray-700">Export</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {votingMembers.map((member, index) => {
-                          const isCompleted = memberVotingStatus[member.id] || false;
-                          return (
-                            <tr key={member.id} className="border-b hover:bg-gray-50">
-                              <td className="px-4 py-3 text-gray-600">{index + 1}</td>
-                              <td className="px-4 py-3 text-gray-400">{member.Voter_Id || "-"}</td>
-                              <td className="px-4 py-3 font-medium text-gray-900">{member.full_name || "-"}</td>
-                              <td className="px-4 py-3 text-gray-500">{member.ENG_Full_name || "-"}</td>
-                              <td className="px-4 py-3 text-gray-600">{member.Age || "-"}</td>
-                              <td className="px-4 py-3 text-gray-600">{member.Gender || "-"}</td>
-                              <td className="px-4 py-3 text-gray-400">{member.updated_mobile_no || "-"}</td>
-                              <td className="px-4 py-3 text-center">
-                                <input
-                                  type="checkbox"
-                                  className="w-4 h-4"
-                                  checked={isCompleted}
-                                  onChange={e => handleVotingStatusChange(member.id, e.target.checked)}
-                                />
-                                <div className="text-xs text-gray-500 mt-1">
-                                  {isCompleted ? "Completed" : "In Transit"}
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
+                        {votingStatusSummary.map((row, index) => (
+                          <tr key={row.volunteer_id} className="border-b hover:bg-gray-50">
+                            <td className="px-4 py-3 text-gray-600">{index + 1}</td>
+                            <td className="px-4 py-3 font-medium text-gray-900">{row.volunteer_name}</td>
+                            <td className="px-4 py-3 text-gray-600">{row.volunteer_contact || "-"}</td>
+                            <td className="px-4 py-3 text-gray-600">{row.assigned_colony || "-"}</td>
+                            <td className="px-4 py-3 text-center text-gray-700 font-medium">{row.total_voters}</td>
+                            <td className="px-4 py-3 text-center">
+                              <button
+                                type="button"
+                                onClick={() => openStatusListModal("in_transit", row.volunteer_id, row.volunteer_name)}
+                                disabled={row.in_transit_count === 0}
+                                className={`text-blue-600 hover:text-blue-800 font-medium underline ${
+                                  row.in_transit_count === 0 ? "text-gray-400 cursor-not-allowed" : "cursor-pointer"
+                                }`}
+                              >
+                                {row.in_transit_count}
+                              </button>
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <button
+                                type="button"
+                                onClick={() => openStatusListModal("voting_done", row.volunteer_id, row.volunteer_name)}
+                                disabled={row.voting_done_count === 0}
+                                className={`text-green-600 hover:text-green-800 font-medium underline ${
+                                  row.voting_done_count === 0 ? "text-gray-400 cursor-not-allowed" : "cursor-pointer"
+                                }`}
+                              >
+                                {row.voting_done_count}
+                              </button>
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <button
+                                type="button"
+                                onClick={() => openStatusListModal("pending", row.volunteer_id, row.volunteer_name)}
+                                disabled={row.pending_count === 0}
+                                className={`text-orange-600 hover:text-orange-800 font-medium underline ${
+                                  row.pending_count === 0 ? "text-gray-400 cursor-not-allowed" : "cursor-pointer"
+                                }`}
+                              >
+                                {row.pending_count}
+                              </button>
+                            </td>
+                            <td className="px-4 py-3 text-center text-gray-700 font-medium">{row.percentage}%</td>
+                            <td className="px-4 py-3 text-center">
+                              <div className="flex gap-2 justify-center items-center">
+                                <button
+                                  type="button"
+                                  onClick={() => exportVolunteerDataToExcel(row)}
+                                  disabled={!row._allMembers || row._allMembers.length === 0}
+                                  className="px-3 py-1.5 text-xs rounded bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                                  title="Export to Excel"
+                                >
+                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                  </svg>
+                                  Excel
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => exportVolunteerDataToPDF(row)}
+                                  disabled={!row._allMembers || row._allMembers.length === 0}
+                                  className="px-3 py-1.5 text-xs rounded bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                                  title="Export to PDF"
+                                >
+                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                  </svg>
+                                  PDF
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
                       </tbody>
                     </table>
                   </div>
-                  <div className="p-4 border-t flex justify-end">
-                    <button
-                      type="button"
-                      onClick={handleSubmitVotingData}
-                      disabled={submittingVotingData || votingMembers.length === 0}
-                      className="px-6 py-2 text-sm font-medium rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed"
-                    >
-                      {submittingVotingData ? "Submitting..." : "Submit"}
-                    </button>
+                )}
+              </div>
+
+              {/* Tab D - Status List Modal */}
+              {isStatusListModalOpen && statusListModalType && (
+                <Modal
+                  isOpen={isStatusListModalOpen}
+                  onClose={() => {
+                    setIsStatusListModalOpen(false);
+                    setStatusListData([]);
+                    setStatusListModalType(null);
+                    setStatusListVolunteerName("");
+                  }}
+                  className="max-w-6xl p-6"
+                >
+                  <div>
+                    <div className="flex justify-between items-center mb-4 pr-40">
+                      <h3 className="text-lg font-semibold">
+                        {statusListModalType === "in_transit" ? "In-Transit" : statusListModalType === "voting_done" ? "Voting Done" : "Pending"} List - {statusListVolunteerName}
+                      </h3>
+                      <div className="flex gap-2 absolute right-16 top-3 sm:right-20 sm:top-4">
+                        <button
+                          type="button"
+                          onClick={exportStatusListToExcel}
+                          disabled={statusListData.length === 0}
+                          className="px-4 py-2 text-sm rounded bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                          Excel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={exportStatusListToPDF}
+                          disabled={statusListData.length === 0}
+                          className="px-4 py-2 text-sm rounded bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                          </svg>
+                          PDF
+                        </button>
+                      </div>
+                    </div>
+                    
+                    <div className="max-h-[70vh] overflow-y-auto">
+                      {loadingStatusList ? (
+                        <div className="text-center py-8 text-gray-500">Loading...</div>
+                      ) : statusListData.length === 0 ? (
+                        <div className="text-center py-8 text-gray-500">No records found</div>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <table className="min-w-full text-sm">
+                            <thead className="sticky top-0 bg-gray-100 border-b">
+                              <tr>
+                                <th className="px-4 py-3 text-left font-semibold text-gray-700">Sr No</th>
+                                <th className="px-4 py-3 text-left font-semibold text-gray-700">Voter ID</th>
+                                <th className="px-4 py-3 text-left font-semibold text-gray-700">Name</th>
+                                <th className="px-4 py-3 text-left font-semibold text-gray-700">English Name</th>
+                                <th className="px-4 py-3 text-left font-semibold text-gray-700">Age</th>
+                                <th className="px-4 py-3 text-left font-semibold text-gray-700">Gender</th>
+                                <th className="px-4 py-3 text-left font-semibold text-gray-700">Contact No</th>
+                                <th className="px-4 py-3 text-left font-semibold text-gray-700">Colony</th>
+                                <th className="px-4 py-3 text-left font-semibold text-gray-700">Voting Status</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {statusListData.map((member, index) => (
+                                <tr key={member.id} className="border-b hover:bg-gray-50">
+                                  <td className="px-4 py-3 text-gray-600">{index + 1}</td>
+                                  <td className="px-4 py-3 text-gray-400">{member.Voter_Id || "-"}</td>
+                                  <td className="px-4 py-3 font-medium text-gray-900">{member.full_name || "-"}</td>
+                                  <td className="px-4 py-3 text-gray-500">{member.ENG_Full_name || "-"}</td>
+                                  <td className="px-4 py-3 text-gray-600">{member.Age || "-"}</td>
+                                  <td className="px-4 py-3 text-gray-600">{member.Gender || "-"}</td>
+                                  <td className="px-4 py-3 text-gray-400">{member.updated_mobile_no || "-"}</td>
+                                  <td className="px-4 py-3 text-gray-500">{member.colony_name || "-"}</td>
+                                  <td className="px-4 py-3 text-gray-600">{member.voting_status || "-"}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex justify-end mt-4 pt-4 border-t">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsStatusListModalOpen(false);
+                          setStatusListData([]);
+                          setStatusListModalType(null);
+                          setStatusListVolunteerName("");
+                        }}
+                        className="px-4 py-2 text-sm rounded border border-gray-300 hover:bg-gray-50"
+                      >
+                        Close
+                      </button>
+                    </div>
                   </div>
-                </div>
+                </Modal>
               )}
             </>
-          ) : (
-            <Withoutbtn
-              data={rows}
-              columns={votingColumns}
-              title="Voting Status"
-              classname="h-[600px] overflow-y-auto"
-              filterOptions={[]}
-              searchKey="full_name"
-            />
-          )}
+          ) : null}
           {/* Volunteer Master Modal */}
           {activeTab === "A" && (
             <Modal
