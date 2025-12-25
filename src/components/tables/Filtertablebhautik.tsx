@@ -28,7 +28,7 @@ export function Filtertablebhautik<T extends object>({
   const [filter, setFilter] = useState("");
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const [perPage, setPerPage] = useState(10);
+  const [perPage, setPerPage] = useState(50);
 
   // Make sure to include perPage and currentPage in the dependency array!
   const reactColumns = useMemo(() => {

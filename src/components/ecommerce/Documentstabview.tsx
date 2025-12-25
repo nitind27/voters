@@ -43,7 +43,7 @@ const parseFarmerDocuments = (docString: string | undefined): Record<string, { c
     return result;
 };
 
-const rowsPerPage = 10;
+const rowsPerPage = 50;
 
 const Documentstabview = ({ farmersData }: { farmersData: AllFarmersData }) => {
     const [datafarmers, setDatafarmers] = useState<FarmdersType[]>([]);

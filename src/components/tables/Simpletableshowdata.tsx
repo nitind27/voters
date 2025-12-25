@@ -47,7 +47,7 @@ export function Simpletableshowdata<T extends object>({
   const [filters, setFilters] = useState<Record<string, string>>({});
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const [perPage, setPerPage] = useState(10);
+  const [perPage, setPerPage] = useState(50);
 
   const reactColumns = useMemo(() => {
     return [

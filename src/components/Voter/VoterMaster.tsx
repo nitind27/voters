@@ -216,6 +216,12 @@ const VoterMaster: React.FC = () => {
     inst_2_paid?: number;
     inst_3_paid?: number;
   };
+
+  // Extended FamilyMember with volunteer information
+  type FamilyMemberWithVolunteer = FamilyMember & {
+    volunteer_name?: string;
+    volunteer_contact?: string;
+  };
   const [financialMembers, setFinancialMembers] = useState<FamilyMember[]>([]);
   const [loadingFinancialMembers, setLoadingFinancialMembers] = useState(false);
   const [memberInstallments, setMemberInstallments] = useState<Record<number, { inst_1_paid: number; inst_2_paid: number; inst_3_paid: number }>>({});
@@ -257,12 +263,21 @@ const VoterMaster: React.FC = () => {
   };
   const [votingStatusSummary, setVotingStatusSummary] = useState<VotingStatusSummaryRow[]>([]);
   const [loadingVotingStatusSummary, setLoadingVotingStatusSummary] = useState(false);
+  const [votingStatusSearch, setVotingStatusSearch] = useState("");
+  const [sortColumn, setSortColumn] = useState<keyof VotingStatusSummaryRow | null>(null);
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
 
   // Tab D - Status List Modals
   const [isStatusListModalOpen, setIsStatusListModalOpen] = useState(false);
   const [statusListModalType, setStatusListModalType] = useState<"in_transit" | "voting_done" | "pending" | null>(null);
   const [statusListData, setStatusListData] = useState<FamilyMember[]>([]);
   const [statusListVolunteerName, setStatusListVolunteerName] = useState<string>("");
+  
+  // Tab D - Summary Card Modal
+  const [isSummaryCardModalOpen, setIsSummaryCardModalOpen] = useState(false);
+  const [summaryCardModalType, setSummaryCardModalType] = useState<"total_voters" | "in_transit" | "voting_done" | "pending" | null>(null);
+  const [summaryCardModalData, setSummaryCardModalData] = useState<FamilyMemberWithVolunteer[]>([]);
+  const [summaryCardModalSearch, setSummaryCardModalSearch] = useState<string>("");
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [loadingStatusList, setLoadingStatusList] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -1158,6 +1173,57 @@ const VoterMaster: React.FC = () => {
     }
   };
 
+  // Tab D - Open summary card modal
+  const openSummaryCardModal = (type: "total_voters" | "in_transit" | "voting_done" | "pending") => {
+    setSummaryCardModalType(type);
+    setSummaryCardModalSearch("");
+    
+    // Collect all members from all volunteers based on type
+    let allMembers: FamilyMemberWithVolunteer[] = [];
+    
+    const filteredData = votingStatusSummary.filter((row) => {
+      if (!votingStatusSearch.trim()) return true;
+      const searchLower = votingStatusSearch.toLowerCase();
+      return (
+        row.volunteer_name?.toLowerCase().includes(searchLower) ||
+        row.volunteer_contact?.toLowerCase().includes(searchLower) ||
+        row.assigned_colony?.toLowerCase().includes(searchLower)
+      );
+    });
+    
+    filteredData.forEach((row) => {
+      const members = row._allMembers || [];
+      let filteredMembers: FamilyMember[] = [];
+      
+      if (type === "total_voters") {
+        filteredMembers = members;
+      } else if (type === "in_transit") {
+        filteredMembers = members.filter((m: FamilyMember) => m.voting_status === "In Transit");
+      } else if (type === "voting_done") {
+        filteredMembers = members.filter((m: FamilyMember) => m.voting_status === "Completed" || m.voting_status === "Direct");
+      } else if (type === "pending") {
+        filteredMembers = members.filter((m: FamilyMember) => !m.voting_status || m.voting_status === "" || m.voting_status === "Pending");
+      }
+      
+      // Add volunteer information to each member
+      const membersWithVolunteer = filteredMembers.map((m: FamilyMember) => ({
+        ...m,
+        volunteer_name: row.volunteer_name,
+        volunteer_contact: row.volunteer_contact,
+      }));
+      
+      allMembers = [...allMembers, ...membersWithVolunteer];
+    });
+    
+    // Remove duplicates based on id, keeping the first occurrence
+    const uniqueMembers = Array.from(
+      new Map(allMembers.map(m => [m.id, m])).values()
+    );
+    
+    setSummaryCardModalData(uniqueMembers);
+    setIsSummaryCardModalOpen(true);
+  };
+
   // Tab D - Open status list modal
   const openStatusListModal = (type: "in_transit" | "voting_done" | "pending", volunteerId: number, volunteerName: string) => {
     const summaryRow = votingStatusSummary.find(row => row.volunteer_id === volunteerId);
@@ -1181,6 +1247,161 @@ const VoterMaster: React.FC = () => {
     setStatusListVolunteerName(volunteerName);
     setStatusListModalType(type);
     setIsStatusListModalOpen(true);
+  };
+
+  // Tab D - Export summary card modal to Excel
+  const exportSummaryCardModalToExcel = () => {
+    if (summaryCardModalData.length === 0) {
+      toast.error("No data to export");
+      return;
+    }
+
+    const filteredData = summaryCardModalData.filter((member) => {
+      if (!summaryCardModalSearch.trim()) return true;
+      const searchLower = summaryCardModalSearch.toLowerCase();
+      return (
+        member.Voter_Id?.toLowerCase().includes(searchLower) ||
+        member.full_name?.toLowerCase().includes(searchLower) ||
+        member.ENG_Full_name?.toLowerCase().includes(searchLower) ||
+        member.updated_mobile_no?.toLowerCase().includes(searchLower) ||
+        member.colony_name?.toLowerCase().includes(searchLower) ||
+        member.volunteer_name?.toLowerCase().includes(searchLower) ||
+        member.volunteer_contact?.toLowerCase().includes(searchLower)
+      );
+    });
+
+    try {
+      const typeLabel = summaryCardModalType === "total_voters" ? "Total Voters" 
+        : summaryCardModalType === "in_transit" ? "In Transit" 
+        : summaryCardModalType === "voting_done" ? "Voting Done" 
+        : "Pending";
+      
+      const exportData = filteredData.map((member, idx) => ({
+        'Sr No': idx + 1,
+        'Voter ID': member.Voter_Id || 'N/A',
+        'Name': member.full_name || 'N/A',
+        'English Name': member.ENG_Full_name || 'N/A',
+        'Age': member.Age || 'N/A',
+        'Gender': member.Gender || 'N/A',
+        'Contact No': member.updated_mobile_no || 'N/A',
+        'Colony': member.colony_name || 'N/A',
+        'Volunteer Name': member.volunteer_name || 'N/A',
+        'Volunteer Contact': member.volunteer_contact || 'N/A',
+        'Voting Status': member.voting_status || 'N/A',
+      }));
+
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      ws['!cols'] = [
+        { wch: 8 }, { wch: 15 }, { wch: 25 }, { wch: 25 }, { wch: 8 }, { wch: 10 }, { wch: 12 }, { wch: 20 }, { wch: 20 }, { wch: 15 }, { wch: 15 }
+      ];
+      XLSX.utils.book_append_sheet(wb, ws, typeLabel);
+      const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      const data = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const fileName = `${typeLabel}_${new Date().toISOString().split('T')[0]}.xlsx`;
+      saveAs(data, fileName);
+      toast.success('Excel file downloaded successfully!');
+    } catch (error) {
+      console.error('Error exporting to Excel:', error);
+      toast.error('Failed to export Excel file');
+    }
+  };
+
+  // Tab D - Export summary card modal to PDF
+  const exportSummaryCardModalToPDF = () => {
+    if (summaryCardModalData.length === 0) {
+      toast.error("No data to export");
+      return;
+    }
+
+    const filteredData = summaryCardModalData.filter((member: FamilyMemberWithVolunteer) => {
+      if (!summaryCardModalSearch.trim()) return true;
+      const searchLower = summaryCardModalSearch.toLowerCase();
+      return (
+        member.Voter_Id?.toLowerCase().includes(searchLower) ||
+        member.full_name?.toLowerCase().includes(searchLower) ||
+        member.ENG_Full_name?.toLowerCase().includes(searchLower) ||
+        member.updated_mobile_no?.toLowerCase().includes(searchLower) ||
+        member.colony_name?.toLowerCase().includes(searchLower)
+      );
+    });
+
+    try {
+      const typeLabel = summaryCardModalType === "total_voters" ? "Total Voters" 
+        : summaryCardModalType === "in_transit" ? "In Transit" 
+        : summaryCardModalType === "voting_done" ? "Voting Done" 
+        : "Pending";
+      
+      const tableRows = filteredData.map((member, index) => `
+        <tr>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 11px; text-align: center;">${index + 1}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 11px;">${member.Voter_Id || "-"}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 11px;">${member.full_name || "-"}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 11px;">${member.ENG_Full_name || "-"}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 11px;">${member.Age || "-"}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 11px;">${member.Gender || "-"}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 11px;">${member.updated_mobile_no || "-"}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 11px;">${member.colony_name || "-"}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 11px;">${member.volunteer_name || "-"}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 11px;">${member.volunteer_contact || "-"}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 11px;">${member.voting_status || "-"}</td>
+        </tr>
+      `).join('');
+
+      const htmlContent = `
+        <html>
+          <head>
+            <title>${typeLabel}</title>
+            <style>
+              @page { size: A4 landscape; margin: 10mm; }
+              body { font-family: Arial, sans-serif; margin: 0; padding: 10px; }
+              h1 { text-align: center; margin-bottom: 5px; font-size: 18px; font-weight: bold; }
+              h2 { text-align: center; margin-bottom: 15px; font-size: 14px; color: #666; }
+              table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+              th { background-color: #f3f4f6; font-weight: bold; padding: 8px; border: 1px solid #000; font-size: 11px; text-align: left; }
+              td { padding: 8px; border: 1px solid #000; font-size: 11px; }
+            </style>
+          </head>
+          <body>
+            <h1>${typeLabel} Report</h1>
+            <h2>Total Records: ${filteredData.length} | Generated on: ${new Date().toLocaleString()}</h2>
+            <table>
+              <thead>
+                <tr>
+                  <th style="text-align: center;">Sr No</th>
+                  <th>Voter ID</th>
+                  <th>Name</th>
+                  <th>English Name</th>
+                  <th>Age</th>
+                  <th>Gender</th>
+                  <th>Contact No</th>
+                  <th>Colony</th>
+                  <th>Voting Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${tableRows}
+              </tbody>
+            </table>
+          </body>
+        </html>
+      `;
+
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.write(htmlContent);
+        printWindow.document.close();
+        setTimeout(() => {
+          printWindow.print();
+        }, 500);
+        toast.success('PDF print dialog opened!');
+      } else {
+        toast.error('Please allow popups to download PDF');
+      }
+    } catch (error) {
+      console.error('Error exporting to PDF:', error);
+      toast.error('Failed to export PDF file');
+    }
   };
 
   // Tab D - Export status list to Excel
@@ -1325,6 +1546,119 @@ const VoterMaster: React.FC = () => {
         printWindow.onload = () => {
           printWindow.print();
         };
+      }
+      toast.success('PDF generated successfully!');
+    } catch (error) {
+      console.error('Error exporting to PDF:', error);
+      toast.error('Failed to export PDF file');
+    }
+  };
+
+  // Tab D - Export all voting status summary to Excel
+  const exportAllVotingStatusToExcel = () => {
+    if (votingStatusSummary.length === 0) {
+      toast.error("No data to export");
+      return;
+    }
+
+    try {
+      const exportData = votingStatusSummary.map((row, idx) => ({
+        'Sr No': idx + 1,
+        'Volunteer Name': row.volunteer_name || 'N/A',
+        'Volunteer Contact': row.volunteer_contact || 'N/A',
+        'Assigned Colony': row.assigned_colony || 'N/A',
+        'Number of all Voters': row.total_voters || 0,
+        'In-Transit (count)': row.in_transit_count || 0,
+        'Voting Done (count)': row.voting_done_count || 0,
+        'Pending (count)': row.pending_count || 0,
+        'Percentage Voters': `${row.percentage}%`,
+      }));
+
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      ws['!cols'] = [
+        { wch: 8 }, { wch: 25 }, { wch: 15 }, { wch: 25 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 15 }, { wch: 18 }
+      ];
+      XLSX.utils.book_append_sheet(wb, ws, 'Voting Status Summary');
+      const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      const data = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const fileName = `Voting_Status_Summary_${new Date().toISOString().split('T')[0]}.xlsx`;
+      saveAs(data, fileName);
+      toast.success('Excel file downloaded successfully!');
+    } catch (error) {
+      console.error('Error exporting to Excel:', error);
+      toast.error('Failed to export Excel file');
+    }
+  };
+
+  // Tab D - Export all voting status summary to PDF
+  const exportAllVotingStatusToPDF = () => {
+    if (votingStatusSummary.length === 0) {
+      toast.error("No data to export");
+      return;
+    }
+
+    try {
+      const tableRows = votingStatusSummary.map((row, index) => `
+        <tr>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 11px; text-align: center;">${index + 1}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 11px;">${row.volunteer_name || "-"}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 11px;">${row.volunteer_contact || "-"}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 11px;">${row.assigned_colony || "-"}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 11px; text-align: center;">${row.total_voters || 0}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 11px; text-align: center;">${row.in_transit_count || 0}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 11px; text-align: center;">${row.voting_done_count || 0}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 11px; text-align: center;">${row.pending_count || 0}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 11px; text-align: center;">${row.percentage}%</td>
+        </tr>
+      `).join('');
+
+      const htmlContent = `
+        <html>
+          <head>
+            <title>Voting Status Summary</title>
+            <style>
+              @page { size: A4 landscape; margin: 10mm; }
+              body { font-family: Arial, sans-serif; margin: 0; padding: 10px; }
+              h1 { text-align: center; margin-bottom: 5px; font-size: 18px; font-weight: bold; }
+              h2 { text-align: center; margin-bottom: 15px; font-size: 14px; color: #666; }
+              table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+              th { background-color: #f3f4f6; font-weight: bold; padding: 8px; border: 1px solid #000; font-size: 11px; text-align: left; }
+              td { padding: 8px; border: 1px solid #000; font-size: 11px; }
+            </style>
+          </head>
+          <body>
+            <h1>Voting Status Summary Report</h1>
+            <h2>Generated on: ${new Date().toLocaleString()} | Total Volunteers: ${votingStatusSummary.length}</h2>
+            <table>
+              <thead>
+                <tr>
+                  <th style="text-align: center;">Sr</th>
+                  <th>Volunteer Name</th>
+                  <th>Volunteer Contact</th>
+                  <th>Assigned Colony</th>
+                  <th style="text-align: center;">Number of all Voters</th>
+                  <th style="text-align: center;">In-Transit (count)</th>
+                  <th style="text-align: center;">Voting Done (count)</th>
+                  <th style="text-align: center;">Pending (count)</th>
+                  <th style="text-align: center;">Percentage Voters</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${tableRows}
+              </tbody>
+            </table>
+          </body>
+        </html>
+      `;
+
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.write(htmlContent);
+        printWindow.document.close();
+        setTimeout(() => {
+          printWindow.print();
+        }, 250);
       }
       toast.success('PDF generated successfully!');
     } catch (error) {
@@ -3697,119 +4031,581 @@ const VoterMaster: React.FC = () => {
             <>
               {/* Tab D - Voting Status Summary Table */}
               <div className="border rounded-md p-4 bg-white">
-                <div className="flex justify-between items-center mb-4">
+                <div className="flex justify-between items-center mb-4 flex-wrap gap-3">
                   <h3 className="font-semibold text-lg">Voting Status Summary</h3>
-                  <button
-                    type="button"
-                    onClick={loadVotingStatusSummary}
-                    disabled={loadingVotingStatusSummary}
-                    className="px-4 py-2 text-sm rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
-                  >
-                    {loadingVotingStatusSummary ? "Loading..." : "Refresh"}
-                  </button>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <input
+                      type="text"
+                      className="px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="Search by volunteer name, contact, or colony..."
+                      value={votingStatusSearch}
+                      onChange={(e) => setVotingStatusSearch(e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      onClick={exportAllVotingStatusToExcel}
+                      disabled={votingStatusSummary.length === 0}
+                      className="px-4 py-2 text-sm rounded bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                      title="Export to Excel"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      Excel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={exportAllVotingStatusToPDF}
+                      disabled={votingStatusSummary.length === 0}
+                      className="px-4 py-2 text-sm rounded bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                      title="Export to PDF"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                      </svg>
+                      PDF
+                    </button>
+                    <button
+                      type="button"
+                      onClick={loadVotingStatusSummary}
+                      disabled={loadingVotingStatusSummary}
+                      className="px-4 py-2 text-sm rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      {loadingVotingStatusSummary ? "Loading..." : "Refresh"}
+                    </button>
+                  </div>
                 </div>
                 
                 {loadingVotingStatusSummary ? (
                   <div className="text-center py-8 text-gray-500">Loading voting status summary...</div>
                 ) : votingStatusSummary.length === 0 ? (
                   <div className="text-center py-8 text-gray-500">No data available</div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead className="bg-gray-100 sticky top-0">
-                        <tr>
-                          <th className="px-4 py-3 text-left border-b font-medium text-gray-700">Sr</th>
-                          <th className="px-4 py-3 text-left border-b font-medium text-gray-700">Volunteer Name</th>
-                          <th className="px-4 py-3 text-left border-b font-medium text-gray-700">Volunteer Contact</th>
-                          <th className="px-4 py-3 text-left border-b font-medium text-gray-700">Assigned Colony</th>
-                          <th className="px-4 py-3 text-center border-b font-medium text-gray-700">Number of all Voters</th>
-                          <th className="px-4 py-3 text-center border-b font-medium text-gray-700">In-Transit (count)</th>
-                          <th className="px-4 py-3 text-center border-b font-medium text-gray-700">Voting Done (count)</th>
-                          <th className="px-4 py-3 text-center border-b font-medium text-gray-700">Pending (count)</th>
-                          <th className="px-4 py-3 text-center border-b font-medium text-gray-700">Percentage Voters</th>
-                          <th className="px-4 py-3 text-center border-b font-medium text-gray-700">Export</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {votingStatusSummary.map((row, index) => (
-                          <tr key={row.volunteer_id} className="border-b hover:bg-gray-50">
-                            <td className="px-4 py-3 text-gray-600">{index + 1}</td>
-                            <td className="px-4 py-3 font-medium text-gray-900">{row.volunteer_name}</td>
-                            <td className="px-4 py-3 text-gray-600">{row.volunteer_contact || "-"}</td>
-                            <td className="px-4 py-3 text-gray-600">{row.assigned_colony || "-"}</td>
-                            <td className="px-4 py-3 text-center text-gray-700 font-medium">{row.total_voters}</td>
-                            <td className="px-4 py-3 text-center">
-                              <button
-                                type="button"
-                                onClick={() => openStatusListModal("in_transit", row.volunteer_id, row.volunteer_name)}
-                                disabled={row.in_transit_count === 0}
-                                className={`text-blue-600 hover:text-blue-800 font-medium underline ${
-                                  row.in_transit_count === 0 ? "text-gray-400 cursor-not-allowed" : "cursor-pointer"
-                                }`}
-                              >
-                                {row.in_transit_count}
-                              </button>
-                            </td>
-                            <td className="px-4 py-3 text-center">
-                              <button
-                                type="button"
-                                onClick={() => openStatusListModal("voting_done", row.volunteer_id, row.volunteer_name)}
-                                disabled={row.voting_done_count === 0}
-                                className={`text-green-600 hover:text-green-800 font-medium underline ${
-                                  row.voting_done_count === 0 ? "text-gray-400 cursor-not-allowed" : "cursor-pointer"
-                                }`}
-                              >
-                                {row.voting_done_count}
-                              </button>
-                            </td>
-                            <td className="px-4 py-3 text-center">
-                              <button
-                                type="button"
-                                onClick={() => openStatusListModal("pending", row.volunteer_id, row.volunteer_name)}
-                                disabled={row.pending_count === 0}
-                                className={`text-orange-600 hover:text-orange-800 font-medium underline ${
-                                  row.pending_count === 0 ? "text-gray-400 cursor-not-allowed" : "cursor-pointer"
-                                }`}
-                              >
-                                {row.pending_count}
-                              </button>
-                            </td>
-                            <td className="px-4 py-3 text-center text-gray-700 font-medium">{row.percentage}%</td>
-                            <td className="px-4 py-3 text-center">
-                              <div className="flex gap-2 justify-center items-center">
-                                <button
-                                  type="button"
-                                  onClick={() => exportVolunteerDataToExcel(row)}
-                                  disabled={!row._allMembers || row._allMembers.length === 0}
-                                  className="px-3 py-1.5 text-xs rounded bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
-                                  title="Export to Excel"
-                                >
-                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                  </svg>
-                                  Excel
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => exportVolunteerDataToPDF(row)}
-                                  disabled={!row._allMembers || row._allMembers.length === 0}
-                                  className="px-3 py-1.5 text-xs rounded bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
-                                  title="Export to PDF"
-                                >
-                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                                  </svg>
-                                  PDF
-                                </button>
+                ) : (() => {
+                  // Calculate totals from filtered data
+                  const filteredData = votingStatusSummary.filter((row) => {
+                    if (!votingStatusSearch.trim()) return true;
+                    const searchLower = votingStatusSearch.toLowerCase();
+                    return (
+                      row.volunteer_name?.toLowerCase().includes(searchLower) ||
+                      row.volunteer_contact?.toLowerCase().includes(searchLower) ||
+                      row.assigned_colony?.toLowerCase().includes(searchLower)
+                    );
+                  });
+
+                  const totals = filteredData.reduce(
+                    (acc, row) => ({
+                      totalVoters: acc.totalVoters + (row.total_voters || 0),
+                      inTransit: acc.inTransit + (row.in_transit_count || 0),
+                      votingDone: acc.votingDone + (row.voting_done_count || 0),
+                      pending: acc.pending + (row.pending_count || 0),
+                    }),
+                    { totalVoters: 0, inTransit: 0, votingDone: 0, pending: 0 }
+                  );
+
+                  const overallPercentage = totals.totalVoters > 0 
+                    ? Math.round((totals.votingDone / totals.totalVoters) * 100) 
+                    : 0;
+
+                  // Sorting function
+                  const handleSort = (column: keyof VotingStatusSummaryRow) => {
+                    if (sortColumn === column) {
+                      // Toggle direction if same column
+                      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
+                    } else {
+                      // New column, default to ascending
+                      setSortColumn(column);
+                      setSortDirection("asc");
+                    }
+                  };
+
+                  // Apply sorting to filtered data
+                  const sortedData = [...filteredData].sort((a, b) => {
+                    if (!sortColumn) return 0;
+                    
+                    // Exclude _allMembers from sorting
+                    if (sortColumn === "_allMembers") return 0;
+                    
+                    let aValue: string | number | undefined = a[sortColumn] as string | number | undefined;
+                    let bValue: string | number | undefined = b[sortColumn] as string | number | undefined;
+                    
+                    // Handle null/undefined values
+                    if (aValue == null) aValue = "";
+                    if (bValue == null) bValue = "";
+                    
+                    // Convert to string for comparison if needed
+                    if (typeof aValue === "number" && typeof bValue === "number") {
+                      return sortDirection === "asc" ? aValue - bValue : bValue - aValue;
+                    }
+                    
+                    // String comparison
+                    const aStr = String(aValue).toLowerCase();
+                    const bStr = String(bValue).toLowerCase();
+                    
+                    if (sortDirection === "asc") {
+                      return aStr.localeCompare(bStr);
+                    } else {
+                      return bStr.localeCompare(aStr);
+                    }
+                  });
+
+                  // Helper function to render sort icon
+                  const renderSortIcon = (column: keyof VotingStatusSummaryRow) => {
+                    if (sortColumn !== column) {
+                      return (
+                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+                        </svg>
+                      );
+                    }
+                    return sortDirection === "asc" ? (
+                      <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                      </svg>
+                    ) : (
+                      <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    );
+                  };
+
+                  return (
+                    <>
+                      {/* Overall Summary Cards */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+                        <button
+                          type="button"
+                          onClick={() => openSummaryCardModal("total_voters")}
+                          className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg shadow-md p-4 text-white hover:shadow-lg hover:scale-105 transition-all duration-200 cursor-pointer text-left"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-blue-100 text-sm font-medium mb-1">Total Voters</p>
+                              <p className="text-2xl font-bold">{totals.totalVoters.toLocaleString()}</p>
+                            </div>
+                            <div className="bg-blue-400 bg-opacity-30 rounded-full p-3">
+                              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                              </svg>
+                            </div>
+                          </div>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => openSummaryCardModal("in_transit")}
+                          className="bg-gradient-to-br from-blue-400 to-blue-500 rounded-lg shadow-md p-4 text-white hover:shadow-lg hover:scale-105 transition-all duration-200 cursor-pointer text-left"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-blue-100 text-sm font-medium mb-1">In-Transit</p>
+                              <p className="text-2xl font-bold">{totals.inTransit.toLocaleString()}</p>
+                            </div>
+                            <div className="bg-blue-300 bg-opacity-30 rounded-full p-3">
+                              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                              </svg>
+                            </div>
+                          </div>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => openSummaryCardModal("voting_done")}
+                          className="bg-gradient-to-br from-green-500 to-green-600 rounded-lg shadow-md p-4 text-white hover:shadow-lg hover:scale-105 transition-all duration-200 cursor-pointer text-left"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-green-100 text-sm font-medium mb-1">Voting Done</p>
+                              <p className="text-2xl font-bold">{totals.votingDone.toLocaleString()}</p>
+                            </div>
+                            <div className="bg-green-400 bg-opacity-30 rounded-full p-3">
+                              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                            </div>
+                          </div>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => openSummaryCardModal("pending")}
+                          className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg shadow-md p-4 text-white hover:shadow-lg hover:scale-105 transition-all duration-200 cursor-pointer text-left"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-orange-100 text-sm font-medium mb-1">Pending</p>
+                              <p className="text-2xl font-bold">{totals.pending.toLocaleString()}</p>
+                            </div>
+                            <div className="bg-orange-400 bg-opacity-30 rounded-full p-3">
+                              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                            </div>
+                          </div>
+                        </button>
+
+                        <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg shadow-md p-4 text-white">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-purple-100 text-sm font-medium mb-1">Percentage</p>
+                              <p className="text-2xl font-bold">{overallPercentage}%</p>
+                            </div>
+                            <div className="bg-purple-400 bg-opacity-30 rounded-full p-3">
+                              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                              </svg>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Table Section */}
+                      <div className="overflow-x-auto">
+                      <table className="w-full text-sm border border-gray-300">
+                        <thead className="bg-gray-100 sticky top-0">
+                          <tr>
+                            <th className="px-4 py-3 text-left border border-gray-300 font-medium text-gray-700">Sr</th>
+                            <th 
+                              className="px-4 py-3 text-left border border-gray-300 font-medium text-gray-700 cursor-pointer hover:bg-gray-200 select-none"
+                              onClick={() => handleSort("volunteer_name")}
+                            >
+                              <div className="flex items-center gap-2">
+                                Volunteer Name
+                                {renderSortIcon("volunteer_name")}
                               </div>
+                            </th>
+                            <th 
+                              className="px-4 py-3 text-left border border-gray-300 font-medium text-gray-700 cursor-pointer hover:bg-gray-200 select-none"
+                              onClick={() => handleSort("volunteer_contact")}
+                            >
+                              <div className="flex items-center gap-2">
+                                Volunteer Contact
+                                {renderSortIcon("volunteer_contact")}
+                              </div>
+                            </th>
+                            <th 
+                              className="px-4 py-3 text-left border border-gray-300 font-medium text-gray-700 cursor-pointer hover:bg-gray-200 select-none"
+                              onClick={() => handleSort("assigned_colony")}
+                            >
+                              <div className="flex items-center gap-2">
+                                Assigned Colony
+                                {renderSortIcon("assigned_colony")}
+                              </div>
+                            </th>
+                            <th 
+                              className="px-4 py-3 text-center border border-gray-300 font-medium text-gray-700 cursor-pointer hover:bg-gray-200 select-none"
+                              onClick={() => handleSort("total_voters")}
+                            >
+                              <div className="flex items-center justify-center gap-2">
+                                Number of all Voters
+                                {renderSortIcon("total_voters")}
+                              </div>
+                            </th>
+                            <th 
+                              className="px-4 py-3 text-center border border-gray-300 font-medium text-gray-700 cursor-pointer hover:bg-gray-200 select-none"
+                              onClick={() => handleSort("in_transit_count")}
+                            >
+                              <div className="flex items-center justify-center gap-2">
+                                In-Transit (count)
+                                {renderSortIcon("in_transit_count")}
+                              </div>
+                            </th>
+                            <th 
+                              className="px-4 py-3 text-center border border-gray-300 font-medium text-gray-700 cursor-pointer hover:bg-gray-200 select-none"
+                              onClick={() => handleSort("voting_done_count")}
+                            >
+                              <div className="flex items-center justify-center gap-2">
+                                Voting Done (count)
+                                {renderSortIcon("voting_done_count")}
+                              </div>
+                            </th>
+                            <th 
+                              className="px-4 py-3 text-center border border-gray-300 font-medium text-gray-700 cursor-pointer hover:bg-gray-200 select-none"
+                              onClick={() => handleSort("pending_count")}
+                            >
+                              <div className="flex items-center justify-center gap-2">
+                                Pending (count)
+                                {renderSortIcon("pending_count")}
+                              </div>
+                            </th>
+                            <th 
+                              className="px-4 py-3 text-center border border-gray-300 font-medium text-gray-700 cursor-pointer hover:bg-gray-200 select-none"
+                              onClick={() => handleSort("percentage")}
+                            >
+                              <div className="flex items-center justify-center gap-2">
+                                Percentage Voters
+                                {renderSortIcon("percentage")}
+                              </div>
+                            </th>
+                            <th className="px-4 py-3 text-center border border-gray-300 font-medium text-gray-700">Export</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {sortedData.map((row, index) => (
+                            <tr key={row.volunteer_id} className="border-b border-gray-300 hover:bg-gray-50">
+                              <td className="px-4 py-3 text-gray-600 border border-gray-300">{index + 1}</td>
+                              <td className="px-4 py-3 font-medium text-gray-900 border border-gray-300">{row.volunteer_name}</td>
+                              <td className="px-4 py-3 text-gray-600 border border-gray-300">{row.volunteer_contact || "-"}</td>
+                              <td className="px-4 py-3 text-gray-600 border border-gray-300">{row.assigned_colony || "-"}</td>
+                              <td className="px-4 py-3 text-center text-gray-700 font-medium border border-gray-300">{row.total_voters}</td>
+                              <td className="px-4 py-3 text-center border border-gray-300">
+                                <button
+                                  type="button"
+                                  onClick={() => openStatusListModal("in_transit", row.volunteer_id, row.volunteer_name)}
+                                  disabled={row.in_transit_count === 0}
+                                  className={`text-blue-600 hover:text-blue-800 font-medium underline ${
+                                    row.in_transit_count === 0 ? "text-gray-400 cursor-not-allowed" : "cursor-pointer"
+                                  }`}
+                                >
+                                  {row.in_transit_count}
+                                </button>
+                              </td>
+                              <td className="px-4 py-3 text-center border border-gray-300">
+                                <button
+                                  type="button"
+                                  onClick={() => openStatusListModal("voting_done", row.volunteer_id, row.volunteer_name)}
+                                  disabled={row.voting_done_count === 0}
+                                  className={`text-green-600 hover:text-green-800 font-medium underline ${
+                                    row.voting_done_count === 0 ? "text-gray-400 cursor-not-allowed" : "cursor-pointer"
+                                  }`}
+                                >
+                                  {row.voting_done_count}
+                                </button>
+                              </td>
+                              <td className="px-4 py-3 text-center border border-gray-300">
+                                <button
+                                  type="button"
+                                  onClick={() => openStatusListModal("pending", row.volunteer_id, row.volunteer_name)}
+                                  disabled={row.pending_count === 0}
+                                  className={`text-orange-600 hover:text-orange-800 font-medium underline ${
+                                    row.pending_count === 0 ? "text-gray-400 cursor-not-allowed" : "cursor-pointer"
+                                  }`}
+                                >
+                                  {row.pending_count}
+                                </button>
+                              </td>
+                              <td className="px-4 py-3 text-center text-gray-700 font-medium border border-gray-300">{row.percentage}%</td>
+                              <td className="px-4 py-3 text-center border border-gray-300">
+                                <div className="flex gap-2 justify-center items-center">
+                                  <button
+                                    type="button"
+                                    onClick={() => exportVolunteerDataToExcel(row)}
+                                    disabled={!row._allMembers || row._allMembers.length === 0}
+                                    className="px-3 py-1.5 text-xs rounded bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                                    title="Export to Excel"
+                                  >
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                    </svg>
+                                    Excel
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => exportVolunteerDataToPDF(row)}
+                                    disabled={!row._allMembers || row._allMembers.length === 0}
+                                    className="px-3 py-1.5 text-xs rounded bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                                    title="Export to PDF"
+                                  >
+                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                                    </svg>
+                                    PDF
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        {/* Summary Row */}
+                        <tfoot className="bg-blue-50 border-t-2 border-blue-300">
+                          <tr className="font-bold">
+                            <td colSpan={4} className="px-4 py-4 text-right border border-gray-300 text-gray-900">
+                              <span className="text-lg">Total Summary:</span>
+                            </td>
+                            <td className="px-4 py-4 text-center border border-gray-300 text-blue-700 text-lg">
+                              {totals.totalVoters.toLocaleString()}
+                            </td>
+                            <td className="px-4 py-4 text-center border border-gray-300 text-blue-600 text-lg font-semibold">
+                              {totals.inTransit.toLocaleString()}
+                            </td>
+                            <td className="px-4 py-4 text-center border border-gray-300 text-green-600 text-lg font-semibold">
+                              {totals.votingDone.toLocaleString()}
+                            </td>
+                            <td className="px-4 py-4 text-center border border-gray-300 text-orange-600 text-lg font-semibold">
+                              {totals.pending.toLocaleString()}
+                            </td>
+                            <td className="px-4 py-4 text-center border border-gray-300 text-blue-700 text-lg font-bold">
+                              {overallPercentage}%
+                            </td>
+                            <td className="px-4 py-4 text-center border border-gray-300">
+                              {/* Empty cell for Export column */}
                             </td>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
+                        </tfoot>
+                      </table>
+                    </div>
+                    </>
+                  );
+                })()}
               </div>
+
+              {/* Tab D - Summary Card Modal */}
+              {isSummaryCardModalOpen && summaryCardModalType && (
+                <Modal
+                  isOpen={isSummaryCardModalOpen}
+                  onClose={() => {
+                    setIsSummaryCardModalOpen(false);
+                    setSummaryCardModalData([]);
+                    setSummaryCardModalType(null);
+                    setSummaryCardModalSearch("");
+                  }}
+                  className="max-w-6xl p-6 h-[80vh] overflow-y-auto"
+                >
+                  <div>
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="text-lg font-semibold">
+                        {summaryCardModalType === "total_voters" ? "Total Voters" 
+                          : summaryCardModalType === "in_transit" ? "In-Transit Voters" 
+                          : summaryCardModalType === "voting_done" ? "Voting Done Voters" 
+                          : "Pending Voters"} - All Data
+                      </h3>
+                      <div className="flex gap-2 absolute right-16 top-3 sm:right-20 sm:top-4">
+                        <button
+                          type="button"
+                          onClick={exportSummaryCardModalToExcel}
+                          disabled={summaryCardModalData.length === 0}
+                          className="px-4 py-2 text-sm rounded bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                          Excel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={exportSummaryCardModalToPDF}
+                          disabled={summaryCardModalData.length === 0}
+                          className="px-4 py-2 text-sm rounded bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                          </svg>
+                          PDF
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Search Box */}
+                    <div className="mb-4">
+                      <input
+                        type="text"
+                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="Search by Voter ID, Name, English Name, Contact, Colony, Volunteer Name, Volunteer Contact..."
+                        value={summaryCardModalSearch}
+                        onChange={(e) => setSummaryCardModalSearch(e.target.value)}
+                      />
+                    </div>
+
+                    <div className="max-h-[70vh] overflow-y-auto">
+                      {summaryCardModalData.length === 0 ? (
+                        <div className="text-center py-8 text-gray-500">No records found</div>
+                      ) : (() => {
+                        const filteredData = summaryCardModalData.filter((member: FamilyMemberWithVolunteer) => {
+                          if (!summaryCardModalSearch.trim()) return true;
+                          const searchLower = summaryCardModalSearch.toLowerCase();
+                          return (
+                            member.Voter_Id?.toLowerCase().includes(searchLower) ||
+                            member.full_name?.toLowerCase().includes(searchLower) ||
+                            member.ENG_Full_name?.toLowerCase().includes(searchLower) ||
+                            member.updated_mobile_no?.toLowerCase().includes(searchLower) ||
+                            member.colony_name?.toLowerCase().includes(searchLower) ||
+                            member.volunteer_name?.toLowerCase().includes(searchLower) ||
+                            member.volunteer_contact?.toLowerCase().includes(searchLower)
+                          );
+                        });
+
+                        if (filteredData.length === 0) {
+                          return <div className="text-center py-8 text-gray-500">No records found matching your search.</div>;
+                        }
+
+                        return (
+                          <div className="overflow-x-auto">
+                            <table className="min-w-full text-sm">
+                              <thead className="sticky top-0 bg-gray-100 border-b">
+                                <tr>
+                                  <th className="px-4 py-3 text-left font-semibold text-gray-700">Sr No</th>
+                                  <th className="px-4 py-3 text-left font-semibold text-gray-700">Voter ID</th>
+                                  <th className="px-4 py-3 text-left font-semibold text-gray-700">Name</th>
+                                  <th className="px-4 py-3 text-left font-semibold text-gray-700">English Name</th>
+                                  <th className="px-4 py-3 text-left font-semibold text-gray-700">Age</th>
+                                  <th className="px-4 py-3 text-left font-semibold text-gray-700">Gender</th>
+                                  <th className="px-4 py-3 text-left font-semibold text-gray-700">Contact No</th>
+                                  <th className="px-4 py-3 text-left font-semibold text-gray-700">Colony</th>
+                                  <th className="px-4 py-3 text-left font-semibold text-gray-700">Volunteer Name</th>
+                                  <th className="px-4 py-3 text-left font-semibold text-gray-700">Volunteer Contact</th>
+                                  <th className="px-4 py-3 text-left font-semibold text-gray-700">Voting Status</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {filteredData.map((member, index) => (
+                                  <tr key={member.id} className="border-b hover:bg-gray-50">
+                                    <td className="px-4 py-3 text-gray-600">{index + 1}</td>
+                                    <td className="px-4 py-3 text-gray-400">{member.Voter_Id || "-"}</td>
+                                    <td className="px-4 py-3 font-medium text-gray-900">{member.full_name || "-"}</td>
+                                    <td className="px-4 py-3 text-gray-500">{member.ENG_Full_name || "-"}</td>
+                                    <td className="px-4 py-3 text-gray-600">{member.Age || "-"}</td>
+                                    <td className="px-4 py-3 text-gray-600">{member.Gender || "-"}</td>
+                                    <td className="px-4 py-3 text-gray-400">{member.updated_mobile_no || "-"}</td>
+                                    <td className="px-4 py-3 text-gray-500">{member.colony_name || "-"}</td>
+                                    <td className="px-4 py-3 text-gray-700 font-medium">{member.volunteer_name || "-"}</td>
+                                    <td className="px-4 py-3 text-gray-600">{member.volunteer_contact || "-"}</td>
+                                    <td className="px-4 py-3 text-gray-600">{member.voting_status || "-"}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                    <div className="flex justify-between items-center mt-4 pt-4 border-t">
+                      <div className="text-sm text-gray-600">
+                        Showing {(() => {
+                          const filtered = summaryCardModalData.filter((member: FamilyMemberWithVolunteer) => {
+                            if (!summaryCardModalSearch.trim()) return true;
+                            const searchLower = summaryCardModalSearch.toLowerCase();
+                            return (
+                              member.Voter_Id?.toLowerCase().includes(searchLower) ||
+                              member.full_name?.toLowerCase().includes(searchLower) ||
+                              member.ENG_Full_name?.toLowerCase().includes(searchLower) ||
+                              member.updated_mobile_no?.toLowerCase().includes(searchLower) ||
+                              member.colony_name?.toLowerCase().includes(searchLower) ||
+                              member.volunteer_name?.toLowerCase().includes(searchLower) ||
+                              member.volunteer_contact?.toLowerCase().includes(searchLower)
+                            );
+                          });
+                          return filtered.length;
+                        })()} of {summaryCardModalData.length} records
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsSummaryCardModalOpen(false);
+                          setSummaryCardModalData([]);
+                          setSummaryCardModalType(null);
+                          setSummaryCardModalSearch("");
+                        }}
+                        className="px-4 py-2 text-sm rounded border border-gray-300 hover:bg-gray-50"
+                      >
+                        Close
+                      </button>
+                    </div>
+                  </div>
+                </Modal>
+              )}
 
               {/* Tab D - Status List Modal */}
               {isStatusListModalOpen && statusListModalType && (
