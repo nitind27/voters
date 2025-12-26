@@ -469,24 +469,31 @@ const Newdashboard: React.FC = () => {
     return result.sort((a, b) => a.colony_name.localeCompare(b.colony_name));
   }, [filteredFamilyWiseData, colonyList]);
 
-  // Initial load
+  // Initial load - Fetch all 3 tab APIs in parallel for fast loading
   useEffect(() => {
-    fetchTotalCount();
-    fetchColonies();
-    fetchUsers();
-    // Pre-fetch family wise survey data when component mounts
-    preFetchFamilyWiseSurveyData();
+    // Fetch all essential data in parallel
+    const loadAllData = async () => {
+      try {
+        // Start all API calls in parallel
+        await Promise.all([
+          fetchTotalCount(),
+          fetchColonies(),
+          fetchUsers(),
+          // Fetch voter data (for Voter Details and Colony wise Voter details tabs)
+          fetchVoterData(),
+          // Fetch family wise survey data (for Family Wise Survey tab)
+          fetchFamilyWiseSurveyData()
+        ]);
+        console.log("All initial data loaded successfully");
+      } catch (error) {
+        console.error("Error loading initial data:", error);
+      }
+    };
+    
+    loadAllData();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Pre-fetch family wise survey data when on other tabs (for performance)
-  useEffect(() => {
-    // Pre-fetch in background when on tabs other than familywisesurvey (if cache is empty)
-    if (active !== "familywisesurvey" && familyWiseSurveyData.length === 0) {
-      preFetchFamilyWiseSurveyData();
-    }
-  }, [active, familyWiseSurveyData.length]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Load voter data when tab is active
+  // Load voter data when tab is active (fallback if not loaded initially)
   useEffect(() => {
     if (active === "allvoterdetails" || active === "voterwisedetails") {
       if (voterData.length === 0 && !loading) {
