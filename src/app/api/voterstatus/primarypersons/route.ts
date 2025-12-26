@@ -51,6 +51,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get primary persons (where Voter_Id = family_member) with member count
+    // Optimized: Using LEFT JOIN with GROUP BY instead of correlated subquery for better performance
     const [rows] = await pool.query<RowDataPacket[]>(
       `SELECT DISTINCT
          v.id,
@@ -63,11 +64,15 @@ export async function GET(request: NextRequest) {
          v.updated_house_number,
          v.House_Number,
          c.colony_name,
-         (SELECT COUNT(*) 
-          FROM tbl_voters_search fm 
-          WHERE fm.family_member = v.Voter_Id) as member_count
+         COALESCE(fm_counts.member_count, 0) as member_count
        FROM tbl_voters_search v
        ${joinClause}
+       LEFT JOIN (
+         SELECT family_member, COUNT(*) as member_count
+         FROM tbl_voters_search
+         WHERE family_member IS NOT NULL AND family_member != ''
+         GROUP BY family_member
+       ) fm_counts ON v.Voter_Id = fm_counts.family_member
        WHERE ${whereClause}
        ORDER BY v.full_name ASC`,
       params,

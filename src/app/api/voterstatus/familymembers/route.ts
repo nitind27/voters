@@ -6,15 +6,32 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const primaryPersonId = searchParams.get('primary_person_id');
+    const primaryPersonIds = searchParams.get('primary_person_ids'); // Batch support: comma-separated IDs
 
-    if (!primaryPersonId) {
+    // Support both single and batch requests
+    let primaryPersonIdList: string[] = [];
+    
+    if (primaryPersonIds) {
+      // Batch mode: parse comma-separated IDs
+      primaryPersonIdList = primaryPersonIds.split(',').map(id => id.trim()).filter(Boolean);
+    } else if (primaryPersonId) {
+      // Single mode: use single ID
+      primaryPersonIdList = [primaryPersonId];
+    } else {
       return NextResponse.json(
-        { error: 'primary_person_id is required' },
+        { error: 'primary_person_id or primary_person_ids is required' },
         { status: 400 }
       );
     }
 
-    // Get all family members including primary person (where family_member = primary_person_id)
+    if (primaryPersonIdList.length === 0) {
+      return NextResponse.json([]);
+    }
+
+    // Build query with IN clause for batch requests
+    const placeholders = primaryPersonIdList.map(() => '?').join(',');
+    
+    // Get all family members including primary person (where family_member IN (...))
     const [rows] = await pool.query<RowDataPacket[]>(
       `SELECT 
          v.id,
@@ -35,11 +52,12 @@ export async function GET(request: NextRequest) {
          c.colony_name
        FROM tbl_voters_search v
        LEFT JOIN colony c ON v.Updated_colony = c.colony_id
-       WHERE v.family_member = ?
+       WHERE v.family_member IN (${placeholders})
        ORDER BY 
+         v.family_member,
          CASE WHEN v.Voter_Id = v.family_member THEN 0 ELSE 1 END,
          v.full_name ASC`,
-      [primaryPersonId]
+      primaryPersonIdList
     );
 
     return NextResponse.json(rows);

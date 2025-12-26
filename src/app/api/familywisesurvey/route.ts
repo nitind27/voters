@@ -55,7 +55,7 @@ export async function GET(request: Request) {
         const validLimit = Math.min(Math.max(1, limit), 50000); // Max 50000 per page
         const offset = (validPage - 1) * validLimit;
         
-        // Optimized query using subquery instead of self-join for better performance
+        // Optimized query using LEFT JOIN with GROUP BY instead of correlated subquery for better performance
         const query = `
             SELECT 
                 v.id,
@@ -76,15 +76,18 @@ export async function GET(request: Request) {
                 v.updated_at,
                 c.colony_name,
                 u.name as user_name,
-                COALESCE((
-                    SELECT COUNT(*)
-                    FROM tbl_voters_search fm
-                    WHERE fm.family_member = v.Voter_Id 
-                        AND fm.Voter_Id != v.Voter_Id
-                ), 0) as family_member_count
+                COALESCE(fm_counts.family_member_count, 0) as family_member_count
             FROM tbl_voters_search v
             LEFT JOIN colony c ON v.Updated_colony = c.colony_id
             LEFT JOIN users u ON v.user_id = u.user_id
+            LEFT JOIN (
+                SELECT family_member, COUNT(*) as family_member_count
+                FROM tbl_voters_search
+                WHERE family_member IS NOT NULL 
+                    AND family_member != ''
+                    AND Voter_Id != family_member
+                GROUP BY family_member
+            ) fm_counts ON v.Voter_Id = fm_counts.family_member
             WHERE v.family_member IS NOT NULL 
                 AND v.family_member != ''
                 AND v.Voter_Id = v.family_member

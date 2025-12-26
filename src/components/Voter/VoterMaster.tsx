@@ -10,6 +10,7 @@ import { Modal } from "../ui/modal";
 import { Withoutbtn } from "../tables/Withoutbtn";
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
+import { FaEdit, FaPowerOff, FaKey } from 'react-icons/fa';
 
 type VoterMasterRow = {
   id: number;
@@ -266,6 +267,15 @@ const VoterMaster: React.FC = () => {
   const [votingStatusSearch, setVotingStatusSearch] = useState("");
   const [sortColumn, setSortColumn] = useState<keyof VotingStatusSummaryRow | null>(null);
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+  // Cache for all primary persons (pre-fetched for Tab D performance)
+  const [cachedAllPrimaryPersons, setCachedAllPrimaryPersons] = useState<Array<{
+    id: number;
+    Voter_Id: string;
+    full_name: string;
+    ENG_Full_name?: string;
+    member_count?: number;
+  }>>([]);
+  const [isPreFetchingPrimaryPersons, setIsPreFetchingPrimaryPersons] = useState(false);
 
   // Tab D - Status List Modals
   const [isStatusListModalOpen, setIsStatusListModalOpen] = useState(false);
@@ -499,6 +509,20 @@ const VoterMaster: React.FC = () => {
       setLoadingVolunteerMaster(false);
     }
   };
+
+  // Pre-fetch primary persons when component mounts (for Tab D performance)
+  useEffect(() => {
+    // Pre-fetch immediately when component mounts
+    preFetchAllPrimaryPersons();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Pre-fetch primary persons when on other tabs (for Tab D performance)
+  useEffect(() => {
+    // Pre-fetch in background when on tabs A, B, or C (if cache is empty)
+    if ((activeTab === "A" || activeTab === "B" || activeTab === "C") && cachedAllPrimaryPersons.length === 0) {
+      preFetchAllPrimaryPersons();
+    }
+  }, [activeTab, cachedAllPrimaryPersons.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load assign data when B tab is active
   useEffect(() => {
@@ -1046,22 +1070,62 @@ const VoterMaster: React.FC = () => {
   //   }
   // };
 
-  // Tab D - Load voting status summary
-  const loadVotingStatusSummary = async () => {
-    setLoadingVotingStatusSummary(true);
+  // Pre-fetch all primary persons for Tab D (called when component mounts or on other tabs)
+  const preFetchAllPrimaryPersons = async () => {
+    // Only pre-fetch if cache is empty and not already fetching
+    if (cachedAllPrimaryPersons.length > 0 || isPreFetchingPrimaryPersons) {
+      return;
+    }
+    
+    setIsPreFetchingPrimaryPersons(true);
     try {
-      // Fetch all primary persons once (with member_count) to avoid multiple API calls
+      console.log("[Voting Status] Pre-fetching all primary persons...");
+      const startTime = performance.now();
       const primaryPersonsRes = await fetch("/api/voterstatus/primarypersons?only_assigned=false", {
         cache: "no-store",
       });
-      const allPrimaryPersons = primaryPersonsRes.ok ? await primaryPersonsRes.json() : [];
+      if (primaryPersonsRes.ok) {
+        const data = await primaryPersonsRes.json();
+        setCachedAllPrimaryPersons(data);
+        console.log(`[Voting Status] Pre-fetched ${data.length} primary persons in ${(performance.now() - startTime).toFixed(2)}ms`);
+      }
+    } catch (e) {
+      console.error("[Voting Status] Error pre-fetching primary persons:", e);
+    } finally {
+      setIsPreFetchingPrimaryPersons(false);
+    }
+  };
 
+  // Tab D - Load voting status summary
+  const loadVotingStatusSummary = async () => {
+    const startTime = performance.now();
+    console.log("[Voting Status] Starting to load voting status summary...");
+    setLoadingVotingStatusSummary(true);
+    try {
+      // Use cached primary persons if available, otherwise fetch
+      let allPrimaryPersons = cachedAllPrimaryPersons;
+      if (allPrimaryPersons.length === 0) {
+        const primaryPersonsStart = performance.now();
+        console.log("[Voting Status] Cache empty, fetching primary persons...");
+        const primaryPersonsRes = await fetch("/api/voterstatus/primarypersons?only_assigned=false", {
+          cache: "no-store",
+        });
+        allPrimaryPersons = primaryPersonsRes.ok ? await primaryPersonsRes.json() : [];
+        // Update cache for next time
+        setCachedAllPrimaryPersons(allPrimaryPersons);
+        console.log(`[Voting Status] Primary persons loaded in ${(performance.now() - primaryPersonsStart).toFixed(2)}ms (${allPrimaryPersons.length} persons)`);
+      } else {
+        console.log(`[Voting Status] Using cached primary persons (${allPrimaryPersons.length} persons)`);
+      }
+
+      const volunteersStart = performance.now();
       const res = await fetch("/api/volunteermaster", {
         cache: "no-store",
       });
       if (!res.ok) throw new Error("Failed to load volunteers");
       const json = await res.json();
       const activeVolunteers = (json.data || []).filter((v: VolunteerMasterApiItem) => v.status === "Active");
+      console.log(`[Voting Status] Volunteers loaded in ${(performance.now() - volunteersStart).toFixed(2)}ms (${activeVolunteers.length} active volunteers)`);
       
       // Fetch voting status data for each volunteer
       const summaryPromises = activeVolunteers.map(async (volunteer: VolunteerMasterApiItem) => {
@@ -1119,33 +1183,33 @@ const VoterMaster: React.FC = () => {
             } as VotingStatusSummaryRow;
           }
 
-          // Fetch all family members for all primary persons using Voter_Id
-          // This gets all voters (including primary persons) where family_member = Voter_Id
-          const memberPromises = primaryPersonVoterIds.map(async (voterId: string) => {
-            try {
-              const controller = new AbortController();
-              const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
-              
-              const res = await fetch(`/api/voterstatus/familymembers?primary_person_id=${encodeURIComponent(voterId)}`, {
-                cache: "no-store",
-                signal: controller.signal,
-              });
-              clearTimeout(timeoutId);
-              if (!res.ok) return [];
-              return res.json();
-            } catch (e: unknown) {
-              const error = e as { name?: string };
-              if (error.name !== 'AbortError') {
-                console.error(`Error fetching members for Voter_Id ${voterId}:`, e);
-              }
-              return [];
+          // Fetch all family members for all primary persons using Voter_Id in a single batch request
+          // This gets all voters (including primary persons) where family_member IN (primaryPersonVoterIds)
+          // Using batch API to reduce number of API calls significantly
+          let allMembersFlat: FamilyMember[] = [];
+          try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout for batch request
+            
+            // Batch API call: pass all primary person IDs as comma-separated string
+            const batchIds = primaryPersonVoterIds.join(',');
+            const res = await fetch(`/api/voterstatus/familymembers?primary_person_ids=${encodeURIComponent(batchIds)}`, {
+              cache: "no-store",
+              signal: controller.signal,
+            });
+            clearTimeout(timeoutId);
+            
+            if (res.ok) {
+              allMembersFlat = await res.json() as FamilyMember[];
+            } else {
+              console.error(`Error fetching batch members for volunteer ${volunteer.volunteer_name}:`, res.statusText);
             }
-          });
-
-          const memberArrays = await Promise.allSettled(memberPromises).then(results => 
-            results.map(result => result.status === 'fulfilled' ? result.value : [])
-          );
-          const allMembersFlat = memberArrays.flat() as FamilyMember[];
+          } catch (e: unknown) {
+            const error = e as { name?: string };
+            if (error.name !== 'AbortError') {
+              console.error(`Error fetching batch members for volunteer ${volunteer.volunteer_name}:`, e);
+            }
+          }
           
           // Remove duplicates based on id (since same voter might be in multiple primary person families)
           // This ensures we count each voter only once
@@ -1204,6 +1268,7 @@ const VoterMaster: React.FC = () => {
       });
 
       // Use Promise.allSettled to ensure all promises complete even if some fail
+      const summaryStart = performance.now();
       const summaryResults = await Promise.allSettled(summaryPromises);
       const summary = summaryResults
         .map(result => result.status === 'fulfilled' ? result.value : null)
@@ -1212,7 +1277,9 @@ const VoterMaster: React.FC = () => {
       // Sort by total_voters count in descending order (highest count first)
       summary.sort((a, b) => b.total_voters - a.total_voters);
 
-      console.log("Voting status summary loaded:", summary.length, "volunteers");
+      const totalTime = performance.now() - startTime;
+      console.log(`[Voting Status] Summary loaded in ${(performance.now() - summaryStart).toFixed(2)}ms`);
+      console.log(`[Voting Status] Total loading time: ${totalTime.toFixed(2)}ms (${summary.length} volunteers)`);
       setVotingStatusSummary(summary);
       
       if (summary.length === 0 && activeVolunteers.length > 0) {
@@ -2760,35 +2827,41 @@ const VoterMaster: React.FC = () => {
         const isUpdating = updatingStatusId === row.id;
         const isResetting = resettingPasswordId === row.id;
         return (
-          <div className="flex gap-2 whitespace-nowrap">
+          <div className="flex flex-wrap gap-1 sm:gap-2 min-w-0">
             <button
               type="button"
               onClick={() => handleEditVolunteer(row)}
-              className="px-3 py-1 text-xs rounded bg-blue-600 text-white hover:bg-blue-700"
+              className="px-2 py-1 sm:px-2.5 text-xs rounded bg-blue-600 text-white hover:bg-blue-700 flex-shrink-0 flex items-center justify-center"
+              title="Edit"
+              aria-label="Edit"
             >
-              Edit
+              <FaEdit className="w-3.5 h-3.5" />
             </button>
             <button
               type="button"
               onClick={() => handleStatusChange(row.id, isActive ? "Inactive" : "Active")}
               disabled={isUpdating}
-              className={`px-3 py-1 text-xs rounded text-white hover:opacity-90 disabled:opacity-60 ${
+              className={`px-2 py-1 sm:px-2.5 text-xs rounded text-white hover:opacity-90 disabled:opacity-60 flex-shrink-0 flex items-center justify-center ${
                 isActive 
                   ? "bg-red-600 hover:bg-red-700" 
                   : "bg-green-600 hover:bg-green-700"
               }`}
-            >
-              {isUpdating 
+              title={isUpdating 
                 ? (isActive ? "Deactivating..." : "Activating...") 
                 : (isActive ? "Deactivate" : "Activate")}
+              aria-label={isActive ? "Deactivate" : "Activate"}
+            >
+              <FaPowerOff className="w-3.5 h-3.5" />
             </button>
             <button
               type="button"
               onClick={() => handleResetPassword(row.id, row.volunteer_name, row.contact_no)}
               disabled={isResetting || !row.contact_no}
-              className="px-3 py-1 text-xs rounded bg-orange-600 text-white hover:bg-orange-700 disabled:opacity-60"
+              className="px-2 py-1 sm:px-2.5 text-xs rounded bg-orange-600 text-white hover:bg-orange-700 disabled:opacity-60 flex-shrink-0 flex items-center justify-center"
+              title={isResetting ? "Resetting..." : "Reset Password"}
+              aria-label="Reset Password"
             >
-              {isResetting ? "Resetting..." : "Reset"}
+              <FaKey className="w-3.5 h-3.5" />
             </button>
           </div>
         );

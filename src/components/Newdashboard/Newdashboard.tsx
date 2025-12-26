@@ -161,6 +161,8 @@ const Newdashboard: React.FC = () => {
   const [userList, setUserList] = useState<UserData[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<string>(''); // '' means all users
+  // Cache for family wise survey data (pre-fetched for performance)
+  const [isPreFetchingFamilyWise, setIsPreFetchingFamilyWise] = useState(false);
 
   // Family member modal state
   const [familyMemberModalOpen, setFamilyMemberModalOpen] = useState(false);
@@ -290,23 +292,79 @@ const Newdashboard: React.FC = () => {
     }
   }, []);
 
+  // Pre-fetch family wise survey data (called when component mounts or on other tabs)
+  const preFetchFamilyWiseSurveyData = async () => {
+    // Only pre-fetch if cache is empty and not already fetching
+    if (familyWiseSurveyData.length > 0 || isPreFetchingFamilyWise || familyWiseLoading) {
+      return;
+    }
+    
+    setIsPreFetchingFamilyWise(true);
+    try {
+      console.log("[Family Wise Survey] Pre-fetching data...");
+      const startTime = performance.now();
+      
+      // Fetch all records in a single request with high limit
+      const response = await fetch(`/api/familywisesurvey?page=1&limit=50000`);
+      if (response.ok) {
+        const result = await response.json();
+        const data = Array.isArray(result) ? result : (result.data || []);
+        
+        // If there are more pages, fetch them
+        if (result.pagination && result.pagination.totalPages > 1) {
+          let allData = [...data];
+          for (let page = 2; page <= result.pagination.totalPages; page++) {
+            const pageResponse = await fetch(`/api/familywisesurvey?page=${page}&limit=50000`);
+            if (pageResponse.ok) {
+              const pageResult = await pageResponse.json();
+              const pageData = Array.isArray(pageResult) ? pageResult : (pageResult.data || []);
+              allData = [...allData, ...pageData];
+            }
+          }
+          setFamilyWiseSurveyData(allData);
+          setFilteredFamilyWiseData(allData);
+          console.log(`[Family Wise Survey] Pre-fetched ${allData.length} records in ${(performance.now() - startTime).toFixed(2)}ms`);
+        } else {
+          setFamilyWiseSurveyData(data);
+          setFilteredFamilyWiseData(data);
+          console.log(`[Family Wise Survey] Pre-fetched ${data.length} records in ${(performance.now() - startTime).toFixed(2)}ms`);
+        }
+      }
+    } catch (e) {
+      console.error("[Family Wise Survey] Error pre-fetching data:", e);
+    } finally {
+      setIsPreFetchingFamilyWise(false);
+    }
+  };
+
   // Fetch family wise survey data from the API
   const fetchFamilyWiseSurveyData = useCallback(async () => {
+    const startTime = performance.now();
+    console.log("[Family Wise Survey] Starting to load data...");
     setFamilyWiseLoading(true);
     try {
+      // Use cached data if available, otherwise fetch
+      if (familyWiseSurveyData.length > 0) {
+        console.log(`[Family Wise Survey] Using cached data (${familyWiseSurveyData.length} records)`);
+        setFamilyWiseLoading(false);
+        return;
+      }
+      
       // Fetch all records by using a high limit
       let allData: FamilyWiseSurveyData[] = [];
       let currentPage = 1;
       let hasMore = true;
       
       while (hasMore) {
-        const response = await fetch(`/api/familywisesurvey?page=${currentPage}&limit=5000`);
+        const pageStart = performance.now();
+        const response = await fetch(`/api/familywisesurvey?page=${currentPage}&limit=50000`);
         if (!response.ok) throw new Error('Failed to fetch family wise survey data');
         const result = await response.json();
         
         // Handle new response structure with pagination
         const pageData = Array.isArray(result) ? result : (result.data || []);
         allData = [...allData, ...pageData];
+        console.log(`[Family Wise Survey] Page ${currentPage} loaded in ${(performance.now() - pageStart).toFixed(2)}ms (${pageData.length} records)`);
         
         // Check if there are more pages
         if (result.pagination) {
@@ -318,6 +376,8 @@ const Newdashboard: React.FC = () => {
         }
       }
       
+      const totalTime = performance.now() - startTime;
+      console.log(`[Family Wise Survey] Total loading time: ${totalTime.toFixed(2)}ms (${allData.length} records)`);
       setFamilyWiseSurveyData(allData);
       setFilteredFamilyWiseData(allData);
     } catch {
@@ -327,7 +387,7 @@ const Newdashboard: React.FC = () => {
     } finally {
       setFamilyWiseLoading(false);
     }
-  }, []);
+  }, [familyWiseSurveyData.length]);
 
 
 
@@ -414,7 +474,17 @@ const Newdashboard: React.FC = () => {
     fetchTotalCount();
     fetchColonies();
     fetchUsers();
-  }, []);
+    // Pre-fetch family wise survey data when component mounts
+    preFetchFamilyWiseSurveyData();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Pre-fetch family wise survey data when on other tabs (for performance)
+  useEffect(() => {
+    // Pre-fetch in background when on tabs other than familywisesurvey (if cache is empty)
+    if (active !== "familywisesurvey" && familyWiseSurveyData.length === 0) {
+      preFetchFamilyWiseSurveyData();
+    }
+  }, [active, familyWiseSurveyData.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load voter data when tab is active
   useEffect(() => {
