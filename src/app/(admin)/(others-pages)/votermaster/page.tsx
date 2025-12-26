@@ -4,7 +4,7 @@ import VoterMaster from '@/components/Voter/VoterMaster';
 const page = async () => {
   const breadcrumbItems = [
     { label: 'Home', href: '/' },
-    { label: 'Voter Master', href: '/votermaster' },
+    { label: 'Volunteer Details', href: '/votermaster' },
   ];
 
   return (
