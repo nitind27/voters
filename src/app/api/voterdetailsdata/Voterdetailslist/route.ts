@@ -55,19 +55,22 @@ export async function GET(request: NextRequest) {
 
         const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
-        // Get total count for pagination (with filters)
-        const [countResult] = await pool.query<RowDataPacket[]>(
-            `SELECT COUNT(*) as total FROM tbl_voters_search ${whereClause}`,
-            queryParams
-        );
-        const totalRecords = countResult[0].total;
+        // Optimize: Run count and data queries in parallel for better performance
+        const [countResult, rowsResult] = await Promise.all([
+            pool.query<RowDataPacket[]>(
+                `SELECT COUNT(*) as total FROM tbl_voters_search ${whereClause}`,
+                queryParams
+            ),
+            pool.query<RowDataPacket[]>(
+                `SELECT * FROM tbl_voters_search ${whereClause} ORDER BY id DESC LIMIT ? OFFSET ?`,
+                [...queryParams, validLimit, offset]
+            )
+        ]);
+        
+        const [countRows] = countResult;
+        const [rows] = rowsResult;
+        const totalRecords = countRows[0].total;
         const totalPages = Math.ceil(totalRecords / validLimit);
-
-        // Get paginated data (with filters)
-        const [rows] = await pool.query<RowDataPacket[]>(
-            `SELECT * FROM tbl_voters_search ${whereClause} ORDER BY id DESC LIMIT ? OFFSET ?`,
-            [...queryParams, validLimit, offset]
-        );
 
         return NextResponse.json({
             data: rows,

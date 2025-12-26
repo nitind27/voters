@@ -32,6 +32,7 @@ export async function GET(request: NextRequest) {
     const placeholders = primaryPersonIdList.map(() => '?').join(',');
     
     // Get all family members including primary person (where family_member IN (...))
+    // Optimized: Simplified ORDER BY for better performance with large batches
     const [rows] = await pool.query<RowDataPacket[]>(
       `SELECT 
          v.id,
@@ -52,11 +53,7 @@ export async function GET(request: NextRequest) {
          c.colony_name
        FROM tbl_voters_search v
        LEFT JOIN colony c ON v.Updated_colony = c.colony_id
-       WHERE v.family_member IN (${placeholders})
-       ORDER BY 
-         v.family_member,
-         CASE WHEN v.Voter_Id = v.family_member THEN 0 ELSE 1 END,
-         v.full_name ASC`,
+       WHERE v.family_member IN (${placeholders})`,
       primaryPersonIdList
     );
 

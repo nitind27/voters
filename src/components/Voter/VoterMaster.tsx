@@ -1102,30 +1102,40 @@ const VoterMaster: React.FC = () => {
     console.log("[Voting Status] Starting to load voting status summary...");
     setLoadingVotingStatusSummary(true);
     try {
-      // Use cached primary persons if available, otherwise fetch
+      // Optimize: Fetch primary persons and volunteers in parallel for better performance
       let allPrimaryPersons = cachedAllPrimaryPersons;
+      const primaryPersonsPromise = allPrimaryPersons.length === 0
+        ? fetch("/api/voterstatus/primarypersons?only_assigned=false", {
+            cache: "no-store",
+          }).then(async (res) => {
+            const data = res.ok ? await res.json() : [];
+            setCachedAllPrimaryPersons(data);
+            return data;
+          })
+        : Promise.resolve(allPrimaryPersons);
+      
+      const volunteersPromise = fetch("/api/volunteermaster", {
+        cache: "no-store",
+      }).then(async (res) => {
+        if (!res.ok) throw new Error("Failed to load volunteers");
+        const json = await res.json();
+        return (json.data || []).filter((v: VolunteerMasterApiItem) => v.status === "Active");
+      });
+      
+      // Execute both fetches in parallel
+      const [primaryPersonsResult, activeVolunteers] = await Promise.all([
+        primaryPersonsPromise,
+        volunteersPromise
+      ]);
+      
       if (allPrimaryPersons.length === 0) {
-        const primaryPersonsStart = performance.now();
-        console.log("[Voting Status] Cache empty, fetching primary persons...");
-        const primaryPersonsRes = await fetch("/api/voterstatus/primarypersons?only_assigned=false", {
-          cache: "no-store",
-        });
-        allPrimaryPersons = primaryPersonsRes.ok ? await primaryPersonsRes.json() : [];
-        // Update cache for next time
-        setCachedAllPrimaryPersons(allPrimaryPersons);
-        console.log(`[Voting Status] Primary persons loaded in ${(performance.now() - primaryPersonsStart).toFixed(2)}ms (${allPrimaryPersons.length} persons)`);
+        allPrimaryPersons = primaryPersonsResult || [];
+        console.log(`[Voting Status] Primary persons loaded (${allPrimaryPersons.length} persons)`);
       } else {
         console.log(`[Voting Status] Using cached primary persons (${allPrimaryPersons.length} persons)`);
       }
-
-      const volunteersStart = performance.now();
-      const res = await fetch("/api/volunteermaster", {
-        cache: "no-store",
-      });
-      if (!res.ok) throw new Error("Failed to load volunteers");
-      const json = await res.json();
-      const activeVolunteers = (json.data || []).filter((v: VolunteerMasterApiItem) => v.status === "Active");
-      console.log(`[Voting Status] Volunteers loaded in ${(performance.now() - volunteersStart).toFixed(2)}ms (${activeVolunteers.length} active volunteers)`);
+      
+      console.log(`[Voting Status] Volunteers loaded (${activeVolunteers.length} active volunteers)`);
       
       // Fetch voting status data for each volunteer
       const summaryPromises = activeVolunteers.map(async (volunteer: VolunteerMasterApiItem) => {

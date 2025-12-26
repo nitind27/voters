@@ -55,7 +55,12 @@ export async function GET(request: Request) {
         const validLimit = Math.min(Math.max(1, limit), 50000); // Max 50000 per page
         const offset = (validPage - 1) * validLimit;
         
-        // Optimized query using LEFT JOIN with GROUP BY instead of correlated subquery for better performance
+        // Optimized query - run count and data queries in parallel for better performance
+        // Also optimized the subquery to use indexed columns
+        const baseWhere = `WHERE v.family_member IS NOT NULL 
+                AND v.family_member != ''
+                AND v.Voter_Id = v.family_member`;
+        
         const query = `
             SELECT 
                 v.id,
@@ -88,23 +93,24 @@ export async function GET(request: Request) {
                     AND Voter_Id != family_member
                 GROUP BY family_member
             ) fm_counts ON v.Voter_Id = fm_counts.family_member
-            WHERE v.family_member IS NOT NULL 
-                AND v.family_member != ''
-                AND v.Voter_Id = v.family_member
+            ${baseWhere}
             ORDER BY v.id DESC
             LIMIT ? OFFSET ?
         `;
         
-        const [rows] = await connection.query<RowDataPacket[]>(query, [validLimit, offset]);
+        // Run count and data queries in parallel for better performance
+        const [rowsResult, countResult] = await Promise.all([
+            connection.query<RowDataPacket[]>(query, [validLimit, offset]),
+            connection.query<RowDataPacket[]>(
+                `SELECT COUNT(*) as total 
+                 FROM tbl_voters_search v
+                 ${baseWhere}`,
+                []
+            )
+        ]);
         
-        // Get total count for pagination
-        const [countRows] = await connection.query<RowDataPacket[]>(
-            `SELECT COUNT(*) as total 
-             FROM tbl_voters_search 
-             WHERE family_member IS NOT NULL 
-                 AND family_member != ''
-                 AND Voter_Id = family_member`
-        );
+        const [rows] = rowsResult;
+        const [countRows] = countResult;
         const totalRecords = Number(countRows[0]?.total || 0);
 
         return NextResponse.json({

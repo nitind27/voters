@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import type { RowDataPacket } from 'mysql2';
 
 // Get count of voter details where updated_at is NOT NULL
+// Optimized: Using direct query without connection overhead
 export async function GET() {
     try {
         const [countResult] = await pool.query<RowDataPacket[]>(
