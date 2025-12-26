@@ -666,9 +666,18 @@ const VoterMaster: React.FC = () => {
   };
 
   // Tab C - Load primary persons when colony is selected
-  // Only show primary persons that are assigned in volunteer_master table
-  const loadFinancialPrimaryPersons = async (colonyId: number) => {
+  // Only show primary persons that are assigned to the selected volunteer in volunteer_master table
+  const loadFinancialPrimaryPersons = async (colonyId: number, volunteerId: number | null = null) => {
     if (!colonyId) {
+      setFinancialPrimaryPersons([]);
+      setSelectedFinancialPrimaryPersonIds([]);
+      setFinancialMembers([]);
+      setMemberInstallments({});
+      return;
+    }
+
+    // Require volunteer to be selected
+    if (!volunteerId) {
       setFinancialPrimaryPersons([]);
       setSelectedFinancialPrimaryPersonIds([]);
       setFinancialMembers([]);
@@ -681,15 +690,21 @@ const VoterMaster: React.FC = () => {
       const params = new URLSearchParams();
       params.set("colony_id", String(colonyId));
       params.set("only_assigned", "true"); // Only show primary persons in volunteer_master
+      params.set("volunteer_id", String(volunteerId)); // Always include volunteer_id filter
       
       const res = await fetch(`/api/voterstatus/primarypersons?${params.toString()}`, {
         cache: "no-store",
       });
-      if (!res.ok) throw new Error("Failed to load primary persons");
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error("Failed to load primary persons:", errorText);
+        throw new Error("Failed to load primary persons");
+      }
       const json = await res.json();
+      console.log("Loaded primary persons:", json?.length || 0, "for colony:", colonyId, "volunteer:", volunteerId);
       setFinancialPrimaryPersons(json || []);
     } catch (e) {
-      console.error(e);
+      console.error("Error loading primary persons:", e);
       toast.error("Primary persons load होत नाही.");
       setFinancialPrimaryPersons([]);
     } finally {
@@ -803,20 +818,59 @@ const VoterMaster: React.FC = () => {
     setSelectedFinancialPrimaryPersonIds([]);
     setFinancialMembers([]);
     setMemberInstallments({});
-    loadFinancialPrimaryPersons(colonyId);
+    loadFinancialPrimaryPersons(colonyId, selectedFinancialVolunteerId);
   };
 
-  // Tab C - Clear colony and primary persons when volunteer changes
+  // Tab C - Handle volunteer change: reload primary persons if colony is selected, or clear if volunteer is cleared
   useEffect(() => {
-    if (selectedFinancialVolunteerId) {
-      // Clear selections when volunteer changes
+    if (!selectedFinancialVolunteerId) {
+      // If volunteer is cleared, clear everything
       setSelectedFinancialColonyId(null);
-      setSelectedFinancialPrimaryPersonIds([]);
       setFinancialPrimaryPersons([]);
+      setSelectedFinancialPrimaryPersonIds([]);
       setFinancialMembers([]);
       setMemberInstallments({});
+    } else {
+      // Check if the currently selected colony belongs to the new volunteer
+      const selectedVolunteer = financialAvailableVolunteers.find(v => v.user_id === selectedFinancialVolunteerId);
+      let volunteerColonyIds: number[] = [];
+      if (selectedVolunteer) {
+        if (selectedVolunteer.colony_ids && selectedVolunteer.colony_ids.length > 0) {
+          volunteerColonyIds = selectedVolunteer.colony_ids;
+        } else if (selectedVolunteer.colony_id) {
+          volunteerColonyIds = selectedVolunteer.colony_id
+            .split(',')
+            .map(id => Number(id.trim()))
+            .filter(id => !isNaN(id) && id > 0);
+        }
+      }
+
+      // If colony is selected, check if it belongs to the new volunteer
+      if (selectedFinancialColonyId) {
+        if (volunteerColonyIds.length > 0 && !volunteerColonyIds.includes(selectedFinancialColonyId)) {
+          // Selected colony doesn't belong to new volunteer, clear it
+          setSelectedFinancialColonyId(null);
+          setFinancialPrimaryPersons([]);
+          setSelectedFinancialPrimaryPersonIds([]);
+          setFinancialMembers([]);
+          setMemberInstallments({});
+        } else if (volunteerColonyIds.length > 0 && volunteerColonyIds.includes(selectedFinancialColonyId)) {
+          // Colony belongs to volunteer, reload primary persons with new volunteer filter
+          loadFinancialPrimaryPersons(selectedFinancialColonyId, selectedFinancialVolunteerId);
+          // Clear selected primary persons when volunteer changes
+          setSelectedFinancialPrimaryPersonIds([]);
+          setFinancialMembers([]);
+          setMemberInstallments({});
+        }
+      } else {
+        // Volunteer selected but no colony yet - just clear primary persons
+        setFinancialPrimaryPersons([]);
+        setSelectedFinancialPrimaryPersonIds([]);
+        setFinancialMembers([]);
+        setMemberInstallments({});
+      }
     }
-  }, [selectedFinancialVolunteerId]);
+  }, [selectedFinancialVolunteerId, financialAvailableVolunteers]);
 
   // Tab C - Handle installment checkbox change
   const handleMemberInstallmentChange = (memberId: number, installment: "inst_1_paid" | "inst_2_paid" | "inst_3_paid", checked: boolean) => {
@@ -3696,9 +3750,17 @@ const VoterMaster: React.FC = () => {
                                   <div
                                     key={volunteer.user_id}
                                     onClick={() => {
-                                      setSelectedFinancialVolunteerId(volunteer.user_id);
+                                      const newVolunteerId = volunteer.user_id;
+                                      setSelectedFinancialVolunteerId(newVolunteerId);
                                       setFinancialVolunteerSearchTerm("");
                                       setIsFinancialVolunteerDropdownOpen(false);
+                                      // If colony is already selected, reload primary persons with new volunteer filter
+                                      if (selectedFinancialColonyId) {
+                                        loadFinancialPrimaryPersons(selectedFinancialColonyId, newVolunteerId);
+                                        setSelectedFinancialPrimaryPersonIds([]);
+                                        setFinancialMembers([]);
+                                        setMemberInstallments({});
+                                      }
                                     }}
                                     className={`p-3 text-sm cursor-pointer hover:bg-blue-50 border-b border-gray-100 last:border-b-0 ${
                                       selectedFinancialVolunteerId === volunteer.user_id ? "bg-blue-100" : ""
@@ -3745,7 +3807,7 @@ const VoterMaster: React.FC = () => {
                     )}
                   </div>
                   <div className="flex-1 min-w-[200px]">
-                  {selectedFinancialColonyId && (
+                  {selectedFinancialColonyId && selectedFinancialVolunteerId && (
                   <div>
                     <Label>Select Primary Person (Multi) *</Label>
                     <div className="relative primary-person-dropdown-container">
@@ -3787,6 +3849,10 @@ const VoterMaster: React.FC = () => {
                           <div className="max-h-60 overflow-y-auto">
                             {loadingFinancialPrimaryPersons ? (
                               <div className="p-3 text-xs text-gray-500 text-center">Loading primary persons...</div>
+                            ) : financialPrimaryPersons.length === 0 ? (
+                              <div className="p-3 text-xs text-gray-500 text-center">
+                                No primary persons found for this volunteer and colony
+                              </div>
                             ) : (() => {
                               // Apply search filter
                               const filteredPersons = financialPrimaryPersons.filter(person => {
@@ -3804,7 +3870,7 @@ const VoterMaster: React.FC = () => {
                               });
 
                               if (filteredPersons.length === 0) {
-                                return <div className="p-3 text-xs text-gray-500 text-center">No primary persons found</div>;
+                                return <div className="p-3 text-xs text-gray-500 text-center">No primary persons match your search</div>;
                               }
 
                               return (
