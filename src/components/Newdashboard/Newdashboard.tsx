@@ -162,7 +162,7 @@ const Newdashboard: React.FC = () => {
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<string>(''); // '' means all users
   // Cache for family wise survey data (pre-fetched for performance)
-  const [isPreFetchingFamilyWise, setIsPreFetchingFamilyWise] = useState(false);
+  // const [isPreFetchingFamilyWise, setIsPreFetchingFamilyWise] = useState(false);
 
   // Family member modal state
   const [familyMemberModalOpen, setFamilyMemberModalOpen] = useState(false);
@@ -293,49 +293,49 @@ const Newdashboard: React.FC = () => {
   }, []);
 
   // Pre-fetch family wise survey data (called when component mounts or on other tabs)
-  const preFetchFamilyWiseSurveyData = async () => {
-    // Only pre-fetch if cache is empty and not already fetching
-    if (familyWiseSurveyData.length > 0 || isPreFetchingFamilyWise || familyWiseLoading) {
-      return;
-    }
+  // const preFetchFamilyWiseSurveyData = async () => {
+  //   // Only pre-fetch if cache is empty and not already fetching
+  //   if (familyWiseSurveyData.length > 0 || isPreFetchingFamilyWise || familyWiseLoading) {
+  //     return;
+  //   }
     
-    setIsPreFetchingFamilyWise(true);
-    try {
-      console.log("[Family Wise Survey] Pre-fetching data...");
-      const startTime = performance.now();
+  //   setIsPreFetchingFamilyWise(true);
+  //   try {
+  //     console.log("[Family Wise Survey] Pre-fetching data...");
+  //     const startTime = performance.now();
       
-      // Fetch all records in a single request with high limit
-      const response = await fetch(`/api/familywisesurvey?page=1&limit=50000`);
-      if (response.ok) {
-        const result = await response.json();
-        const data = Array.isArray(result) ? result : (result.data || []);
+  //     // Fetch all records in a single request with high limit
+  //     const response = await fetch(`/api/familywisesurvey?page=1&limit=50000`);
+  //     if (response.ok) {
+  //       const result = await response.json();
+  //       const data = Array.isArray(result) ? result : (result.data || []);
         
-        // If there are more pages, fetch them
-        if (result.pagination && result.pagination.totalPages > 1) {
-          let allData = [...data];
-          for (let page = 2; page <= result.pagination.totalPages; page++) {
-            const pageResponse = await fetch(`/api/familywisesurvey?page=${page}&limit=50000`);
-            if (pageResponse.ok) {
-              const pageResult = await pageResponse.json();
-              const pageData = Array.isArray(pageResult) ? pageResult : (pageResult.data || []);
-              allData = [...allData, ...pageData];
-            }
-          }
-          setFamilyWiseSurveyData(allData);
-          setFilteredFamilyWiseData(allData);
-          console.log(`[Family Wise Survey] Pre-fetched ${allData.length} records in ${(performance.now() - startTime).toFixed(2)}ms`);
-        } else {
-          setFamilyWiseSurveyData(data);
-          setFilteredFamilyWiseData(data);
-          console.log(`[Family Wise Survey] Pre-fetched ${data.length} records in ${(performance.now() - startTime).toFixed(2)}ms`);
-        }
-      }
-    } catch (e) {
-      console.error("[Family Wise Survey] Error pre-fetching data:", e);
-    } finally {
-      setIsPreFetchingFamilyWise(false);
-    }
-  };
+  //       // If there are more pages, fetch them
+  //       if (result.pagination && result.pagination.totalPages > 1) {
+  //         let allData = [...data];
+  //         for (let page = 2; page <= result.pagination.totalPages; page++) {
+  //           const pageResponse = await fetch(`/api/familywisesurvey?page=${page}&limit=50000`);
+  //           if (pageResponse.ok) {
+  //             const pageResult = await pageResponse.json();
+  //             const pageData = Array.isArray(pageResult) ? pageResult : (pageResult.data || []);
+  //             allData = [...allData, ...pageData];
+  //           }
+  //         }
+  //         setFamilyWiseSurveyData(allData);
+  //         setFilteredFamilyWiseData(allData);
+  //         console.log(`[Family Wise Survey] Pre-fetched ${allData.length} records in ${(performance.now() - startTime).toFixed(2)}ms`);
+  //       } else {
+  //         setFamilyWiseSurveyData(data);
+  //         setFilteredFamilyWiseData(data);
+  //         console.log(`[Family Wise Survey] Pre-fetched ${data.length} records in ${(performance.now() - startTime).toFixed(2)}ms`);
+  //       }
+  //     }
+  //   } catch (e) {
+  //     console.error("[Family Wise Survey] Error pre-fetching data:", e);
+  //   } finally {
+  //     setIsPreFetchingFamilyWise(false);
+  //   }
+  // };
 
   // Fetch family wise survey data from the API
   const fetchFamilyWiseSurveyData = useCallback(async () => {

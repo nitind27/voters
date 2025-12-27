@@ -101,7 +101,7 @@ const allNavItems: NavItem[] = [
   },
   {
     icon: <TbCategoryPlus />,
-    name: "Voter Status",
+    name: "Corporation list voting status",
     path: "/voterstatus",
   },
   // {

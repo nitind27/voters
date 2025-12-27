@@ -14,8 +14,8 @@ export async function GET(request: NextRequest) {
     const validLimit = limit && limit > 0 ? limit : null;
     const offset = validLimit ? (validPage - 1) * validLimit : 0;
 
-    // Get pending list - voters where updated_at IS NULL
-    let query = `SELECT 
+    // Get pending list - voters where voting_status = "Pending"
+    let query = `SELECT
          v.id,
          v.Voter_Id,
          v.full_name,
@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
          c.colony_name
        FROM tbl_voters_search v
        LEFT JOIN colony c ON v.Updated_colony = c.colony_id
-       WHERE v.updated_at IS NULL
+       WHERE v.voting_status = "Pending"
        ORDER BY v.id DESC`;
     
     const queryParams: number[] = [];
@@ -59,9 +59,9 @@ export async function GET(request: NextRequest) {
     const [rows] = await pool.query<RowDataPacket[]>(query, queryParams.length > 0 ? queryParams : undefined);
 
     const [countRows] = await pool.query<RowDataPacket[]>(
-      `SELECT COUNT(*) as total 
-       FROM tbl_voters_search 
-       WHERE updated_at IS NULL`,
+      `SELECT COUNT(*) as total
+       FROM tbl_voters_search
+       WHERE voting_status = "Pending"`,
     );
     const totalRecords = Number(countRows[0]?.total || 0);
 
