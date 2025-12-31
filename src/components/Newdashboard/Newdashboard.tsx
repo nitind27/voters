@@ -1143,43 +1143,36 @@ const Newdashboard: React.FC = () => {
       
       const familyMembers: FamilyWiseSurveyData[] = await response.json();
       
-      // Create list items for family members (only ENG_Full_name)
-      const listItems = familyMembers
+      // Create list items including primary person first (bold), then family members
+      const primaryPersonName = person.ENG_Full_name || person.full_name || "Primary Person";
+      const primaryPersonItem = `<p><strong>1. ${primaryPersonName}</strong></p>`;
+      
+      const familyListItems = familyMembers
         .filter(member => member.ENG_Full_name) // Only include members with English name
-        .map((member, idx) => `
-          <li style="padding: 8px 0; font-size: 14px; border-bottom: 1px solid #e5e7eb;">
-            ${idx + 1}. ${member.ENG_Full_name}
-          </li>
-        `).join('');
+        .map((member, idx) => `<p>${idx + 2}. ${member.ENG_Full_name}</p>`).join('');
+      
+      const allListItems = primaryPersonItem + familyListItems;
 
       const htmlContent = `
         <html>
           <head>
-            <title>Family Members - ${person.ENG_Full_name || person.full_name || person.Voter_Id}</title>
+            <title>Family Members - ${primaryPersonName}</title>
             <style>
               @page { size: A4; margin: 20mm; }
-              * { margin: 0; padding: 0; box-sizing: border-box; }
+              * { margin: 0; padding: 0; box-sizing: border-box; border: none; outline: none; text-decoration: none; }
               body { font-family: Arial, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 40px 20px; }
-              .header-section { text-align: center; margin-bottom: 40px; }
-              h1 { margin: 0 0 10px 0; font-size: 28px; font-weight: bold; color: #1f2937; }
-              .family-list-container { display: flex; justify-content: center; width: 100%; max-width: 600px; }
-              .family-list { list-style: none; padding: 0; margin: 0; width: 100%; text-align: center; }
-              .family-list li { padding: 12px 0; font-size: 16px; line-height: 1.8; color: #1f2937; }
+              .family-list-container { display: flex; flex-direction: column; align-items: center; width: 100%; max-width: 600px; }
+              .family-list-container p { margin: 0; padding: 0; font-size: 16px; line-height: 1.5; color: #1f2937; text-align: center; }
+              .family-list-container p strong { font-weight: bold; }
               @media print {
                 body { min-height: auto; padding: 20px; }
-                .header-section { margin-bottom: 30px; }
-                .family-list li { page-break-inside: avoid; }
+                .family-list-container p { page-break-inside: avoid; }
               }
             </style>
           </head>
           <body>
-            <div class="header-section">
-              <h1>${person.ENG_Full_name || person.full_name || person.Voter_Id || "Primary Person"}</h1>
-            </div>
             <div class="family-list-container">
-              <ul class="family-list">
-                ${listItems || '<li style="padding: 10px 0; color: #6b7280;">No family members found</li>'}
-              </ul>
+              ${allListItems || '<p style="color: #6b7280;">No family members found</p>'}
             </div>
           </body>
         </html>
