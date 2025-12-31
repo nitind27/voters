@@ -1143,68 +1143,43 @@ const Newdashboard: React.FC = () => {
       
       const familyMembers: FamilyWiseSurveyData[] = await response.json();
       
-      // Create table rows for family members
-      const tableRows = familyMembers.map((member, idx) => `
-        <tr>
-          <td style="padding: 6px; border: 1px solid #000; font-size: 11px; text-align: center;">${idx + 1}</td>
-          <td style="padding: 6px; border: 1px solid #000; font-size: 11px;">${member.Voter_Id || "N/A"}</td>
-          <td style="padding: 6px; border: 1px solid #000; font-size: 11px;">${member.full_name || "N/A"}</td>
-          <td style="padding: 6px; border: 1px solid #000; font-size: 11px;">${member.ENG_Full_name || "N/A"}</td>
-          <td style="padding: 6px; border: 1px solid #000; font-size: 11px; text-align: center;">${member.Age || "N/A"}</td>
-          <td style="padding: 6px; border: 1px solid #000; font-size: 11px; text-align: center;">${member.Gender || "N/A"}</td>
-          <td style="padding: 6px; border: 1px solid #000; font-size: 11px;">${member.updated_house_number || member.House_Number || "N/A"}</td>
-          <td style="padding: 6px; border: 1px solid #000; font-size: 11px;">${member.updated_mobile_no || "N/A"}</td>
-        </tr>
-      `).join('');
+      // Create list items for family members (only ENG_Full_name)
+      const listItems = familyMembers
+        .filter(member => member.ENG_Full_name) // Only include members with English name
+        .map((member, idx) => `
+          <li style="padding: 8px 0; font-size: 14px; border-bottom: 1px solid #e5e7eb;">
+            ${idx + 1}. ${member.ENG_Full_name}
+          </li>
+        `).join('');
 
       const htmlContent = `
         <html>
           <head>
-            <title>Family Members - ${person.full_name || person.Voter_Id}</title>
+            <title>Family Members - ${person.ENG_Full_name || person.full_name || person.Voter_Id}</title>
             <style>
-              @page { size: A4; margin: 15mm; }
-              body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
-              .header-section { position: sticky; top: 0; background-color: #ffffff; z-index: 100; padding: 15px 0; margin-bottom: 20px; border-bottom: 2px solid #e5e7eb; }
-              h1 { text-align: center; margin: 0 0 10px 0; font-size: 20px; font-weight: bold; color: #1f2937; }
-              .info { text-align: center; margin: 0; font-size: 12px; color: #6b7280; }
-              table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 20px; }
-              thead { position: sticky; top: 100px; z-index: 10; }
-              th { background-color: #f3f4f6; padding: 8px; border: 1px solid #000; font-weight: bold; text-align: center; font-size: 11px; }
-              td { padding: 6px; border: 1px solid #000; }
-              .summary { margin-top: 20px; padding: 10px; background-color: #f9fafb; border: 1px solid #d1d5db; }
-              .summary p { margin: 5px 0; font-size: 12px; }
+              @page { size: A4; margin: 20mm; }
+              * { margin: 0; padding: 0; box-sizing: border-box; }
+              body { font-family: Arial, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 40px 20px; }
+              .header-section { text-align: center; margin-bottom: 40px; }
+              h1 { margin: 0 0 10px 0; font-size: 28px; font-weight: bold; color: #1f2937; }
+              .family-list-container { display: flex; justify-content: center; width: 100%; max-width: 600px; }
+              .family-list { list-style: none; padding: 0; margin: 0; width: 100%; text-align: center; }
+              .family-list li { padding: 12px 0; font-size: 16px; line-height: 1.8; color: #1f2937; }
               @media print {
-                .header-section { position: fixed; top: 0; width: 100%; }
-                thead { position: fixed; top: 80px; }
-                body { padding-top: 100px; }
+                body { min-height: auto; padding: 20px; }
+                .header-section { margin-bottom: 30px; }
+                .family-list li { page-break-inside: avoid; }
               }
             </style>
           </head>
           <body>
             <div class="header-section">
-              <h1>${person.full_name || person.Voter_Id || "Primary Person"}</h1>
-              <div class="info">
-                <p>Voter ID: ${person.Voter_Id || "N/A"} | House No: ${person.updated_house_number || person.House_Number || "N/A"}</p>
-                <p>Generated on: ${new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
-              </div>
+              <h1>${person.ENG_Full_name || person.full_name || person.Voter_Id || "Primary Person"}</h1>
             </div>
-            <table>
-              <thead>
-                <tr>
-                  <th>Sr No</th>
-                  <th>Voter ID</th>
-                  <th>Full Name</th>
-                  <th>English Name</th>
-                  <th>Age</th>
-                  <th>Gender</th>
-                  <th>House No</th>
-                  <th>Mobile</th>
-                </tr>
-              </thead>
-              <tbody>${tableRows}</tbody>
-            </table>
-            <div class="summary">
-              <p><strong>Total Family Members: ${familyMembers.length}</strong></p>
+            <div class="family-list-container">
+              <ul class="family-list">
+                ${listItems || '<li style="padding: 10px 0; color: #6b7280;">No family members found</li>'}
+              </ul>
             </div>
           </body>
         </html>
@@ -1215,18 +1190,18 @@ const Newdashboard: React.FC = () => {
         printWindow.document.write(htmlContent);
         printWindow.document.close();
 
-        printWindow.onload = () => {
-          setTimeout(() => {
-            printWindow.print();
-          }, 250);
-        };
+        // printWindow.onload = () => {
+        //   setTimeout(() => {
+        //     printWindow.print();
+        //   }, 250);
+        // };
 
-        setTimeout(() => {
-          if (printWindow && !printWindow.closed) {
-            printWindow.focus();
-            printWindow.print();
-          }
-        }, 1000);
+        // setTimeout(() => {
+        //   if (printWindow && !printWindow.closed) {
+        //     printWindow.focus();
+        //     printWindow.print();
+        //   }
+        // }, 1000);
 
         toast.success('Family members print dialog opened!');
       } else {
