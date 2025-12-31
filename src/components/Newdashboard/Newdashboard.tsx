@@ -1130,6 +1130,116 @@ const Newdashboard: React.FC = () => {
     }
   }, [familyWiseColonyGroupedData]);
 
+  // Print family members for a specific primary person
+  const printFamilyMembers = async (person: FamilyWiseSurveyData) => {
+    try {
+      setLoading(true);
+      
+      // Fetch family members for this primary person
+      const response = await fetch(`/api/familywisesurvey?family_member_id=${person.Voter_Id}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch family members');
+      }
+      
+      const familyMembers: FamilyWiseSurveyData[] = await response.json();
+      
+      // Create table rows for family members
+      const tableRows = familyMembers.map((member, idx) => `
+        <tr>
+          <td style="padding: 6px; border: 1px solid #000; font-size: 11px; text-align: center;">${idx + 1}</td>
+          <td style="padding: 6px; border: 1px solid #000; font-size: 11px;">${member.Voter_Id || "N/A"}</td>
+          <td style="padding: 6px; border: 1px solid #000; font-size: 11px;">${member.full_name || "N/A"}</td>
+          <td style="padding: 6px; border: 1px solid #000; font-size: 11px;">${member.ENG_Full_name || "N/A"}</td>
+          <td style="padding: 6px; border: 1px solid #000; font-size: 11px; text-align: center;">${member.Age || "N/A"}</td>
+          <td style="padding: 6px; border: 1px solid #000; font-size: 11px; text-align: center;">${member.Gender || "N/A"}</td>
+          <td style="padding: 6px; border: 1px solid #000; font-size: 11px;">${member.updated_house_number || member.House_Number || "N/A"}</td>
+          <td style="padding: 6px; border: 1px solid #000; font-size: 11px;">${member.updated_mobile_no || "N/A"}</td>
+        </tr>
+      `).join('');
+
+      const htmlContent = `
+        <html>
+          <head>
+            <title>Family Members - ${person.full_name || person.Voter_Id}</title>
+            <style>
+              @page { size: A4; margin: 15mm; }
+              body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
+              .header-section { position: sticky; top: 0; background-color: #ffffff; z-index: 100; padding: 15px 0; margin-bottom: 20px; border-bottom: 2px solid #e5e7eb; }
+              h1 { text-align: center; margin: 0 0 10px 0; font-size: 20px; font-weight: bold; color: #1f2937; }
+              .info { text-align: center; margin: 0; font-size: 12px; color: #6b7280; }
+              table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 20px; }
+              thead { position: sticky; top: 100px; z-index: 10; }
+              th { background-color: #f3f4f6; padding: 8px; border: 1px solid #000; font-weight: bold; text-align: center; font-size: 11px; }
+              td { padding: 6px; border: 1px solid #000; }
+              .summary { margin-top: 20px; padding: 10px; background-color: #f9fafb; border: 1px solid #d1d5db; }
+              .summary p { margin: 5px 0; font-size: 12px; }
+              @media print {
+                .header-section { position: fixed; top: 0; width: 100%; }
+                thead { position: fixed; top: 80px; }
+                body { padding-top: 100px; }
+              }
+            </style>
+          </head>
+          <body>
+            <div class="header-section">
+              <h1>${person.full_name || person.Voter_Id || "Primary Person"}</h1>
+              <div class="info">
+                <p>Voter ID: ${person.Voter_Id || "N/A"} | House No: ${person.updated_house_number || person.House_Number || "N/A"}</p>
+                <p>Generated on: ${new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
+              </div>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Sr No</th>
+                  <th>Voter ID</th>
+                  <th>Full Name</th>
+                  <th>English Name</th>
+                  <th>Age</th>
+                  <th>Gender</th>
+                  <th>House No</th>
+                  <th>Mobile</th>
+                </tr>
+              </thead>
+              <tbody>${tableRows}</tbody>
+            </table>
+            <div class="summary">
+              <p><strong>Total Family Members: ${familyMembers.length}</strong></p>
+            </div>
+          </body>
+        </html>
+      `;
+
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.write(htmlContent);
+        printWindow.document.close();
+
+        printWindow.onload = () => {
+          setTimeout(() => {
+            printWindow.print();
+          }, 250);
+        };
+
+        setTimeout(() => {
+          if (printWindow && !printWindow.closed) {
+            printWindow.focus();
+            printWindow.print();
+          }
+        }, 1000);
+
+        toast.success('Family members print dialog opened!');
+      } else {
+        toast.error('Please allow popups to print');
+      }
+    } catch (error) {
+      console.error('Error printing family members:', error);
+      toast.error('Failed to load family members for printing');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Export family wise survey colony data to Excel
   const exportFamilyWiseColonyToExcel = async (colonyData: FamilyWiseColonyData) => {
     try {
@@ -3075,10 +3185,24 @@ const Newdashboard: React.FC = () => {
                         </td>
                         <td className="px-3 py-2 border">{person.updated_house_number || person.House_Number || "N/A"}</td>
                         <td className="px-3 py-2 border font-mono">{person.updated_mobile_no || "N/A"}</td>
-                        <td className="px-3 py-2 border text-center">
-                          <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-700 rounded-full">
-                            {person.family_member_count || 0}
-                          </span>
+                        <td className="px-3 py-2 border">
+                          <div className="flex items-center justify-center gap-1.5">
+                            <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-blue-100 text-blue-700 rounded-full whitespace-nowrap">
+                              {person.family_member_count || 0}
+                            </span>
+                            {(person.family_member_count || 0) > 0 && (
+                              <button
+                                onClick={() => printFamilyMembers(person)}
+                                disabled={loading}
+                                className="inline-flex items-center justify-center p-1.5 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                title="Print Family Members"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                                </svg>
+                              </button>
+                            )}
+                          </div>
                         </td>
                         <td className="px-3 py-2 border text-blue-600">{person.user_name || "N/A"}</td>
                       </tr>
