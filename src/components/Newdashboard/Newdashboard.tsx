@@ -1144,12 +1144,12 @@ const Newdashboard: React.FC = () => {
       const familyMembers: FamilyWiseSurveyData[] = await response.json();
       
       // Create list items including primary person first (bold), then family members
-      const primaryPersonName = person.ENG_Full_name || person.full_name || "Primary Person";
+      const primaryPersonName = person.full_name || "Primary Person";
       const primaryPersonItem = `<p><strong>1. ${primaryPersonName}</strong></p>`;
       
       const familyListItems = familyMembers
-        .filter(member => member.ENG_Full_name) // Only include members with English name
-        .map((member, idx) => `<p>${idx + 2}. ${member.ENG_Full_name}</p>`).join('');
+        .filter(member => member.full_name) // Only include members with Marathi name
+        .map((member, idx) => `<p>${idx + 2}. ${member.full_name}</p>`).join('');
       
       const allListItems = primaryPersonItem + familyListItems;
 
@@ -1158,11 +1158,11 @@ const Newdashboard: React.FC = () => {
           <head>
             <title>Family Members - ${primaryPersonName}</title>
             <style>
-              @page { size: A4; margin: 20mm; }
+              @page { size: A4; margin: 20mm; orientation: portrait; }
               * { margin: 0; padding: 0; box-sizing: border-box; border: none; outline: none; text-decoration: none; }
               body { font-family: Arial, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 40px 20px; }
-              .family-list-container { display: flex; flex-direction: column; align-items: center; width: 100%; max-width: 600px; }
-              .family-list-container p { margin: 0; padding: 0; font-size: 16px; line-height: 1.5; color: #1f2937; text-align: center; }
+              .family-list-container { display: flex; flex-direction: column; align-items: flex-start; width: 100%; max-width: 600px; }
+              .family-list-container p { margin: 0; padding: 8px 0; font-size: 20px; line-height: 1.6; color: #1f2937; text-align: left; }
               .family-list-container p strong { font-weight: bold; }
               @media print {
                 body { min-height: auto; padding: 20px; }
