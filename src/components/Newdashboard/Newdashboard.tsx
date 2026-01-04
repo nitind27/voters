@@ -1160,12 +1160,12 @@ const Newdashboard: React.FC = () => {
             <style>
               @page { size: A4; margin: 20mm; orientation: portrait; }
               * { margin: 0; padding: 0; box-sizing: border-box; border: none; outline: none; text-decoration: none; }
-              body { font-family: Arial, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 40px 20px; }
+              body { font-family: Arial, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 1vh; padding: 4px 2px; }
               .family-list-container { display: flex; flex-direction: column; align-items: flex-start; width: 100%; max-width: 600px; }
-              .family-list-container p { margin: 0; padding: 8px 0; font-size: 20px; line-height: 1.6; color: #1f2937; text-align: left; }
+              .family-list-container p { margin: 0; padding: 8px 0; font-size: 16px; line-height: 1; color: #1f2937; text-align: left; }
               .family-list-container p strong { font-weight: bold; }
               @media print {
-                body { min-height: auto; padding: 20px; }
+                body { min-height: auto; padding: 2px; }
                 .family-list-container p { page-break-inside: avoid; }
               }
             </style>
