@@ -62,7 +62,7 @@ const SchemesDashboardcounting = ({ farmersData }: { farmersData: AllFarmersData
     const [filteredFarmers, setFilteredFarmers] = useState<FarmdersType[]>([]);
 
     const [currentPage, setCurrentPage] = useState(1);
-    const rowsPerPage = 10;
+    const rowsPerPage = 50;
 
     useEffect(() => {
         if (farmersData) {

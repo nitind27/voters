@@ -1,6 +1,7 @@
 "use client"
 import React, { useState, useMemo } from "react";
 import { Column, FilterOption } from "./tabletype";
+import Pagination from "./Pagination";
 
 type ServerSidePagination = {
   total: number;
@@ -30,7 +31,7 @@ export function Simpletableshowdatafilter<T extends object>({
   filterKey,
   searchKey,
 
-  rowsPerPage = 5,
+  rowsPerPage = 50,
   serverSidePagination,
 }: Props<T>) {
   const [search, setSearch] = useState("");
@@ -163,29 +164,20 @@ export function Simpletableshowdatafilter<T extends object>({
       </div>
 
       {/* Pagination */}
-      <div className="flex flex-col md:flex-row items-center justify-between mt-6 gap-4">
-        <div className="text-sm text-gray-600">
-          Showing {(currentPage - 1) * rowsPerPage + 1} - 
-          {Math.min(currentPage * rowsPerPage, totalItems)} of {totalItems}
+      {totalPages > 0 && (
+        <div className="flex flex-col md:flex-row items-center justify-between mt-6 gap-4">
+          <div className="text-sm text-gray-600">
+            Showing {(currentPage - 1) * rowsPerPage + 1} - 
+            {Math.min(currentPage * rowsPerPage, totalItems)} of {totalItems}
+          </div>
+          
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={handlePageChange}
+          />
         </div>
-        
-        <div className="flex gap-2 whitespace-nowrap w-full">
-          <button
-            className="px-4 py-2 border rounded-lg hover:bg-gray-100 disabled:opacity-50 transition-colors"
-            disabled={currentPage === 1}
-            onClick={() => handlePageChange(currentPage - 1)}
-          >
-            Previous
-          </button>
-          <button
-            className="px-4 py-2 border rounded-lg hover:bg-gray-100 disabled:opacity-50 transition-colors"
-            disabled={currentPage === totalPages || totalPages === 0}
-            onClick={() => handlePageChange(currentPage + 1)}
-          >
-            Next
-          </button>
-        </div>
-      </div>
+      )}
     </div>
   );
 }

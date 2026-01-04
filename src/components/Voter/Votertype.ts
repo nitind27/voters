@@ -21,6 +21,7 @@ export interface colonyentrydatatype {
 export interface voterdayatype {
     voter_id   : number;
     colony_entry_id: string;
+    // user_id: string;
     first_name : string;
     middle_name: string;
     last_name: string;
@@ -29,19 +30,26 @@ export interface voterdayatype {
     gender: string;
     relation: string;
     house_number: string;
+    availability: string;
     dob: string;
     aadhaar_number: string;
     booth_number: string;
     photo: string;
     colony_name: string;
+    type_status: string;
+    edited: string;
    
     mobile: string;
     user_id: string;
     findatasorting: string;
+    first_name_mr: string;
+    middle_name_mr: string;
+    last_name_mr: string;
     full_name_mr: string;
     Voterlist: number;
     status: string;
     Findatasorting?: number; // Add this field for the radio button values
+    female_survey?: number; // Field for female voter survey (Yes/No)
   
 
 

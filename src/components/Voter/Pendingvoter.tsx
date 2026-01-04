@@ -25,7 +25,7 @@ type Props = {
   voterentry: voterdayatype[];
 };
 
-const Pendingvoter: React.FC<Props> = ({ voterentry,colonyentry }: Props) => {
+const Pendingvoter: React.FC<Props> = ({ voterentry, colonyentry }: Props) => {
   const [data] = useState<voterdayatype[]>(voterentry || []);
   const [filteredData, setFilteredData] = useState<voterdayatype[]>(voterentry || []);
   // const [inputValue, setInputValue] = useState('');
@@ -41,7 +41,7 @@ const Pendingvoter: React.FC<Props> = ({ voterentry,colonyentry }: Props) => {
 
   // Modal for voters per colony
   const [isModalOpen, setIsModalOpen] = useState(false);
-//   const [selectedColonyId, setSelectedColonyId] = useState<string | null>(null);
+  //   const [selectedColonyId, setSelectedColonyId] = useState<string | null>(null);
   const [selectedColonyName, setSelectedColonyName] = useState<string>('');
   const [colonyVoters, setColonyVoters] = useState<voterdayatype[]>([]);
 
@@ -123,7 +123,7 @@ const Pendingvoter: React.FC<Props> = ({ voterentry,colonyentry }: Props) => {
 
 
 
- 
+
 
   const columns: Column<voterdayatype>[] = [
     {
@@ -219,7 +219,15 @@ const Pendingvoter: React.FC<Props> = ({ voterentry,colonyentry }: Props) => {
             />
           ) : (
             <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
-              <span className="text-gray-500 text-xs">No Photo</span>
+              <img
+                src={`/images/user/npimg.jpg`}
+                alt="Voter Photo"
+                className="w-10 h-10 rounded-full object-cover border-2 border-gray-200 cursor-pointer"
+                title="Click to preview"
+                onError={(e) => {
+                  e.currentTarget.src = '/images/user/npimg.jpg';
+                }}
+              />
             </div>
           )}
         </div>
@@ -245,23 +253,21 @@ const Pendingvoter: React.FC<Props> = ({ voterentry,colonyentry }: Props) => {
     <div className="">
       {/* Tabs */}
       <div className="flex gap-6 mb-4 border-b border-gray-300">
-  <div
-    onClick={() => setActiveTab('colony')}
-    className={`cursor-pointer pb-2 font-medium ${
-      activeTab === 'colony' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-700'
-    }`}
-  >
-    Colony Wise
-  </div>
-  <div
-    onClick={() => setActiveTab('pending')}
-    className={`cursor-pointer pb-2 font-medium ${
-      activeTab === 'pending' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-700'
-    }`}
-  >
-    Pending Voting 
-  </div>
-</div>
+        <div
+          onClick={() => setActiveTab('colony')}
+          className={`cursor-pointer pb-2 font-medium ${activeTab === 'colony' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-700'
+            }`}
+        >
+          Colony Wise
+        </div>
+        <div
+          onClick={() => setActiveTab('pending')}
+          className={`cursor-pointer pb-2 font-medium ${activeTab === 'pending' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-gray-700'
+            }`}
+        >
+          Pending Voting
+        </div>
+      </div>
 
       {/* Colony Wise Tab */}
       {activeTab === 'pending' && (

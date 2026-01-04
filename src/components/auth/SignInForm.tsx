@@ -42,17 +42,39 @@ export default function SignInForm() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || 'Login failed');
+        // Backend already validated category_id, so show backend error message
+        toast.error(data.message || 'Login failed');
+        setIsLoading(false);
+        return;
       }
 
-      // ✅ Store name in session storage
-      if (data.user.name) {
-        sessionStorage.setItem('userName', data.user.name);
-        sessionStorage.setItem('category_name', data.user.category_name);
-        sessionStorage.setItem('category_id', data.user.category_id);
-        sessionStorage.setItem('village_id', data.user.village_id);
-        sessionStorage.setItem('taluka_id', data.user.taluka_id);
-        sessionStorage.setItem('userid', data.user.user_id);
+      // Backend has already validated category_id === 1 or 6, so we can safely store data
+      // ✅ Store user data in session storage
+      if (data.user) {
+        if (data.user.name) {
+          sessionStorage.setItem('userName', data.user.name);
+        }
+        
+        if (data.user.category_name !== undefined && data.user.category_name !== null) {
+          sessionStorage.setItem('category_name', String(data.user.category_name));
+        }
+        
+        // category_id is guaranteed to be 1 or 6 from backend validation
+        if (data.user.category_id !== undefined && data.user.category_id !== null) {
+          sessionStorage.setItem('category_id', String(data.user.category_id));
+        }
+        
+        if (data.user.village_id !== undefined && data.user.village_id !== null) {
+          sessionStorage.setItem('village_id', String(data.user.village_id));
+        }
+        
+        if (data.user.taluka_id !== undefined && data.user.taluka_id !== null) {
+          sessionStorage.setItem('taluka_id', String(data.user.taluka_id));
+        }
+        
+        if (data.user.user_id !== undefined && data.user.user_id !== null) {
+          sessionStorage.setItem('userid', String(data.user.user_id));
+        }
       }
       if (isChecked) {
         localStorage.setItem('rememberedUsername', formData.username);
@@ -62,11 +84,10 @@ export default function SignInForm() {
         localStorage.removeItem('rememberedpassword');
       }
 
-
       setIsLoading(true); // Set loading to true before redirect
-    
-        router.push('/');
-       
+
+      router.push('/');
+
     } catch (error) {
       console.error('Login error:', error);
       toast.error('Invalid credentials');
@@ -175,7 +196,7 @@ export default function SignInForm() {
                 </div>
                 <div className="text-center">
                   <Link
-                    href="/signin"
+                    href="/privacy_policy"
                     target="_blank"
                     className="text-sm underline text-brand-500 hover:text-brand-600 dark:text-brand-400 cursor-pointer "
                   >

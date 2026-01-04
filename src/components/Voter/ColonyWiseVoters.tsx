@@ -4,6 +4,10 @@ import { toast } from "react-toastify";
 import { colonyentrydatatype, voterdayatype } from "./Votertype";
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
+import VoterEditModal from "./VoterEditModal";
+import { PencilIcon, TrashBinIcon } from "@/icons";
+import VoterAddModal from "./VoterAddModal";
+
 
 type Props = {
   colonyentry: colonyentrydatatype[];
@@ -33,11 +37,47 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState<'individual' | 'family'>('individual');
   const [houseData, setHouseData] = useState<HouseData[]>([]);
+  const [colonyid, setcolonyid] = useState("");
   const [selectedHouseNumber, setSelectedHouseNumber] = useState<string>("");
   const [houseVoters, setHouseVoters] = useState<voterdayatype[]>([]);
   const [isHouseModalOpen, setIsHouseModalOpen] = useState(false);
   const [houseSearchTerm, setHouseSearchTerm] = useState("");
   const [houseModalSearchTerm, setHouseModalSearchTerm] = useState("");
+
+  // NEW: transient highlight state for house cards (flash on add/update)
+  const [flashHouses, setFlashHouses] = useState<Set<string>>(new Set());
+  const flashTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+
+  const triggerHouseFlash = (houseNumber: string, duration = 2000) => {
+    if (!houseNumber) return;
+    setFlashHouses(prev => {
+      const next = new Set(prev);
+      next.add(houseNumber);
+      return next;
+    });
+    if (flashTimersRef.current[houseNumber]) {
+      clearTimeout(flashTimersRef.current[houseNumber]);
+    }
+    flashTimersRef.current[houseNumber] = setTimeout(() => {
+      setFlashHouses(prev => {
+        const next = new Set(prev);
+        next.delete(houseNumber);
+        return next;
+      });
+      delete flashTimersRef.current[houseNumber];
+    }, duration);
+  };
+
+  useEffect(() => {
+    return () => {
+      Object.values(flashTimersRef.current).forEach(clearTimeout);
+      flashTimersRef.current = {};
+    };
+  }, []);
+
+  // NEW: edit modal state
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editVoter, setEditVoter] = useState<voterdayatype | null>(null);
   // Map colony_entry_id -> colony_id (string keys for safety)
   const colonyEntryToColony = useMemo(() => {
     const m = new Map<string, string>();
@@ -59,20 +99,41 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
     return map;
   }, [voterentry, colonyEntryToColony]);
 
-  // Filter voters based on search term
+  // Filter voters based on search term and sort by house number
   const filteredColonyVoters = useMemo(() => {
-    if (!searchTerm.trim()) return colonyVoters;
-    const term = searchTerm.toLowerCase();
-    return colonyVoters.filter((voter) => {
-      const fullName = (voter.full_name ||
-        [voter.first_name, voter.middle_name, voter.last_name].filter(Boolean).join(" ")).toLowerCase();
-      const fullNameMr = (voter.full_name_mr || "").toLowerCase();
-      const houseNumber = (voter.house_number || "").toLowerCase();
-      const voterNumber = (voter.voter_number || "").toLowerCase();
-      const mobile = (voter.mobile || "").toLowerCase();
-      const boothNumber = (voter.booth_number || "").toLowerCase();
-      return fullName.includes(term) || fullNameMr.includes(term) || houseNumber.includes(term) ||
-        voterNumber.includes(term) || mobile.includes(term) || boothNumber.includes(term);
+    let filtered = colonyVoters;
+
+    // Apply search filter if search term exists
+    if (searchTerm.trim()) {
+      const term = searchTerm.toLowerCase();
+      filtered = colonyVoters.filter((voter) => {
+        const fullName = (voter.full_name ||
+          [voter.first_name, voter.middle_name, voter.last_name].filter(Boolean).join(" ")).toLowerCase();
+        const fullNameMr = (voter.full_name_mr || "").toLowerCase();
+        const houseNumber = (voter.house_number || "").toLowerCase();
+        const voterNumber = (voter.voter_number || "").toLowerCase();
+        const mobile = (voter.mobile || "").toLowerCase();
+        const boothNumber = (voter.booth_number || "").toLowerCase();
+        return fullName.includes(term) || fullNameMr.includes(term) || houseNumber.includes(term) ||
+          voterNumber.includes(term) || mobile.includes(term) || boothNumber.includes(term);
+      });
+    }
+
+    // Sort by house number in ascending order
+    return filtered.sort((a, b) => {
+      const aHouseNum = a.house_number || '';
+      const bHouseNum = b.house_number || '';
+
+      // Try to parse as numbers first
+      const aNum = parseInt(aHouseNum);
+      const bNum = parseInt(bHouseNum);
+
+      if (!isNaN(aNum) && !isNaN(bNum)) {
+        return aNum - bNum;
+      }
+
+      // If not numbers, sort alphabetically
+      return aHouseNum.localeCompare(bHouseNum);
     });
   }, [colonyVoters, searchTerm]);
 
@@ -91,16 +152,28 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
   }, [houseData, houseSearchTerm]);
 
   const filteredHouseModalVoters = useMemo(() => {
-    if (!houseModalSearchTerm.trim()) return houseVoters;
-    const term = houseModalSearchTerm.toLowerCase();
-    return houseVoters.filter(v => {
-      const fullName = (v.full_name || [v.first_name, v.middle_name, v.last_name].filter(Boolean).join(" ")).toLowerCase();
-      return fullName.includes(term) ||
-        (v.voter_number || "").toLowerCase().includes(term) ||
-        (v.mobile || "").toLowerCase().includes(term) ||
-        (v.booth_number || "").toLowerCase().includes(term) ||
-        (v.gender || "").toLowerCase().includes(term) ||
-        (v.relation || "").toLowerCase().includes(term);
+    let list = houseVoters;
+
+    if (houseModalSearchTerm.trim()) {
+      const term = houseModalSearchTerm.toLowerCase();
+      list = houseVoters.filter(v => {
+        const fullName = (v.full_name || [v.first_name, v.middle_name, v.last_name].filter(Boolean).join(" ")).toLowerCase();
+        return fullName.includes(term) ||
+          (v.voter_number || "").toLowerCase().includes(term) ||
+          (v.mobile || "").toLowerCase().includes(term) ||
+          (v.booth_number || "").toLowerCase().includes(term) ||
+          (v.gender || "").toLowerCase().includes(term) ||
+          (v.relation || "").toLowerCase().includes(term);
+      });
+    }
+
+    // Sort so "Primary Person" shows first
+    return [...list].sort((a, b) => {
+      const aIsPrimary = (a.relation || "").toLowerCase() === "primary person";
+      const bIsPrimary = (b.relation || "").toLowerCase() === "primary person";
+      if (aIsPrimary && !bIsPrimary) return -1;
+      if (!aIsPrimary && bIsPrimary) return 1;
+      return 0;
     });
   }, [houseVoters, houseModalSearchTerm]);
   // Load colonies from /api/colony
@@ -125,6 +198,7 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
 
   const openModalForColony = (colonyId: string, colonyName: string) => {
     setSelectedColonyName(colonyName);
+    setcolonyid(colonyId)
     const list = votersByColonyId.get(colonyId) || [];
     setColonyVoters(list);
     setSearchTerm("");
@@ -185,57 +259,155 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
     setHouseModalSearchTerm("");
   };
 
+  // NEW: open edit modal for a voter
+  const handleOpenEdit = (v: voterdayatype) => {
+    setEditVoter(v);
+    setIsEditOpen(true);
+  };
+
+  // NEW: when a voter is updated, reflect in both tables if present
+  // NEW: when a voter is updated, reflect in both tables if present
+  // NEW: when a voter is updated, reflect everywhere and flash the card
+  const handleVoterUpdated = (updated: voterdayatype) => {
+    // normalize: 'edited' must be string
+    const upd: voterdayatype = {
+      ...(updated),
+      edited: String((updated)?.edited ?? '1'),
+    } as voterdayatype;
+
+    setColonyVoters(prev =>
+      prev.map(x => x.voter_id === upd.voter_id ? { ...x, ...upd } as voterdayatype : x)
+    );
+    setHouseVoters(prev =>
+      prev.map(x => x.voter_id === upd.voter_id ? { ...x, ...upd } as voterdayatype : x)
+    );
+
+    setHouseData(prev => {
+      let changed = false;
+      const next = prev.map(h => {
+        const voters = h.voters.map(v => {
+          if (v.voter_id === upd.voter_id) {
+            changed = true;
+            return { ...v, ...upd } as voterdayatype;
+          }
+          return v;
+        });
+        const hadVoter = h.voters.some(v => v.voter_id === upd.voter_id);
+        const isTargetHouse = h.house_number === upd.house_number;
+        if (hadVoter && !isTargetHouse) {
+          const removed = h.voters.filter(v => v.voter_id !== upd.voter_id);
+          return { ...h, voters: removed, count: removed.length };
+        }
+        if (!hadVoter && isTargetHouse) {
+          const added = [...h.voters, upd] as voterdayatype[];
+          changed = true;
+          return { ...h, voters: added, count: added.length };
+        }
+        return { ...h, voters, count: voters.length };
+      });
+      return changed ? next : prev;
+    });
+
+    triggerHouseFlash(upd.house_number || selectedHouseNumber);
+  };
+  // NEW: delete voter via API and update lists
+  const handleDelete = async (v: voterdayatype) => {
+    if (!v.voter_id) return;
+    const ok = confirm("Are you sure you want to delete this voter?");
+    if (!ok) return;
+    try {
+      const res = await fetch("/api/voterdetails", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ voter_id: v.voter_id }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error || "Delete failed");
+      setColonyVoters(prev => prev.filter(x => x.voter_id !== v.voter_id));
+      setHouseVoters(prev => prev.filter(x => x.voter_id !== v.voter_id));
+      toast.success("Voter deleted");
+    } catch (e) {
+      console.error(e);
+      toast.error(e instanceof Error ? e.message : "Failed to delete");
+    }
+  };
   // Filter colonies by selected id
   const visibleColonies = useMemo(() => {
     if (!selectedColonyId) return colonyList;
     return colonyList.filter(c => String(c.colony_id) === String(selectedColonyId));
   }, [colonyList, selectedColonyId]);
 
-  // Export to Excel function
-  // Export to Excel function
+  // Export to Excel function - Creates one sheet per colony with detailed voter data
   const exportToExcel = async () => {
     try {
-      // Prepare data for export
-      const exportData = visibleColonies.map((col, idx) => {
+      // Create workbook
+      const wb = XLSX.utils.book_new();
+
+      // Helper function to sanitize sheet name (Excel sheet names have restrictions)
+      const sanitizeSheetName = (name: string): string => {
+        // Excel sheet name restrictions:
+        // - Max 31 characters
+        // - Cannot contain: [ ] : * ? / \
+        const sanitized = name
+          .replace(/[\[\]:*?\/\\]/g, '') // Remove invalid characters
+          .substring(0, 31); // Limit to 31 characters
+        return sanitized || 'Sheet'; // Fallback if empty
+      };
+
+      // Create one sheet per colony with detailed voter data
+      visibleColonies.forEach((col) => {
         const cid = String(col.colony_id);
         const votersList = votersByColonyId.get(cid) || [];
-        const count = votersList.length || 0;
-        const totalHouses = new Set(
-          votersList.map(v => v.house_number || 'No House Number')
-        ).size;
 
-        return {
+        // Prepare detailed voter data for this colony
+        const exportData = votersList.map((voter, idx) => ({
           'Sr No': idx + 1,
-          'Colony Name': col.colony_name,
-          'Voter Count': count,
-          'Total Houses': totalHouses
-        };
+          'Full Name': voter.full_name || [voter.first_name, voter.middle_name, voter.last_name].filter(Boolean).join(" "),
+          'Full Name (Marathi)': voter.full_name_mr || '',
+          'House Number': voter.house_number || '',
+          'Voter Number': voter.voter_number || '',
+          'Mobile': voter.mobile || 'N/A',
+          'Booth Number': voter.booth_number || '',
+          'Gender': voter.gender || '',
+          'Date of Birth': voter.dob || '',
+          'Aadhaar Number': voter.aadhaar_number || '',
+          'Relation': voter.relation || ''
+        }));
+
+        // Create worksheet for this colony
+        const ws = XLSX.utils.json_to_sheet(exportData);
+
+        // Set column widths
+        ws['!cols'] = [
+          { wch: 8 },   // Sr No
+          { wch: 25 },  // Full Name
+          { wch: 25 },  // Full Name (Marathi)
+          { wch: 15 },  // House Number
+          { wch: 15 },  // Voter Number
+          { wch: 15 },  // Mobile
+          { wch: 15 },  // Booth Number
+          { wch: 10 },  // Gender
+          { wch: 15 },  // Date of Birth
+          { wch: 18 },  // Aadhaar Number
+          { wch: 15 }   // Relation
+        ];
+
+        // Sanitize colony name for sheet name
+        const sheetName = sanitizeSheetName(col.colony_name);
+
+        // Add worksheet to workbook with colony name as sheet name
+        XLSX.utils.book_append_sheet(wb, ws, sheetName);
       });
-
-      // Create workbook and worksheet
-      const wb = XLSX.utils.book_new();
-      const ws = XLSX.utils.json_to_sheet(exportData);
-
-      // Set column widths
-      ws['!cols'] = [
-        { wch: 8 },  // Sr No
-        { wch: 30 }, // Colony Name
-        { wch: 15 }, // Voter Count
-        { wch: 15 }  // Total Houses
-      ];
-
-      // Add worksheet to workbook
-      XLSX.utils.book_append_sheet(wb, ws, 'Colony Wise Voters');
 
       // Generate Excel file
       const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
       const data = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 
       // Save file
-      const fileName = `Colony_Wise_Voters_${new Date().toISOString().split('T')[0]}.xlsx`;
+      const fileName = `All_Colonies_Voters_${new Date().toISOString().split('T')[0]}.xlsx`;
       saveAs(data, fileName);
 
-      toast.success('Excel file downloaded successfully!');
+      toast.success(`Excel file downloaded successfully with ${visibleColonies.length} sheets!`);
     } catch (error) {
       console.error('Error exporting to Excel:', error);
       toast.error('Failed to export Excel file');
@@ -281,8 +453,8 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
         </html>
       `);
       printWindow.document.close();
-      printWindow.print();
-      printWindow.close();
+      //printWindow.print();
+      //printWindow.close();
 
       toast.success('PDF print dialog opened!');
     } catch (error) {
@@ -410,10 +582,10 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
 
         // Wait for content to load then print
         setTimeout(() => {
-          printWindow.print();
+          //printWindow.print();
           // Close window after printing
           setTimeout(() => {
-            printWindow.close();
+            //printWindow.close();
           }, 1000);
         }, 500);
 
@@ -511,9 +683,9 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
         printWindow.document.close();
 
         setTimeout(() => {
-          printWindow.print();
+          //printWindow.print();
           setTimeout(() => {
-            printWindow.close();
+            //printWindow.close();
           }, 1000);
         }, 500);
 
@@ -643,9 +815,9 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
         printWindow.document.close();
 
         setTimeout(() => {
-          printWindow.print();
+          //printWindow.print();
           setTimeout(() => {
-            printWindow.close();
+            //printWindow.close();
           }, 1000);
         }, 500);
 
@@ -678,6 +850,45 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
       setTimeout(() => houseModalSearchRef.current?.focus(), 50);
     }
   }, [isHouseModalOpen]);
+
+
+  // Add modal state
+  const [isAddOpen, setIsAddOpen] = useState(false);
+  // const [ setAddModalColonyId] = useState<string>("");
+  const [addModalColonyName, setAddModalColonyName] = useState<string>("");
+  const [addModalHouseNumber, setAddModalHouseNumber] = useState<string>("");
+
+  const handleOpenAddModal = (colonyId?: string, colonyName?: string, houseNumber?: string) => {
+    // setAddModalColonyId(colonyId || selectedColonyId);
+    setAddModalColonyName(colonyName || selectedColonyName);
+    setAddModalHouseNumber(houseNumber || "");
+    setIsAddOpen(true);
+  };
+
+  const handleVoterAdded = (newVoter: voterdayatype) => {
+    // If same colony, append to Individual list
+    const newCid = colonyEntryToColony.get(String(newVoter.colony_entry_id));
+    if (String(newCid || "") === String(selectedColonyId || "")) {
+      newVoter = { ...(newVoter), edited: String((newVoter)?.edited ?? '1') } as voterdayatype;
+      setColonyVoters(prev => [...prev, newVoter]);
+    }
+    // If house modal open for the same house, append there too
+    if (selectedHouseNumber && newVoter.house_number === selectedHouseNumber) {
+      setHouseVoters(prev => [...prev, newVoter]);
+    }
+    // Update house cards count + voters list
+    setHouseData(prev => {
+      const idx = prev.findIndex(h => h.house_number === newVoter.house_number);
+      if (idx < 0) return prev;
+      const copy = [...prev];
+      const target = copy[idx];
+      copy[idx] = { ...target, count: target.count + 1, voters: [...target.voters, newVoter] };
+      return copy;
+    });
+
+    // NEW: flash the house card where the voter was added
+    triggerHouseFlash(newVoter.house_number || selectedHouseNumber);
+  };
 
   return (
     <div className="bg-white rounded-2xl shadow-md border p-4">
@@ -882,9 +1093,9 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
                                 printWindow.document.close();
 
                                 setTimeout(() => {
-                                  printWindow.print();
+                                  //printWindow.print();
                                   setTimeout(() => {
-                                    printWindow.close();
+                                    //printWindow.close();
                                   }, 1000);
                                 }, 500);
 
@@ -1020,11 +1231,13 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
                         <tr className="bg-gray-50">
                           <th className="px-3 py-2 border text-left">Sr</th>
                           <th className="px-3 py-2 border text-left">Full Name</th>
+                          <th className="px-3 py-2 border text-left">Gender</th>
                           <th className="px-3 py-2 border text-left">House No</th>
                           <th className="px-3 py-2 border text-left">Voter No.</th>
                           <th className="px-3 py-2 border text-left">Mobile</th>
                           <th className="px-3 py-2 border text-left">Booth</th>
                           <th className="px-3 py-2 border text-left">Photo</th>
+
                         </tr>
                       </thead>
                       <tbody>
@@ -1036,7 +1249,10 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
                           </tr>
                         )}
                         {filteredColonyVoters.map((v, i) => (
-                          <tr key={v.voter_id} className="hover:bg-gray-50">
+                          <tr
+                            key={v.voter_id}
+                            className={`${Number(v.edited) === 1 ? 'bg-green-50' : ''} hover:bg-gray-50`}
+                          >
                             <td className="px-3 py-2 border align-top">{i + 1}</td>
                             <td className="px-3 py-2 border align-top">
                               {v.full_name ||
@@ -1045,6 +1261,9 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
                                   .join(" ")}
                               {" "}
                               ({v.full_name_mr})
+                            </td>
+                            <td className="px-3 py-2 border align-top">
+                              {v.gender}
                             </td>
                             <td className="px-3 py-2 border align-top">
                               {v.house_number}
@@ -1058,18 +1277,19 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
                             <td className="px-3 py-2 border align-top">{v.booth_number}</td>
                             <td className="px-3 py-2 border align-top">
                               <img
-                                src={`https://vishalnawle.in/vishalnavle/flutter_api_voters/voter_photos/${v.photo}`}
+                                src={`https://voterbackend.weclocks.online/uploads/voter_photos/${v.photo}`}
                                 alt="Voter Photo"
                                 className="w-10 h-10 rounded-full object-cover border-2 border-gray-200 cursor-pointer"
                                 title="Click to preview"
                                 onClick={() =>
-                                  setPreviewImg(`https://vishalnawle.in/vishalnavle/flutter_api_voters/voter_photos/${v.photo}`)
+                                  setPreviewImg(`https://voterbackend.weclocks.online/uploads/voter_photos/${v.photo}`)
                                 }
                                 onError={(e) => {
                                   e.currentTarget.src = '/images/user/npimg.jpg';
                                 }}
                               />
                             </td>
+
                           </tr>
                         ))}
                       </tbody>
@@ -1080,7 +1300,7 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
 
               {activeTab === 'family' && (
                 <div className="h-full flex flex-col">
-                  {/* Search Box */}
+                  {/* Search + Actions */}
                   <div className="p-4 border-b">
                     <div className="flex items-center gap-2">
                       <div className="relative flex-1">
@@ -1116,7 +1336,6 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
                               d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
                             />
                           </svg>
-
                         </div>
                         {houseSearchTerm && (
                           <p className="text-sm text-gray-600 mt-2">
@@ -1124,6 +1343,9 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
                           </p>
                         )}
                       </div>
+
+
+
                       <button
                         onClick={exportHouseDataToExcel}
                         className="flex items-center gap-2 px-3 py-2 bg-green-600 text-white rounded text-xs font-medium hover:bg-green-700 transition-colors"
@@ -1142,8 +1364,6 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
                         </svg>
                         PDF
                       </button>
-
-
                     </div>
                   </div>
 
@@ -1156,19 +1376,19 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
                     ) : (
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                         {filteredHouseData.map((house, i) => {
-                          // Find primary person (first person or head of family)
                           const primaryPerson = house.voters.find(voter =>
                             voter.relation?.toLowerCase().includes('head') ||
                             voter.relation?.toLowerCase().includes('self') ||
                             voter.relation?.toLowerCase().includes('primary')
-                          ) || house.voters[0]; // fallback to first person
+                          ) || house.voters[0];
 
                           return (
                             <div
                               key={house.house_number}
-                              className="bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+                              className={`${flashHouses.has(house.house_number) ? 'bg-yellow-100 ring-2 ring-yellow-300' : (Number(primaryPerson.edited) === 1 ? 'bg-green-50' : '')} hover:bg-gray-50 border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-pointer relative`}
                               onClick={() => openHouseModal(house.house_number, house.voters)}
                             >
+
                               <div className="p-4">
                                 {/* Header with Sr No and House Number */}
                                 <div className="flex justify-between items-center mb-3">
@@ -1182,17 +1402,13 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
                                 <div className="space-y-2">
                                   <div className="flex items-center gap-2">
                                     <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+
                                       <img
-                                        src={`https://vishalnawle.in/vishalnavle/flutter_api_voters/voter_photos/${primaryPerson.photo}`}
+                                        src={`https://voterbackend.weclocks.online/uploads/voter_photos/${primaryPerson.photo}`}
+                                        // src={getVoterPhotoUrl(primaryPerson.photo)}
                                         alt="Voter Photo"
-                                        className="w-8 h-8 rounded-full object-cover border-2 border-gray-200 cursor-pointer"
-                                        title="Click to preview"
-                                        // onClick={() =>
-                                        //   setPreviewImg(`https://vishalnawle.in/vishalnavle/flutter_api_voters/voter_photos/${primaryPerson.photo}`)
-                                        // }
-                                        onError={(e) => {
-                                          e.currentTarget.src = '/images/user/npimg.jpg';
-                                        }}
+                                        className="w-8 h-8 rounded-full object-cover border-2 border-gray-200"
+                                        onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/images/user/npimg.jpg'; }}
                                       />
                                     </div>
                                     <div className="flex-1 min-w-0">
@@ -1208,7 +1424,6 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
                                     </div>
                                   </div>
 
-                                  {/* Mobile Number */}
                                   <div className="flex items-center gap-2">
                                     <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
@@ -1218,7 +1433,6 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
                                     </span>
                                   </div>
 
-                                  {/* Booth Number */}
                                   <div className="flex items-center gap-2">
                                     <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
@@ -1228,7 +1442,6 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
                                     </span>
                                   </div>
 
-                                  {/* Gender */}
                                   <div className="flex items-center gap-2">
                                     <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
@@ -1239,7 +1452,6 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
                                   </div>
                                 </div>
 
-                                {/* Footer with Count */}
                                 <div className="mt-3 pt-3 border-t border-gray-100">
                                   <div className="flex justify-between items-center">
                                     <span className="text-xs text-gray-500">Total Members</span>
@@ -1292,8 +1504,8 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
 
 
             {/* Export buttons for house modal */}
-                       {/* Export buttons for house modal */}
-                       <div className="h flex flex-col">
+            {/* Export buttons for house modal */}
+            <div className="h flex flex-col">
               {/* Search Box */}
               <div className="p-4 border-b flex items-center gap-3 w-full">
                 <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -1338,7 +1550,17 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
                     </p>
                   )}
                 </div>
-
+                {/* Add button beside export */}
+                <button
+                  onClick={() => handleOpenAddModal(selectedColonyId, selectedColonyName, selectedHouseNumber)}
+                  className="shrink-0 flex items-center gap-2 px-3 py-3 bg-blue-600 text-white rounded text-xs font-medium hover:bg-blue-700 transition-colors"
+                  title="Add voter to this house"
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Add
+                </button>
                 <button
                   onClick={exportHouseVotersToExcel}
                   className="shrink-0 flex items-center gap-2 px-3 py-3 bg-green-600 text-white rounded text-xs font-medium hover:bg-green-700 transition-colors"
@@ -1357,6 +1579,12 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
                   </svg>
                   PDF
                 </button>
+
+
+                {/* <button
+                  onClick={exportHouseVotersToExcel}
+                  className="shrink-0 flex items-center gap-2 px-3 py-3 bg-green-600 text-white rounded text-xs font-medium hover:bg-green-700 transition-colors"
+                ></button> */}
               </div>
             </div>
 
@@ -1366,57 +1594,76 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
                   <tr className="bg-gray-50">
                     <th className="px-3 py-2 border text-left">Sr</th>
                     <th className="px-3 py-2 border text-left">Full Name</th>
-                    <th className="px-3 py-2 border text-left">Full Name (Marathi)</th>
+                    <th className="px-3 py-2 border text-left">Photo</th>
+                    <th className="px-3 py-2 border text-left">Relation </th>
                     <th className="px-3 py-2 border text-left">Voter No.</th>
                     <th className="px-3 py-2 border text-left">Mobile</th>
                     <th className="px-3 py-2 border text-left">Booth</th>
-                    <th className="px-3 py-2 border text-left">Gender</th>
-                    <th className="px-3 py-2 border text-left">Relation</th>
-                    <th className="px-3 py-2 border text-left">Photo</th>
+                    <th className="px-3 py-2 border text-left">Actions</th> {/* NEW */}
                   </tr>
                 </thead>
                 <tbody>
                   {filteredHouseModalVoters.length === 0 && (
                     <tr>
-                      <td className="px-3 py-2 border" colSpan={9}>
+                      <td className="px-3 py-2 border" colSpan={8}>
                         No voters found for this house
                       </td>
                     </tr>
                   )}
                   {filteredHouseModalVoters.map((voter, i) => (
-                    <tr key={voter.voter_id} className="hover:bg-gray-50">
+                    <tr
+                      key={voter.voter_id}
+                      className={`${Number(voter.edited) === 1 ? 'bg-green-50' : ''} hover:bg-gray-50`}
+                    >
                       <td className="px-3 py-2 border align-top">{i + 1}</td>
                       <td className="px-3 py-2 border align-top">
-                        {voter.full_name ||
-                          [voter.first_name, voter.middle_name, voter.last_name]
-                            .filter(Boolean)
-                            .join(" ")}
-                      </td>
-                      <td className="px-3 py-2 border align-top">
-                        {voter.full_name_mr || "N/A"}
-                      </td>
-                      <td className="px-3 py-2 border align-top">
-                        {voter.voter_number}
-                      </td>
-                      <td className="px-3 py-2 border align-top">
-                        {voter.mobile || "N/A"}
-                      </td>
-                      <td className="px-3 py-2 border align-top">{voter.booth_number}</td>
-                      <td className="px-3 py-2 border align-top">{voter.gender || "N/A"}</td>
-                      <td className="px-3 py-2 border align-top">{voter.relation || "N/A"}</td>
-                      <td className="px-3 py-2 border align-top">
+
                         <img
-                          src={`https://vishalnawle.in/vishalnavle/flutter_api_voters/voter_photos/${voter.photo}`}
+                          src={`https://voterbackend.weclocks.online/uploads/voter_photos/${voter.photo}`}
+                          // src={getVoterPhotoUrl(voter.photo)}
                           alt="Voter Photo"
                           className="w-10 h-10 rounded-full object-cover border-2 border-gray-200 cursor-pointer"
                           title="Click to preview"
                           onClick={() =>
-                            setPreviewImg(`https://vishalnawle.in/vishalnavle/flutter_api_voters/voter_photos/${voter.photo}`)
+                            setPreviewImg(`https://voterbackend.weclocks.online/uploads/voter_photos/${voter.photo}`)
                           }
                           onError={(e) => {
                             e.currentTarget.src = '/images/user/npimg.jpg';
                           }}
                         />
+                      </td>
+                      <td className="px-3 py-2 border align-top">
+                        {voter.full_name ||
+                          [voter.first_name, voter.middle_name, voter.last_name]
+                            .filter(Boolean)
+                            .join(" ")}
+                        {"   "}   {"   "}
+                        ({voter.full_name_mr || "N/A"})
+                        <br />
+                        <span className="text-xs text-gray-600">{voter.gender}</span>
+                      </td>
+                      <td className="px-3 py-2 border align-top">{voter.relation || ""}</td>
+                      <td className="px-3 py-2 border align-top">{voter.voter_number}</td>
+                      <td className="px-3 py-2 border align-top">{voter.mobile || "N/A"}</td>
+                      <td className="px-3 py-2 border align-top">{voter.booth_number}</td>
+
+                      <td className="px-3 py-2 border align-top">
+                        <div className="flex items-center gap-2">
+                          <button
+                            className="p-1 rounded hover:bg-blue-50 text-blue-600"
+                            title="Edit"
+                            onClick={() => handleOpenEdit(voter)}
+                          >
+                            <PencilIcon />
+                          </button>
+                          <button
+                            className="p-1 rounded hover:bg-red-50 text-red-600"
+                            title="Delete"
+                            onClick={() => handleDelete(voter)}
+                          >
+                            <TrashBinIcon />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -1468,7 +1715,26 @@ const ColonyWiseVoters: React.FC<Props> = ({ colonyentry, voterentry }) => {
           </div>
         </div>
       )}
+
+
+      {/* Edit Voter Modal */}
+      <VoterEditModal
+        isOpen={isEditOpen}
+        onClose={() => setIsEditOpen(false)}
+        voter={editVoter}
+        onUpdate={handleVoterUpdated}
+      />
+
+      <VoterAddModal
+        isOpen={isAddOpen}
+        onClose={() => setIsAddOpen(false)}
+        onSuccess={handleVoterAdded}
+        preselectedColonyId={colonyid}
+        preselectedColonyName={addModalColonyName}
+        preselectedHouseNumber={addModalHouseNumber}
+      />
     </div>
+
   );
 };
 

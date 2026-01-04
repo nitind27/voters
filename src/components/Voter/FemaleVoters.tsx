@@ -1,0 +1,359 @@
+"use client"
+import React, { useEffect, useMemo, useState } from 'react';
+import { toast } from 'react-toastify';
+import Loader from '@/common/Loader';
+import { Column } from "../tables/tabletype";
+import { colonyentrydatatype, Voterdatatye, voterdayatype } from './Votertype';
+import { Withoutbtn } from '../tables/Withoutbtn';
+import { formatDate } from '@/lib/utils';
+
+interface ColonyData {
+  colony_id: number;
+  colony_name: string;
+  status: string;
+}
+
+type Props = {
+  colony: Voterdatatye[];
+  colonyentry: colonyentrydatatype[];
+  voterentry: voterdayatype[];
+};
+
+const FemaleVoters: React.FC<Props> = ({ colonyentry }) => {
+    const [data, setData] = useState<voterdayatype[]>([]);
+    const [filteredData, setFilteredData] = useState<voterdayatype[]>([]);
+    const [colonyFilter, setColonyFilter] = useState('');
+    const [colonyList, setColonyList] = useState<ColonyData[]>([]);
+    const [loadingColonies, setLoadingColonies] = useState(false);
+    const [loading, setLoading] = useState(false);
+    const [radioSelections, setRadioSelections] = useState<{ [key: number]: number }>({});
+    const [submitting, setSubmitting] = useState(false);
+    const [yesNoFilter, setYesNoFilter] = useState<string>(''); // '' | '1' | '0'
+    const [previewImg, setPreviewImg] = useState<string | null>(null);
+
+  // Fetch colony data for filter dropdown
+  const fetchColonies = async () => {
+    setLoadingColonies(true);
+    try {
+      const response = await fetch('/api/colony');
+      if (!response.ok) throw new Error('Failed to fetch colonies');
+      setColonyList(await response.json());
+    } catch {
+      toast.error('Failed to load colony list');
+    } finally {
+      setLoadingColonies(false);
+    }
+  };
+
+  const colonyEntryToColony = useMemo(() => {
+    const m = new Map<string, string>();
+    colonyentry.forEach((ce) => {
+      m.set(String(ce.colony_entry_id), String(ce.colony_id));
+    });
+    return m;
+  }, [colonyentry]);
+
+  const colonyMemberCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    data.forEach((v) => {
+      const cid = colonyEntryToColony.get(String(v.colony_entry_id));
+      if (cid) counts[cid] = (counts[cid] || 0) + 1;
+    });
+    return counts;
+  }, [data, colonyEntryToColony]);
+
+
+  // Filter logic for colonies + Yes/No (female_survey)
+  useEffect(() => {
+    let filtered = data;
+
+    if (colonyFilter) {
+      filtered = filtered.filter(item =>
+        item.colony_name?.toLowerCase().includes(colonyFilter.toLowerCase())
+      );
+    }
+
+    if (yesNoFilter !== '') {
+      const target = parseInt(yesNoFilter, 10);
+      filtered = filtered.filter(row => {
+        const current =
+          radioSelections[row.voter_id] !== undefined
+            ? radioSelections[row.voter_id]
+            : (row.female_survey ?? 0);
+        return Number(current) === target;
+      });
+    }
+
+    setFilteredData(filtered);
+  }, [colonyFilter, yesNoFilter, data, radioSelections]);
+
+  // Load colonies on mount
+  useEffect(() => { fetchColonies(); }, []);
+
+  // Fetch female voter data from the API
+  const fetchVoterData = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch('/api/femalesurvey');
+      if (!response.ok) throw new Error('Failed to fetch female voter data');
+      const result = await response.json();
+      setData(result);
+      setFilteredData(result);
+    } catch {
+      toast.error('Failed to load female voter data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Initial load fetch (on mount)
+  useEffect(() => { fetchVoterData(); }, []);
+
+  // Sync radio selections with DB data
+  useEffect(() => {
+    const initialSelections: { [key: number]: number } = {};
+    data.forEach(item => {
+      initialSelections[item.voter_id] = item.female_survey !== undefined ? Number(item.female_survey) : 0;
+    });
+    setRadioSelections(initialSelections);
+  }, [data]);
+  
+  // Handle radio changing
+  const handleRadioChange = (voterId: number, value: number) => {
+    setRadioSelections(prev => ({ ...prev, [voterId]: value }));
+  };
+
+  const handleSubmitSelections = async () => {
+    if (Object.keys(radioSelections).length === 0) {
+      toast.warning('Please select at least one option before submitting');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const response = await fetch('/api/femalesurvey', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          updates: Object.entries(radioSelections).map(([voterId, value]) => ({
+            voter_id: Number(voterId),
+            female_survey: value,
+          })),
+        }),
+      });
+      if (!response.ok) throw new Error('Failed to update data');
+      toast.success('Updated Successfully!');
+      await fetchVoterData();
+    } catch {
+      toast.error('Failed to update data. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+  
+  
+  // Columns definition
+  const columns: Column<voterdayatype>[] = [
+    { key: 'colony_name', label: 'Colony Name', accessor: 'colony_name' },
+    { key: 'house_number', label: 'House No', accessor: 'house_number' },
+    { 
+      key: 'full_name', 
+      label: 'Full Name', 
+      accessor: 'full_name',
+      render: (data) => (
+        <div className="flex flex-col">
+          <span className="font-medium">{data.full_name}</span>
+          <span className="text-xs text-gray-500">{data.full_name_mr}</span>
+        </div>
+      ),
+    },
+    { 
+      key: 'mobile', 
+      label: 'Mobile', 
+      accessor: 'mobile',
+      render: (data) => (
+        <span className="font-mono">{data.mobile || 'N/A'}</span>
+      ),
+    },
+    {
+      key: 'photo',
+      label: 'Photo',
+      accessor: 'photo',
+      render: (data) => (
+        <div className="flex items-center">
+          {data.photo ? (
+            <img
+              src={`https://voterbackend.weclocks.online/uploads/voter_photos/${data.photo}`}
+              alt="Voter Photo"
+              className="w-10 h-10 rounded-full object-cover border-2 border-gray-200 cursor-pointer"
+              title="Click to preview"
+              onClick={() =>
+                setPreviewImg(`https://voterbackend.weclocks.online/uploads/voter_photos/${data.photo}`)
+              }
+              onError={(e) => {
+                e.currentTarget.src = '/images/user/npimg.jpg';
+              }}
+            />
+          ) : (
+            <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
+              <img
+                src={`/images/user/npimg.jpg`}
+                alt="No Photo"
+                className="w-10 h-10 rounded-full object-cover border-2 border-gray-200"
+              />
+            </div>
+          )}
+        </div>
+      ),
+    },
+    { 
+      key: 'gender', 
+      label: 'Gender', 
+      accessor: 'gender',
+      render: (data) => (
+        <span className="px-2 py-1 text-xs font-medium bg-pink-100 text-pink-700 rounded-full">
+          {data.gender === 'female' ? 'स्त्री' : data.gender}
+        </span>
+      ),
+    },
+    { 
+      key: 'dob', 
+      label: 'DOB', 
+      accessor: 'dob',
+      render: (data) => (
+        <span className="text-sm">{formatDate(data.dob || '-')}</span>
+      ),
+    },
+    { key: 'voter_number', label: 'Voter Number', accessor: 'voter_number' },
+    { key: 'booth_number', label: 'Booth Number', accessor: 'booth_number' },
+    {
+        key: 'female_survey',
+        label: 'Female Survey',
+        accessor: 'female_survey',
+        render: (row) => {
+          const voterId = row.voter_id;
+          const value = radioSelections[voterId] !== undefined ? radioSelections[voterId] : (row.female_survey ?? 0);
+      
+          return (
+            <div className="flex space-x-3">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name={`femalesurvey_${voterId}`}
+                  checked={value === 1}
+                  onChange={() => handleRadioChange(voterId, 1)}
+                  className="w-4 h-4 text-pink-600"
+                />
+                <span className="text-sm text-green-600 font-medium">Yes</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name={`femalesurvey_${voterId}`}
+                  checked={value === 0}
+                  onChange={() => handleRadioChange(voterId, 0)}
+                  className="w-4 h-4 text-pink-600"
+                />
+                <span className="text-sm text-red-600 font-medium">No</span>
+              </label>
+            </div>
+          );
+        }
+      }
+      
+  ];
+
+  return (
+    <div>
+      {loading && <Loader />}
+      <Withoutbtn
+        data={filteredData}
+        columns={columns}
+        title="Female Voters Survey"
+        filterOptions={[]}
+        searchKey="full_name"
+        inputfiled={
+            <div className="inline-flex items-center gap-2 w-full md:w-auto">
+              <select
+                value={colonyFilter}
+                onChange={e => setColonyFilter(e.target.value)}
+                disabled={loadingColonies}
+                className="h-11 w-full md:w-64 rounded-lg border px-4 py-2 text-sm"
+              >
+                <option value="">
+                  {loadingColonies ? 'Loading colonies...' : 'All Colonies'}
+                </option>
+                {colonyList.map((colony, index) => (
+                  <option key={colony.colony_id} value={colony.colony_name}>
+                    {index + 1}) {colony.colony_name}({colonyMemberCounts[String(colony.colony_id)] || 0})
+                  </option>
+                ))}
+              </select>
+  
+              <select
+                value={yesNoFilter}
+                onChange={e => setYesNoFilter(e.target.value)}
+                className="h-11 w-full md:w-40 rounded-lg border px-4 py-2 text-sm"
+              >
+                <option value="">All</option>
+                <option value="1">Yes</option>
+                <option value="0">No</option>
+              </select>
+  
+              <button
+                type="button"
+                className="px-4 py-2 text-sm text-gray-700 bg-gray-100 border border-gray-300 rounded hover:bg-gray-200 text-nowrap"
+                onClick={() => { setColonyFilter(''); setYesNoFilter(''); }}
+                disabled={loadingColonies}
+              >
+                Clear Filter
+              </button>
+            </div>
+          }
+        submitbutton={
+          <button
+            type="button"
+            onClick={handleSubmitSelections}
+            disabled={submitting || Object.keys(radioSelections).length === 0}
+            className="px-4 py-2 text-sm text-nowrap font-medium text-white bg-pink-600 border border-pink-600 rounded-lg hover:bg-pink-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {submitting ? 'Submitting...' : 'Submit'}
+          </button>
+        }
+      />
+      
+      {/* Image Preview Modal */}
+      {previewImg && (
+        <div
+          className="fixed inset-0 z-9999 flex items-center justify-center bg-black"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setPreviewImg(null)}
+        >
+          <div
+            className="relative w-[90vw] max-w-[900px] h-[80vh] px-0"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              className="absolute -top-12 right-0 text-white bg-white/20 hover:bg-white/30 rounded-full p-2"
+              aria-label="Close"
+              onClick={() => setPreviewImg(null)}
+            >
+              ✕
+            </button>
+            <img
+              src={previewImg}
+              alt="Voter Photo Preview"
+              className="w-full h-full object-contain rounded-lg shadow-2xl bg-black/10"
+              onError={(e) => {
+                (e.currentTarget as HTMLImageElement).src = '/images/user/npimg.jpg';
+              }}
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+export default FemaleVoters;
+
