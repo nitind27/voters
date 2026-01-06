@@ -79,6 +79,7 @@ const VoterMaster: React.FC = () => {
     contact_no: string;
     colony_names: string;
     primary_person_count: number;
+    total_voters?: number;
     status: string;
     username: string;
     password: string;
@@ -130,6 +131,8 @@ const VoterMaster: React.FC = () => {
   // Tab B - Colony and Primary Person state
   const [selectedColonyId, setSelectedColonyId] = useState<number | null>(null);
   const [selectedColonyName, setSelectedColonyName] = useState<string>("");
+  const [isColonyDropdownOpen, setIsColonyDropdownOpen] = useState(false);
+  const [colonySearchTerm, setColonySearchTerm] = useState<string>("");
   const [primaryPersons, setPrimaryPersons] = useState<Array<{
     id: number;
     Voter_Id: string;
@@ -169,10 +172,18 @@ const VoterMaster: React.FC = () => {
     updated_house_number?: string | null;
     House_Number?: string | null;
     colony_name?: string | null;
+    member_count?: number;
   }>>([]);
   const [loadingModalPrimaryPersons, setLoadingModalPrimaryPersons] = useState(false);
   const [selectedVolunteerForModal, setSelectedVolunteerForModal] = useState<string>("");
   const [modalSearchTerm, setModalSearchTerm] = useState<string>("");
+
+  // Total Voters Modal state
+  const [isTotalVotersModalOpen, setIsTotalVotersModalOpen] = useState(false);
+  const [modalTotalVoters, setModalTotalVoters] = useState<FamilyMember[]>([]);
+  const [loadingModalTotalVoters, setLoadingModalTotalVoters] = useState(false);
+  const [selectedVolunteerForTotalVotersModal, setSelectedVolunteerForTotalVotersModal] = useState<string>("");
+  const [totalVotersModalSearchTerm, setTotalVotersModalSearchTerm] = useState<string>("");
 
   // Tab C - Financial Data state
   const [financialVolunteerSearchTerm, setFinancialVolunteerSearchTerm] = useState("");
@@ -431,8 +442,10 @@ const VoterMaster: React.FC = () => {
       });
       if (!res.ok) throw new Error("Failed to load volunteer master data");
       const json = await res.json();
-      const processedData = (json.data || [])
-        .filter((item: VolunteerMasterApiItem) => item.status === "Active") // Only show Active volunteers
+      const processedData: AssignRow[] = (json.data || [])
+        .filter((item: VolunteerMasterApiItem) => 
+          item.status === "Active" && Number(item.category_id) === 5 // Only show Active volunteers with category_id = 5
+        )
         .map((item: VolunteerMasterApiItem & { primary_person_id?: string | null }, index: number) => {
           // Calculate primary person count from primary_person_id (comma-separated string)
           const primaryPersonCount = item.primary_person_id
@@ -447,13 +460,62 @@ const VoterMaster: React.FC = () => {
             colony_names: item.colony_names || "",
             colony_ids: item.colony_ids || [],
             primary_person_count: primaryPersonCount,
+            total_voters: undefined, // Will be calculated below
             status: item.status || "Active",
             username: item.username || "",
             password: item.password || "",
             category_id: item.category_id || null,
           };
         });
-      setAssignRows(processedData);
+      
+      // Calculate total_voters and filter colonies for each volunteer by fetching primary persons
+      const dataWithTotalVoters = await Promise.all(
+        processedData.map(async (row: AssignRow) => {
+          if (row.primary_person_count === 0) {
+            return { ...row, total_voters: 0, colony_names: "" }; // No primary persons = no colonies to show
+          }
+          
+          try {
+            const primaryPersonsRes = await fetch(
+              `/api/voterstatus/primarypersons?only_assigned=true&volunteer_id=${row.id}`,
+              { cache: "no-store" }
+            );
+            if (primaryPersonsRes.ok) {
+              const primaryPersons = await primaryPersonsRes.json();
+              const totalVoters = primaryPersons.reduce(
+                (sum: number, pp: { member_count?: number }) => sum + (pp.member_count || 0),
+                0
+              );
+              
+              // Get unique colony names from primary persons (only colonies that have primary persons)
+              const colonyNamesSet = new Set<string>();
+              primaryPersons.forEach((pp: { colony_name?: string | null }) => {
+                if (pp.colony_name) {
+                  colonyNamesSet.add(pp.colony_name);
+                }
+              });
+              
+              // Filter colony_names to only include colonies that have primary persons
+              let filteredColonyNames = "";
+              if (colonyNamesSet.size > 0) {
+                const colonyNamesArray = Array.from(colonyNamesSet);
+                // Format with numbers: 1) Colony1, 2) Colony2, etc.
+                filteredColonyNames = colonyNamesArray
+                  .map((name, index) => `${index + 1}) ${name}`)
+                  .join(', ');
+              }
+              
+              return { ...row, total_voters: totalVoters, colony_names: filteredColonyNames };
+            }
+          } catch (e) {
+            console.error(`Error fetching total voters for volunteer ${row.volunteer_name}:`, e);
+          }
+          
+          return { ...row, total_voters: 0, colony_names: "" };
+        })
+      );
+      
+      setAssignRows(dataWithTotalVoters);
     } catch (e) {
       console.error(e);
       toast.error("Volunteer data load होत नाही.");
@@ -551,6 +613,9 @@ const VoterMaster: React.FC = () => {
     } else {
       // Clear selections when no volunteer is selected
       setSelectedPrimaryPersonIds([]);
+      setIsColonyDropdownOpen(false);
+      setSelectedColonyId(null);
+      setSelectedColonyName("");
     }
   }, [selectedVolunteerId, activeTab, availableVolunteers]);
 
@@ -894,7 +959,7 @@ const VoterMaster: React.FC = () => {
         setMemberInstallments({});
       }
     }
-  }, [selectedFinancialVolunteerId, financialAvailableVolunteers]);
+  }, [selectedFinancialVolunteerId, financialAvailableVolunteers, selectedFinancialColonyId]);
 
   // Tab C - Handle installment checkbox change
   const handleMemberInstallmentChange = (memberId: number, installment: "inst_1_paid" | "inst_2_paid" | "inst_3_paid", checked: boolean) => {
@@ -2428,10 +2493,7 @@ const VoterMaster: React.FC = () => {
       toast.error("कृपया Colony निवडा.");
       return;
     }
-    if (!selectedPrimaryPersonIds.length) {
-      toast.error("किमान एक Primary Person निवडा.");
-      return;
-    }
+    // Primary Person selection is now optional - can submit without selecting any
 
     const selectedVolunteer = availableVolunteers.find(v => v.user_id === selectedVolunteerId);
     if (!selectedVolunteer) {
@@ -2494,6 +2556,62 @@ const VoterMaster: React.FC = () => {
     }
   };
 
+  // Load total voters (primary persons + family members) for modal
+  const loadTotalVotersForModal = async (volunteerId: number, volunteerName: string) => {
+    setLoadingModalTotalVoters(true);
+    setSelectedVolunteerForTotalVotersModal(volunteerName);
+    try {
+      // First, get primary persons for this volunteer
+      const primaryPersonsRes = await fetch(
+        `/api/voterstatus/primarypersons?only_assigned=true&volunteer_id=${volunteerId}`,
+        { cache: "no-store" }
+      );
+      if (!primaryPersonsRes.ok) throw new Error("Failed to fetch primary persons");
+      const primaryPersons = await primaryPersonsRes.json();
+      
+      if (primaryPersons.length === 0) {
+        setModalTotalVoters([]);
+        setIsTotalVotersModalOpen(true);
+        return;
+      }
+
+      // Get all primary person Voter IDs
+      const primaryPersonVoterIds = primaryPersons
+        .map((pp: { Voter_Id?: string }) => pp.Voter_Id)
+        .filter(Boolean);
+
+      if (primaryPersonVoterIds.length === 0) {
+        setModalTotalVoters([]);
+        setIsTotalVotersModalOpen(true);
+        return;
+      }
+
+      // Fetch all family members using batch API
+      const batchIds = primaryPersonVoterIds.join(',');
+      const membersRes = await fetch(
+        `/api/voterstatus/familymembers?primary_person_ids=${encodeURIComponent(batchIds)}`,
+        { cache: "no-store" }
+      );
+      
+      if (!membersRes.ok) throw new Error("Failed to fetch family members");
+      const allMembers = await membersRes.json() as FamilyMember[];
+
+      // Remove duplicates based on id
+      const uniqueMembers = Array.from(
+        new Map(allMembers.map(m => [m.id, m])).values()
+      );
+
+      setModalTotalVoters(uniqueMembers);
+      setIsTotalVotersModalOpen(true);
+    } catch (e) {
+      console.error(e);
+      toast.error("Total voters data load होत नाही.");
+      setModalTotalVoters([]);
+    } finally {
+      setLoadingModalTotalVoters(false);
+    }
+  };
+
   // Load primary persons for modal
   const loadPrimaryPersonsForModal = async (volunteerName: string) => {
     setLoadingModalPrimaryPersons(true);
@@ -2503,8 +2621,28 @@ const VoterMaster: React.FC = () => {
         cache: "no-store",
       });
       if (!res.ok) throw new Error("Failed to fetch primary persons");
-      const json = await res.json();
-      setModalPrimaryPersons(json || []);
+      const primaryPersons = await res.json();
+      
+      // Fetch member_count for each primary person
+      const primaryPersonsWithCount = await Promise.all(
+        (primaryPersons || []).map(async (person: { Voter_Id: string; id: number; [key: string]: unknown }) => {
+          try {
+            const membersRes = await fetch(
+              `/api/voterstatus/familymembers?primary_person_id=${encodeURIComponent(person.Voter_Id)}`,
+              { cache: "no-store" }
+            );
+            if (membersRes.ok) {
+              const members = await membersRes.json();
+              return { ...person, member_count: members?.length || 0 };
+            }
+            return { ...person, member_count: 0 };
+          } catch {
+            return { ...person, member_count: 0 };
+          }
+        })
+      );
+      
+      setModalPrimaryPersons(primaryPersonsWithCount);
       setIsPrimaryPersonModalOpen(true);
     } catch (e) {
       console.error(e);
@@ -2633,6 +2771,137 @@ const VoterMaster: React.FC = () => {
         toast.success('PDF print dialog opened!');
       } else {
         toast.error('Please allow popups to download PDF');
+      }
+    } catch (error) {
+      console.error('Error exporting to PDF:', error);
+      toast.error('Failed to export PDF file');
+    }
+  };
+
+  // Export Total Voters to Excel
+  const exportTotalVotersToExcel = () => {
+    if (modalTotalVoters.length === 0) {
+      toast.error("No data to export");
+      return;
+    }
+
+    try {
+      const exportData = modalTotalVoters.map((voter, idx) => ({
+        'Sr No': idx + 1,
+        'Voter ID': voter.Voter_Id || 'N/A',
+        'Name': voter.full_name || 'N/A',
+        'English Name': voter.ENG_Full_name || 'N/A',
+        'Age': voter.Age || 'N/A',
+        'Gender': voter.Gender || 'N/A',
+        'Family Member': voter.family_member || 'N/A',
+        'Mobile': voter.updated_mobile_no || 'N/A',
+        'Voting Status': voter.voting_status || 'N/A',
+        'Colony': voter.colony_name || 'N/A',
+      }));
+
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      ws['!cols'] = [
+        { wch: 8 },   // Sr No
+        { wch: 15 },  // Voter ID
+        { wch: 25 },  // Name
+        { wch: 25 },  // English Name
+        { wch: 8 },   // Age
+        { wch: 10 },   // Gender
+        { wch: 15 },  // Family Member
+        { wch: 12 },  // Mobile
+        { wch: 15 },  // Voting Status
+        { wch: 20 }   // Colony
+      ];
+      XLSX.utils.book_append_sheet(wb, ws, 'Total Voters');
+      const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      const data = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const fileName = `${selectedVolunteerForTotalVotersModal}_Total_Voters_${new Date().toISOString().split('T')[0]}.xlsx`;
+      saveAs(data, fileName);
+      toast.success('Excel file downloaded successfully!');
+    } catch (error) {
+      console.error('Error exporting to Excel:', error);
+      toast.error('Failed to export Excel file');
+    }
+  };
+
+  // Export Total Voters to PDF
+  const exportTotalVotersToPDF = () => {
+    if (modalTotalVoters.length === 0) {
+      toast.error("No data to export");
+      return;
+    }
+
+    try {
+      const tableRows = modalTotalVoters.map((voter, index) => `
+        <tr>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 11px; text-align: center;">${index + 1}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 11px;">${voter.Voter_Id || "-"}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 11px;">${voter.full_name || "-"}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 11px;">${voter.ENG_Full_name || "-"}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 11px; text-align: center;">${voter.Age || "-"}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 11px; text-align: center;">${voter.Gender || "-"}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 11px;">${voter.family_member || "-"}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 11px;">${voter.updated_mobile_no || "-"}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 11px;">${voter.voting_status || "-"}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 11px;">${voter.colony_name || "-"}</td>
+        </tr>
+      `).join('');
+
+      const htmlContent = `
+        <html>
+          <head>
+            <title>Total Voters - ${selectedVolunteerForTotalVotersModal}</title>
+            <style>
+              @page { size: A4 landscape; margin: 10mm; }
+              body { font-family: Arial, sans-serif; margin: 0; padding: 10px; }
+              h1 { text-align: center; margin-bottom: 5px; font-size: 18px; font-weight: bold; }
+              h2 { text-align: center; margin-bottom: 15px; font-size: 14px; color: #666; }
+              .info { text-align: center; margin-bottom: 15px; font-size: 12px; color: #666; }
+              table { width: 100%; border-collapse: collapse; margin: 0 auto; font-size: 9px; }
+              th { background-color: #4a5568; color: white; padding: 8px; border: 1px solid #000; font-weight: bold; text-align: center; }
+              td { padding: 6px; border: 1px solid #000; }
+            </style>
+          </head>
+          <body>
+            <h1>Total Voters List</h1>
+            <h2>Volunteer Name: ${selectedVolunteerForTotalVotersModal}</h2>
+            <div class="info">
+              <p>Generated on: ${new Date().toLocaleString()}</p>
+              <p>Total Records: ${modalTotalVoters.length}</p>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Sr No</th>
+                  <th>Voter ID</th>
+                  <th>Name</th>
+                  <th>English Name</th>
+                  <th>Age</th>
+                  <th>Gender</th>
+                  <th>Family Member</th>
+                  <th>Mobile</th>
+                  <th>Voting Status</th>
+                  <th>Colony</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${tableRows}
+              </tbody>
+            </table>
+          </body>
+        </html>
+      `;
+
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.write(htmlContent);
+        printWindow.document.close();
+        printWindow.onload = () => {
+          setTimeout(() => {
+            printWindow.print();
+          }, 250);
+        };
       }
     } catch (error) {
       console.error('Error exporting to PDF:', error);
@@ -2898,7 +3167,7 @@ const VoterMaster: React.FC = () => {
     },
     {
       key: "primary_person_count",
-      label: "Total Number of voters",
+      label: "Assigned primary members",
       accessor: "primary_person_count",
       render: (row: AssignRow) => (
         <button
@@ -2908,6 +3177,21 @@ const VoterMaster: React.FC = () => {
           disabled={row.primary_person_count === 0}
         >
           {row.primary_person_count || 0}
+        </button>
+      ),
+    },
+    {
+      key: "total_voters",
+      label: "Total voters",
+      accessor: "total_voters",
+      render: (row: AssignRow) => (
+        <button
+          type="button"
+          onClick={() => loadTotalVotersForModal(row.id, row.volunteer_name)}
+          className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
+          disabled={!row.total_voters || row.total_voters === 0}
+        >
+          {row.total_voters !== undefined ? row.total_voters : "-"}
         </button>
       ),
     },
@@ -3233,22 +3517,25 @@ const VoterMaster: React.FC = () => {
                       <div className="max-h-60 overflow-y-auto">
                         {loadingVolunteers ? (
                           <div className="p-3 text-xs text-gray-500 text-center">Loading...</div>
-                        ) : availableVolunteers.length === 0 ? (
-                          <div className="p-3 text-xs text-gray-500 text-center">No volunteers found</div>
-                        ) : (
-                          availableVolunteers
-                            .filter(v => 
-                              !volunteerSearchTerm || 
-                              v.volunteer_name.toLowerCase().includes(volunteerSearchTerm.toLowerCase()) ||
-                              (v.contact_no && v.contact_no.includes(volunteerSearchTerm))
-                            )
-                            .map(volunteer => (
+                        ) : (() => {
+                          const filteredVolunteers = availableVolunteers.filter(v => 
+                            Number(v.category_id) === 5 &&
+                            (!volunteerSearchTerm || 
+                            v.volunteer_name.toLowerCase().includes(volunteerSearchTerm.toLowerCase()) ||
+                            (v.contact_no && v.contact_no.includes(volunteerSearchTerm)))
+                          );
+                          return filteredVolunteers.length === 0 ? (
+                            <div className="p-3 text-xs text-gray-500 text-center">No volunteers found</div>
+                          ) : (
+                            filteredVolunteers.map(volunteer => (
                               <div
                                 key={volunteer.user_id}
                                 onClick={() => {
                                   setSelectedVolunteerId(volunteer.user_id);
                                   setVolunteerSearchTerm("");
                                   setIsVolunteerDropdownOpen(false);
+                                  setIsColonyDropdownOpen(false);
+                                  setColonySearchTerm("");
                                 }}
                                 className={`p-3 text-sm cursor-pointer hover:bg-blue-50 border-b border-gray-100 last:border-b-0 ${
                                   selectedVolunteerId === volunteer.user_id ? "bg-blue-100" : ""
@@ -3260,7 +3547,8 @@ const VoterMaster: React.FC = () => {
                                 )}
                               </div>
                             ))
-                        )}
+                          );
+                        })()}
                       </div>
                     </div>
                   )}
@@ -3270,30 +3558,111 @@ const VoterMaster: React.FC = () => {
               <div className="flex-1 min-w-[200px]">
                 <Label>Select Colony *</Label>
                 <div className="flex items-center gap-2">
-                  <select
-                    className="flex-1 px-3 py-2 border rounded-md text-sm"
-                    value={selectedColonyId || ""}
-                    onChange={e => {
-                      const colonyId = Number(e.target.value);
-                      const colony = colonies.find(c => c.colony_id === colonyId);
-                      if (colony) {
-                        handleColonyChange(colonyId, colony.colony_name);
-                      }
-                    }}
-                  >
-                    <option value="">Select Colony</option>
-                    {colonies.map(c => {
-                      const counts = colonyCounts[c.colony_id];
-                      const total = counts?.total || 0;
-                      const pending = counts?.pending || 0;
-                      const done = total - pending; // Already assigned count
+                  <div className="flex-1 relative">
+                    <div
+                      className="w-full px-3 py-2 border rounded-md text-sm bg-white cursor-pointer flex items-center justify-between"
+                      onClick={() => {
+                        setIsColonyDropdownOpen(!isColonyDropdownOpen);
+                        if (!selectedVolunteerId) {
+                          toast.error("कृपया पहिले Volunteer निवडा.");
+                          return;
+                        }
+                      }}
+                    >
+                      <span className={selectedColonyId ? "text-gray-900" : "text-gray-500"}>
+                        {selectedColonyId
+                          ? colonies.find(c => c.colony_id === selectedColonyId)?.colony_name || "Select Colony"
+                          : "Click to select colony"}
+                      </span>
+                      <svg
+                        className={`w-4 h-4 transition-transform ${isColonyDropdownOpen ? "rotate-180" : ""}`}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </div>
+                    {isColonyDropdownOpen && selectedVolunteerId && (() => {
+                      const selectedVolunteer = availableVolunteers.find(v => v.user_id === selectedVolunteerId);
+                      const assignedColonyIds = selectedVolunteer?.colony_ids || [];
+                      const selectedVolunteerColonyCount = assignedColonyIds.length; // Count of colonies assigned to selected volunteer
+                      
+                      const filteredColonies = colonies.filter(c => {
+                        if (!colonySearchTerm.trim()) return true;
+                        const searchTerm = colonySearchTerm.toLowerCase();
+                        return c.colony_name.toLowerCase().includes(searchTerm);
+                      });
+                      
                       return (
-                        <option key={c.colony_id} value={c.colony_id}>
-                          {c.colony_name}{total > 0 ? ` - ${done}/${total} remaining (${pending})` : ''}
-                        </option>
+                        <div className="absolute z-10 w-full mt-1 bg-white border rounded-md shadow-lg">
+                          <div className="p-2 border-b">
+                            <input
+                              type="text"
+                              className="w-full px-3 py-2 border rounded-md text-sm"
+                              placeholder="Search colony..."
+                              value={colonySearchTerm}
+                              onChange={e => setColonySearchTerm(e.target.value)}
+                              onClick={e => e.stopPropagation()}
+                              autoFocus
+                            />
+                          </div>
+                          {selectedVolunteerColonyCount > 0 && (
+                            <div className="px-3 py-2 bg-blue-50 border-b text-xs text-blue-700 font-medium">
+                              {selectedVolunteer?.volunteer_name} has {selectedVolunteerColonyCount} colon{selectedVolunteerColonyCount !== 1 ? 'ies' : 'y'} assigned
+                            </div>
+                          )}
+                          <div className="max-h-60 overflow-y-auto">
+                            {filteredColonies.length === 0 ? (
+                              <div className="p-3 text-xs text-gray-500 text-center">No colonies found</div>
+                            ) : (
+                              filteredColonies.map(colony => {
+                                const counts = colonyCounts[colony.colony_id];
+                                const total = counts?.total || 0;
+                                const pending = counts?.pending || 0;
+                                const done = total - pending;
+                                const isAssigned = assignedColonyIds.includes(colony.colony_id);
+                                
+                                return (
+                                  <div
+                                    key={colony.colony_id}
+                                    onClick={() => {
+                                      handleColonyChange(colony.colony_id, colony.colony_name);
+                                      setIsColonyDropdownOpen(false);
+                                      setColonySearchTerm("");
+                                    }}
+                                    className={`p-3 text-sm cursor-pointer hover:bg-blue-50 border-b border-gray-100 last:border-b-0 ${
+                                      selectedColonyId === colony.colony_id ? "bg-blue-100" : ""
+                                    } ${
+                                      isAssigned ? "bg-green-50 hover:bg-green-100" : ""
+                                    }`}
+                                  >
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        <span className={`font-medium ${isAssigned ? "text-green-700" : "text-gray-900"}`}>
+                                          {colony.colony_name}
+                                        </span>
+                                        {isAssigned && (
+                                          <span className="text-xs px-2 py-0.5 bg-green-200 text-green-800 rounded">
+                                            Assigned
+                                          </span>
+                                        )}
+                                      </div>
+                                      {total > 0 && (
+                                        <span className="text-xs text-gray-500">
+                                          {done}/{total} ({pending})
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })
+                            )}
+                          </div>
+                        </div>
                       );
-                    })}
-                  </select>
+                    })()}
+                  </div>
                   {selectedColonyId && (() => {
                     const counts = colonyCounts[selectedColonyId];
                     const total = counts?.total || 0;
@@ -3502,11 +3871,16 @@ const VoterMaster: React.FC = () => {
                     );
                   })()}
                 </div>
-                {selectedPrimaryPersonIds.length > 0 && (
-                  <div className="mt-2 text-xs text-green-600">
-                    Selected: {selectedPrimaryPersonIds.length} primary person(s)
-                  </div>
-                )}
+                {selectedPrimaryPersonIds.length > 0 && (() => {
+                  const totalVoters = primaryPersons
+                    .filter(person => selectedPrimaryPersonIds.includes(String(person.id)))
+                    .reduce((sum, person) => sum + (person.member_count || 0), 0);
+                  return (
+                    <div className="mt-2 text-xs text-green-600">
+                      Selected: {selectedPrimaryPersonIds.length} primary person(s) - Total: {totalVoters} voter(s)
+                    </div>
+                  );
+                })()}
               </div>
             )}
 
@@ -3634,11 +4008,13 @@ const VoterMaster: React.FC = () => {
                             <th className="px-4 py-3 text-left font-semibold text-gray-700">House No</th>
                             <th className="px-4 py-3 text-left font-semibold text-gray-700">Mobile</th>
                             <th className="px-4 py-3 text-left font-semibold text-gray-700">Colony</th>
+                            <th className="px-4 py-3 text-left font-semibold text-gray-700">Family Members Count</th>
                           </tr>
                         </thead>
                         <tbody>
                           {filteredPersons.map((person, index) => {
                             const houseNumber = person.updated_house_number || person.House_Number || "N/A";
+                            const memberCount = person.member_count || 0;
                             return (
                               <tr key={person.id} className="border-b hover:bg-gray-50">
                                 <td className="px-4 py-3 text-gray-600">{index + 1}</td>
@@ -3648,6 +4024,22 @@ const VoterMaster: React.FC = () => {
                                 <td className="px-4 py-3 text-gray-600 font-medium">{houseNumber}</td>
                                 <td className="px-4 py-3 text-gray-400">{person.updated_mobile_no || "-"}</td>
                                 <td className="px-4 py-3 text-gray-500">{person.colony_name || "-"}</td>
+                                <td className="px-4 py-3">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (memberCount > 0) {
+                                        loadFamilyMembers(person.Voter_Id, person.id, person.full_name || "");
+                                      }
+                                    }}
+                                    className={`text-blue-600 hover:text-blue-800 font-medium underline ${
+                                      memberCount === 0 ? "text-gray-400 cursor-not-allowed" : "cursor-pointer"
+                                    }`}
+                                    disabled={memberCount === 0}
+                                  >
+                                    {memberCount}
+                                  </button>
+                                </td>
                               </tr>
                             );
                           })}
@@ -3665,6 +4057,155 @@ const VoterMaster: React.FC = () => {
                       setModalPrimaryPersons([]);
                       setSelectedVolunteerForModal("");
                       setModalSearchTerm("");
+                    }}
+                    className="px-4 py-2 text-sm rounded border border-gray-300 hover:bg-gray-50"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </Modal>
+          )}
+
+          {/* Total Voters Modal */}
+          {isTotalVotersModalOpen && (
+            <Modal
+              isOpen={isTotalVotersModalOpen}
+              onClose={() => {
+                setIsTotalVotersModalOpen(false);
+                setModalTotalVoters([]);
+                setSelectedVolunteerForTotalVotersModal("");
+                setTotalVotersModalSearchTerm("");
+              }}
+              className="max-w-6xl p-6"
+            >
+              <div>
+                <h3 className="text-lg font-semibold mb-4">Total Voters - {selectedVolunteerForTotalVotersModal}</h3>
+                
+                {/* Search Filter */}
+                <div className="mb-4 flex gap-2 items-center">
+                  <input
+                    type="text"
+                    className="flex-1 px-3 py-2 border rounded-md text-sm"
+                    placeholder="Search by Name, Voter ID, Mobile, Colony, Voting Status..."
+                    value={totalVotersModalSearchTerm}
+                    onChange={(e) => setTotalVotersModalSearchTerm(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    onClick={exportTotalVotersToExcel}
+                    disabled={modalTotalVoters.length === 0}
+                    className="px-4 py-2 text-sm rounded bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Excel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={exportTotalVotersToPDF}
+                    disabled={modalTotalVoters.length === 0}
+                    className="px-4 py-2 text-sm rounded bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                    </svg>
+                    PDF
+                  </button>
+                </div>
+
+                <div className="max-h-[70vh] overflow-y-auto">
+                {loadingModalTotalVoters ? (
+                  <div className="text-center py-8 text-gray-500">Loading total voters...</div>
+                ) : (() => {
+                  // Filter voters based on search term
+                  const filteredVoters = modalTotalVoters.filter(voter => {
+                    if (!totalVotersModalSearchTerm.trim()) return true;
+                    const searchTerm = totalVotersModalSearchTerm.toLowerCase().trim();
+                    const fullName = (voter.full_name || "").toLowerCase();
+                    const engName = (voter.ENG_Full_name || "").toLowerCase();
+                    const voterId = (voter.Voter_Id || "").toLowerCase();
+                    const mobileNo = (voter.updated_mobile_no || "").toLowerCase();
+                    const colonyName = (voter.colony_name || "").toLowerCase();
+                    const votingStatus = (voter.voting_status || "").toLowerCase();
+                    const familyMember = (voter.family_member || "").toLowerCase();
+                    
+                    return (
+                      fullName.includes(searchTerm) ||
+                      engName.includes(searchTerm) ||
+                      voterId.includes(searchTerm) ||
+                      mobileNo.includes(searchTerm) ||
+                      colonyName.includes(searchTerm) ||
+                      votingStatus.includes(searchTerm) ||
+                      familyMember.includes(searchTerm)
+                    );
+                  });
+
+                  if (filteredVoters.length === 0 && modalTotalVoters.length > 0) {
+                    return <div className="text-center py-8 text-gray-500">No voters found matching your search.</div>;
+                  }
+
+                  if (filteredVoters.length === 0) {
+                    return <div className="text-center py-8 text-gray-500">No voters assigned to this volunteer.</div>;
+                  }
+
+                  return (
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full text-sm">
+                        <thead className="sticky top-0 bg-gray-100 border-b">
+                          <tr>
+                            <th className="px-4 py-3 text-left font-semibold text-gray-700">Sr No</th>
+                            <th className="px-4 py-3 text-left font-semibold text-gray-700">Voter ID</th>
+                            <th className="px-4 py-3 text-left font-semibold text-gray-700">Name</th>
+                            <th className="px-4 py-3 text-left font-semibold text-gray-700">English Name</th>
+                            <th className="px-4 py-3 text-left font-semibold text-gray-700">Age</th>
+                            <th className="px-4 py-3 text-left font-semibold text-gray-700">Gender</th>
+                            <th className="px-4 py-3 text-left font-semibold text-gray-700">Family Member</th>
+                            <th className="px-4 py-3 text-left font-semibold text-gray-700">Mobile</th>
+                            <th className="px-4 py-3 text-left font-semibold text-gray-700">Voting Status</th>
+                            <th className="px-4 py-3 text-left font-semibold text-gray-700">Colony</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredVoters.map((voter, index) => (
+                            <tr key={voter.id} className="border-b hover:bg-gray-50">
+                              <td className="px-4 py-3 text-gray-600">{index + 1}</td>
+                              <td className="px-4 py-3 text-gray-900">{voter.Voter_Id || "-"}</td>
+                              <td className="px-4 py-3 text-gray-900">{voter.full_name || "-"}</td>
+                              <td className="px-4 py-3 text-gray-600">{voter.ENG_Full_name || "-"}</td>
+                              <td className="px-4 py-3 text-gray-600 text-center">{voter.Age || "-"}</td>
+                              <td className="px-4 py-3 text-gray-600 text-center">{voter.Gender || "-"}</td>
+                              <td className="px-4 py-3 text-gray-600">{voter.family_member || "-"}</td>
+                              <td className="px-4 py-3 text-gray-600">{voter.updated_mobile_no || "-"}</td>
+                              <td className="px-4 py-3">
+                                <span className={`px-2 py-1 text-xs rounded ${
+                                  voter.voting_status === "Completed" || voter.voting_status === "Direct"
+                                    ? "bg-green-100 text-green-800"
+                                    : voter.voting_status === "In Transit"
+                                    ? "bg-yellow-100 text-yellow-800"
+                                    : "bg-gray-100 text-gray-800"
+                                }`}>
+                                  {voter.voting_status || "Pending"}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-gray-600">{voter.colony_name || "-"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                })()}
+                </div>
+                <div className="flex justify-end mt-4 pt-4 border-t">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsTotalVotersModalOpen(false);
+                      setModalTotalVoters([]);
+                      setSelectedVolunteerForTotalVotersModal("");
+                      setTotalVotersModalSearchTerm("");
                     }}
                     className="px-4 py-2 text-sm rounded border border-gray-300 hover:bg-gray-50"
                   >

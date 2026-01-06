@@ -132,7 +132,7 @@ interface UserData {
 }
 
 const Newdashboard: React.FC = () => {
-  const [active, setActive] = useState<"voterwisedetails" | "allvoterdetails" | "femalevoters" | "familywisesurvey" | "voterstatus">("allvoterdetails");
+  const [active, setActive] = useState<"voterwisedetails" | "allvoterdetails" | "femalevoters" | "familywisesurvey" | "genderwisesurvey" | "voterstatus">("allvoterdetails");
 
   // State for Voterwisedetails tab
   //   const [totalCount, setTotalCount] = useState<number>(0);
@@ -181,6 +181,48 @@ const Newdashboard: React.FC = () => {
   const [primaryPersonsModalOpen, setPrimaryPersonsModalOpen] = useState(false);
   const [selectedPrimaryPersonsColonyData, setSelectedPrimaryPersonsColonyData] = useState<FamilyWiseColonyData | null>(null);
   const [primaryPersonsSearchTerm, setPrimaryPersonsSearchTerm] = useState("");
+
+  // Gender Wise Survey state
+  interface GenderWiseColonyData {
+    colony_id: number;
+    colony_name: string;
+    male_count: number;
+    female_count: number;
+    total_count: number;
+  }
+  interface GenderWiseApiResponseItem {
+    colony_id: number;
+    colony_name: string;
+    male_count?: number;
+    female_count?: number;
+    total_count?: number;
+  }
+  const [genderWiseData, setGenderWiseData] = useState<GenderWiseColonyData[]>([]);
+  const [genderWiseLoading, setGenderWiseLoading] = useState(false);
+  
+  // Gender Wise Survey Modal state
+  interface GenderWiseVoter {
+    id: number;
+    Voter_Id: string;
+    full_name: string;
+    ENG_Full_name: string;
+    Age: string;
+    Gender: string;
+    House_Number: string;
+    updated_house_number: string;
+    updated_mobile_no: string;
+    Updated_colony: number;
+    colony_name: string;
+  }
+  const [genderWiseModalOpen, setGenderWiseModalOpen] = useState(false);
+  const [genderWiseModalData, setGenderWiseModalData] = useState<{
+    colony_id: number;
+    colony_name: string;
+    gender: 'male' | 'female' | 'total';
+    voters: GenderWiseVoter[];
+  } | null>(null);
+  const [genderWiseModalLoading, setGenderWiseModalLoading] = useState(false);
+  const [genderWiseModalSearch, setGenderWiseModalSearch] = useState('');
 
   // Edit modal state - Only 3 fields
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -336,6 +378,417 @@ const Newdashboard: React.FC = () => {
   //     setIsPreFetchingFamilyWise(false);
   //   }
   // };
+
+  // Fetch gender wise survey data - count male and female per colony
+  // Uses dedicated API endpoint that counts directly in database
+  // Gender = 'पु' → Male, Gender != 'पु' → Female
+  // WHERE updated_at IS NOT NULL
+  const fetchGenderWiseSurveyData = useCallback(async () => {
+    setGenderWiseLoading(true);
+    try {
+      // Fetch gender wise survey data from dedicated API endpoint
+      const response = await fetch('/api/genderwisesurvey');
+      if (!response.ok) throw new Error('Failed to fetch gender wise survey data');
+      const result = await response.json();
+      
+      // API returns data already grouped by colony with counts
+      const genderWiseArray: GenderWiseColonyData[] = result.map((item: GenderWiseApiResponseItem) => ({
+        colony_id: item.colony_id,
+        colony_name: item.colony_name,
+        male_count: item.male_count || 0,
+        female_count: item.female_count || 0,
+        total_count: item.total_count || 0
+      }));
+      
+      // Sort by colony name
+      genderWiseArray.sort((a, b) => a.colony_name.localeCompare(b.colony_name));
+      
+      setGenderWiseData(genderWiseArray);
+    } catch (error) {
+      console.error('Error fetching gender wise survey data:', error);
+      toast.error('Failed to load gender wise survey data');
+      setGenderWiseData([]);
+    } finally {
+      setGenderWiseLoading(false);
+    }
+  }, []);
+
+  // Open gender wise survey modal with voters
+  const openGenderWiseModal = async (colonyId: number, colonyName: string, gender: 'male' | 'female' | 'total') => {
+    setGenderWiseModalLoading(true);
+    setGenderWiseModalOpen(true);
+    setGenderWiseModalSearch('');
+    
+    try {
+      let voters: GenderWiseVoter[] = [];
+      
+      if (gender === 'total') {
+        // Fetch both male and female
+        const [maleRes, femaleRes] = await Promise.all([
+          fetch(`/api/genderwisesurvey/voters?colony_id=${colonyId}&gender=male`),
+          fetch(`/api/genderwisesurvey/voters?colony_id=${colonyId}&gender=female`)
+        ]);
+        
+        const maleData = maleRes.ok ? await maleRes.json() : [];
+        const femaleData = femaleRes.ok ? await femaleRes.json() : [];
+        voters = [...maleData, ...femaleData];
+      } else {
+        const response = await fetch(`/api/genderwisesurvey/voters?colony_id=${colonyId}&gender=${gender}`);
+        if (response.ok) {
+          voters = await response.json();
+        }
+      }
+      
+      setGenderWiseModalData({
+        colony_id: colonyId,
+        colony_name: colonyName,
+        gender,
+        voters
+      });
+    } catch (error) {
+      console.error('Error fetching gender wise voters:', error);
+      toast.error('Failed to load voter details');
+      setGenderWiseModalData({
+        colony_id: colonyId,
+        colony_name: colonyName,
+        gender,
+        voters: []
+      });
+    } finally {
+      setGenderWiseModalLoading(false);
+    }
+  };
+
+  // Close gender wise survey modal
+  const closeGenderWiseModal = () => {
+    setGenderWiseModalOpen(false);
+    setGenderWiseModalData(null);
+    setGenderWiseModalSearch('');
+  };
+
+  // Export gender wise survey to Excel
+  const exportGenderWiseToExcel = async () => {
+    try {
+      const wb = XLSX.utils.book_new();
+      
+      // Helper function to sanitize sheet name
+      const sanitizeSheetName = (name: string): string => {
+        return name.replace(/[\[\]:*?\/\\]/g, '').substring(0, 31) || 'Sheet';
+      };
+      
+      // Create summary sheet
+      const summaryData = genderWiseData.map((colony, idx) => ({
+        'Sr No': idx + 1,
+        'Colony Name': colony.colony_name,
+        'Male Count': colony.male_count,
+        'Female Count': colony.female_count,
+        'Total Count': colony.total_count
+      }));
+      
+      const summaryWs = XLSX.utils.json_to_sheet(summaryData);
+      summaryWs['!cols'] = [
+        { wch: 8 }, { wch: 30 }, { wch: 12 }, { wch: 12 }, { wch: 12 }
+      ];
+      XLSX.utils.book_append_sheet(wb, summaryWs, 'Summary');
+      
+      // Create sheets for each colony
+      for (const colony of genderWiseData) {
+        try {
+          const [maleRes, femaleRes] = await Promise.all([
+            fetch(`/api/genderwisesurvey/voters?colony_id=${colony.colony_id}&gender=male`),
+            fetch(`/api/genderwisesurvey/voters?colony_id=${colony.colony_id}&gender=female`)
+          ]);
+          
+          const maleVoters = maleRes.ok ? await maleRes.json() : [];
+          const femaleVoters = femaleRes.ok ? await femaleRes.json() : [];
+          const allVoters = [...maleVoters, ...femaleVoters];
+          
+          const exportData = allVoters.map((voter: GenderWiseVoter, idx: number) => ({
+            'Sr No': idx + 1,
+            'Voter ID': voter.Voter_Id || 'N/A',
+            'Full Name': voter.full_name || 'N/A',
+            'English Name': voter.ENG_Full_name || 'N/A',
+            'Age': voter.Age || 'N/A',
+            'Gender': voter.Gender || 'N/A',
+            'House Number': voter.updated_house_number || voter.House_Number || 'N/A',
+            'Mobile': voter.updated_mobile_no || 'N/A',
+            'Colony': voter.colony_name || 'N/A'
+          }));
+          
+          const ws = XLSX.utils.json_to_sheet(exportData);
+          ws['!cols'] = [
+            { wch: 8 }, { wch: 15 }, { wch: 25 }, { wch: 25 },
+            { wch: 8 }, { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 20 }
+          ];
+          
+          const sheetName = sanitizeSheetName(colony.colony_name);
+          XLSX.utils.book_append_sheet(wb, ws, sheetName);
+        } catch (error) {
+          console.error(`Error exporting colony ${colony.colony_name}:`, error);
+        }
+      }
+      
+      const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      const data = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      
+      const fileName = `GenderWiseSurvey_${new Date().toISOString().split('T')[0]}.xlsx`;
+      saveAs(data, fileName);
+      
+      toast.success(`Excel file downloaded successfully with ${genderWiseData.length + 1} sheets!`);
+    } catch (error) {
+      console.error('Error exporting gender wise survey to Excel:', error);
+      toast.error('Failed to export Excel file');
+    }
+  };
+
+  // Export gender wise survey to PDF
+  const exportGenderWiseToPDF = async () => {
+    try {
+      const totalMale = genderWiseData.reduce((sum, c) => sum + c.male_count, 0);
+      const totalFemale = genderWiseData.reduce((sum, c) => sum + c.female_count, 0);
+      const totalCount = genderWiseData.reduce((sum, c) => sum + c.total_count, 0);
+      
+      const tableRows = genderWiseData.map((colony, index) => `
+        <tr>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 12px; text-align: center;">${index + 1}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 12px;">${colony.colony_name}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 12px; text-align: center;">${colony.male_count}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 12px; text-align: center;">${colony.female_count}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 12px; text-align: center;">${colony.total_count}</td>
+        </tr>
+      `).join('');
+      
+      const totalRow = `
+        <tr style="background-color: #f0f0f0; font-weight: bold;">
+          <td style="padding: 8px; border: 1px solid #000; font-size: 12px; text-align: center;" colspan="2">Total</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 12px; text-align: center;">${totalMale}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 12px; text-align: center;">${totalFemale}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 12px; text-align: center;">${totalCount}</td>
+        </tr>
+      `;
+      
+      const htmlContent = `
+        <html>
+          <head>
+            <title>Gender Wise Survey Report</title>
+            <style>
+              @page { size: A4 portrait; margin: 15mm; }
+              body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
+              h1 { text-align: center; margin-bottom: 10px; font-size: 20px; font-weight: bold; }
+              .info { text-align: center; margin-bottom: 20px; font-size: 14px; color: #666; }
+              table { width: 100%; border-collapse: collapse; margin: 0 auto; font-size: 12px; }
+              th { background-color: #4a5568; color: white; padding: 12px; border: 1px solid #000; font-weight: bold; text-align: center; }
+              td { padding: 8px; border: 1px solid #000; }
+            </style>
+          </head>
+          <body>
+            <h1>Gender Wise Survey Report</h1>
+            <div class="info">
+              <p>Generated on: ${new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
+              <p>Total Colonies: ${genderWiseData.length}</p>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th style="width: 10%;">Sr No</th>
+                  <th style="width: 50%;">Colony Name</th>
+                  <th style="width: 15%;">Male</th>
+                  <th style="width: 15%;">Female</th>
+                  <th style="width: 10%;">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${tableRows}
+                ${totalRow}
+              </tbody>
+            </table>
+          </body>
+        </html>
+      `;
+      
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.write(htmlContent);
+        printWindow.document.close();
+        
+        printWindow.onload = () => {
+          setTimeout(() => {
+            printWindow.print();
+          }, 250);
+        };
+        
+        setTimeout(() => {
+          if (printWindow && !printWindow.closed) {
+            printWindow.focus();
+            printWindow.print();
+          }
+        }, 1000);
+        
+        toast.success('PDF print dialog opened! Click print to save as PDF.');
+      } else {
+        toast.error('Please allow popups to download PDF');
+      }
+    } catch (error) {
+      console.error('Error exporting gender wise survey to PDF:', error);
+      toast.error('Failed to export PDF file');
+    }
+  };
+
+  // Export gender wise modal data to Excel
+  const exportGenderWiseModalToExcel = async () => {
+    if (!genderWiseModalData || genderWiseModalData.voters.length === 0) {
+      toast.error('No data to export');
+      return;
+    }
+    
+    try {
+      const filteredVoters = genderWiseModalData.voters.filter(voter => {
+        if (!genderWiseModalSearch.trim()) return true;
+        const search = genderWiseModalSearch.toLowerCase();
+        return (
+          voter.Voter_Id?.toLowerCase().includes(search) ||
+          voter.full_name?.toLowerCase().includes(search) ||
+          voter.ENG_Full_name?.toLowerCase().includes(search) ||
+          voter.updated_mobile_no?.includes(search)
+        );
+      });
+      
+      const exportData = filteredVoters.map((voter, idx) => ({
+        'Sr No': idx + 1,
+        'Voter ID': voter.Voter_Id || 'N/A',
+        'Full Name': voter.full_name || 'N/A',
+        'English Name': voter.ENG_Full_name || 'N/A',
+        'Age': voter.Age || 'N/A',
+        'Gender': voter.Gender || 'N/A',
+        'House Number': voter.updated_house_number || voter.House_Number || 'N/A',
+        'Mobile': voter.updated_mobile_no || 'N/A',
+        'Colony': voter.colony_name || 'N/A'
+      }));
+      
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      
+      ws['!cols'] = [
+        { wch: 8 }, { wch: 15 }, { wch: 25 }, { wch: 25 },
+        { wch: 8 }, { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 20 }
+      ];
+      
+      const genderLabel = genderWiseModalData.gender === 'male' ? 'Male' : genderWiseModalData.gender === 'female' ? 'Female' : 'All';
+      const sheetName = `${genderWiseModalData.colony_name.replace(/[\[\]:*?\/\\]/g, '')}_${genderLabel}`.substring(0, 31) || 'Sheet';
+      XLSX.utils.book_append_sheet(wb, ws, sheetName);
+      
+      const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      const data = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      
+      const fileName = `${genderWiseModalData.colony_name.replace(/[^a-zA-Z0-9]/g, '_')}_${genderLabel}_${new Date().toISOString().split('T')[0]}.xlsx`;
+      saveAs(data, fileName);
+      
+      toast.success('Excel file downloaded successfully!');
+    } catch (error) {
+      console.error('Error exporting gender wise modal to Excel:', error);
+      toast.error('Failed to export Excel file');
+    }
+  };
+
+  // Export gender wise modal data to PDF
+  const exportGenderWiseModalToPDF = async () => {
+    if (!genderWiseModalData || genderWiseModalData.voters.length === 0) {
+      toast.error('No data to export');
+      return;
+    }
+    
+    try {
+      const filteredVoters = genderWiseModalData.voters.filter(voter => {
+        if (!genderWiseModalSearch.trim()) return true;
+        const search = genderWiseModalSearch.toLowerCase();
+        return (
+          voter.Voter_Id?.toLowerCase().includes(search) ||
+          voter.full_name?.toLowerCase().includes(search) ||
+          voter.ENG_Full_name?.toLowerCase().includes(search) ||
+          voter.updated_mobile_no?.includes(search)
+        );
+      });
+      
+      const genderLabel = genderWiseModalData.gender === 'male' ? 'Male' : genderWiseModalData.gender === 'female' ? 'Female' : 'All';
+      
+      const tableRows = filteredVoters.map((voter, idx) => `
+        <tr>
+          <td style="padding: 6px; border: 1px solid #000; font-size: 10px; text-align: center;">${idx + 1}</td>
+          <td style="padding: 6px; border: 1px solid #000; font-size: 10px;">${voter.Voter_Id || 'N/A'}</td>
+          <td style="padding: 6px; border: 1px solid #000; font-size: 10px;">${voter.full_name || 'N/A'}</td>
+          <td style="padding: 6px; border: 1px solid #000; font-size: 10px;">${voter.ENG_Full_name || 'N/A'}</td>
+          <td style="padding: 6px; border: 1px solid #000; font-size: 10px; text-align: center;">${voter.Age || 'N/A'}</td>
+          <td style="padding: 6px; border: 1px solid #000; font-size: 10px; text-align: center;">${voter.Gender || 'N/A'}</td>
+          <td style="padding: 6px; border: 1px solid #000; font-size: 10px;">${voter.updated_house_number || voter.House_Number || 'N/A'}</td>
+          <td style="padding: 6px; border: 1px solid #000; font-size: 10px;">${voter.updated_mobile_no || 'N/A'}</td>
+        </tr>
+      `).join('');
+      
+      const htmlContent = `
+        <html>
+          <head>
+            <title>${genderWiseModalData.colony_name} - ${genderLabel} Voters</title>
+            <style>
+              @page { size: A4 landscape; margin: 10mm; }
+              body { font-family: Arial, sans-serif; margin: 0; padding: 10px; }
+              h1 { text-align: center; margin-bottom: 10px; font-size: 16px; }
+              .info { text-align: center; margin-bottom: 15px; font-size: 12px; }
+              table { width: 100%; border-collapse: collapse; font-size: 9px; }
+              th { background-color: #4a5568; color: white; padding: 8px; border: 1px solid #000; font-weight: bold; text-align: center; }
+              td { padding: 6px; border: 1px solid #000; }
+            </style>
+          </head>
+          <body>
+            <h1>${genderWiseModalData.colony_name} - ${genderLabel} Voters</h1>
+            <div class="info">
+              <p>Generated on: ${new Date().toLocaleDateString()} | Total Records: ${filteredVoters.length}</p>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Sr</th>
+                  <th>Voter ID</th>
+                  <th>Full Name</th>
+                  <th>English Name</th>
+                  <th>Age</th>
+                  <th>Gender</th>
+                  <th>House No</th>
+                  <th>Mobile</th>
+                </tr>
+              </thead>
+              <tbody>${tableRows}</tbody>
+            </table>
+          </body>
+        </html>
+      `;
+      
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.write(htmlContent);
+        printWindow.document.close();
+        
+        printWindow.onload = () => {
+          setTimeout(() => {
+            printWindow.print();
+          }, 250);
+        };
+        
+        setTimeout(() => {
+          if (printWindow && !printWindow.closed) {
+            printWindow.focus();
+            printWindow.print();
+          }
+        }, 1000);
+        
+        toast.success('PDF print dialog opened! Click print to save as PDF.');
+      } else {
+        toast.error('Please allow popups to download PDF');
+      }
+    } catch (error) {
+      console.error('Error exporting gender wise modal to PDF:', error);
+      toast.error('Failed to export PDF file');
+    }
+  };
 
   // Fetch family wise survey data from the API
   const fetchFamilyWiseSurveyData = useCallback(async () => {
@@ -506,7 +959,10 @@ const Newdashboard: React.FC = () => {
     if (active === "familywisesurvey" && familyWiseSurveyData.length === 0 && !familyWiseLoading) {
       fetchFamilyWiseSurveyData();
     }
-  }, [active, fetchVoterData, voterData.length, loading, fetchFemaleVoterData, femaleVoterData.length, femaleLoading, fetchFamilyWiseSurveyData, familyWiseSurveyData.length, familyWiseLoading]);
+    if (active === "genderwisesurvey" && genderWiseData.length === 0 && !genderWiseLoading && colonyList.length > 0) {
+      fetchGenderWiseSurveyData();
+    }
+  }, [active, fetchVoterData, voterData.length, loading, fetchFemaleVoterData, femaleVoterData.length, femaleLoading, fetchFamilyWiseSurveyData, familyWiseSurveyData.length, familyWiseLoading, fetchGenderWiseSurveyData, genderWiseData.length, genderWiseLoading, colonyList.length]);
 
   // Group voters by colony
   const colonyWiseGroupedData = useMemo(() => {
@@ -1694,6 +2150,8 @@ const Newdashboard: React.FC = () => {
         return "Male Female Voters";
       case "familywisesurvey":
         return "Family Wise Survey";
+      case "genderwisesurvey":
+        return "Gender Wise Survey";
       // case "voterstatus":
       //   return "Voter Status";
       default:
@@ -1707,13 +2165,13 @@ const Newdashboard: React.FC = () => {
       <div className="mb-5">
         <DynamicCfrCount
           title={getTabTitle()}
-          tabType={active === "voterstatus" ? undefined : active}
+          tabType={active === "voterstatus" || active === "genderwisesurvey" ? undefined : active}
           refreshInterval={3000}
         />
       </div>
 
       {/* Button grid tabs */}
-      <div className="grid grid-cols-3 gap-3 mb-5" role="tablist" aria-label="Voter tabs">
+      <div className="grid grid-cols-4 gap-3 mb-5" role="tablist" aria-label="Voter tabs">
         <button
           type="button"
           role="tab"
@@ -1765,6 +2223,20 @@ const Newdashboard: React.FC = () => {
               : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"}`}
         >
           Family Wise Survey
+        </button>
+
+        <button
+          type="button"
+          role="tab"
+          aria-selected={active === "genderwisesurvey"}
+          aria-controls="tab-panel-genderwisesurvey"
+          onClick={() => setActive("genderwisesurvey")}
+          className={`h-11 rounded-lg text-sm font-medium transition-colors
+            ${active === "genderwisesurvey"
+              ? "bg-purple-600 text-white shadow"
+              : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"}`}
+        >
+          Gender Wise Survey
         </button>
         {/* <button
           type="button"
@@ -3185,6 +3657,298 @@ const Newdashboard: React.FC = () => {
               <button
                 type="button"
                 onClick={closePrimaryPersonsModal}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Gender Wise Survey Tab Panel */}
+      <div
+        id="tab-panel-genderwisesurvey"
+        role="tabpanel"
+        hidden={active !== "genderwisesurvey"}
+        className="focus:outline-none"
+      >
+        {active === "genderwisesurvey" && (
+          <div className="bg-white rounded-2xl shadow-md border p-4">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-gray-800">
+                Gender Wise Survey - Colony Wise
+              </h2>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={exportGenderWiseToExcel}
+                  disabled={genderWiseLoading || genderWiseData.length === 0}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Export to Excel"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  Excel
+                </button>
+                <button
+                  onClick={exportGenderWiseToPDF}
+                  disabled={genderWiseLoading || genderWiseData.length === 0}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Export to PDF"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                  </svg>
+                  PDF
+                </button>
+              </div>
+            </div>
+
+            {/* Table */}
+            {genderWiseLoading ? (
+              <div className="text-center py-8">
+                <Loader />
+              </div>
+            ) : genderWiseData.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                No data available
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm border-collapse">
+                  <thead className="bg-gray-100 sticky top-0">
+                    <tr>
+                      <th className="px-4 py-3 text-left border-b font-semibold text-gray-700">Sr No</th>
+                      <th className="px-4 py-3 text-left border-b font-semibold text-gray-700">Colony Name</th>
+                      <th className="px-4 py-3 text-center border-b font-semibold text-gray-700">Male</th>
+                      <th className="px-4 py-3 text-center border-b font-semibold text-gray-700">Female</th>
+                      <th className="px-4 py-3 text-center border-b font-semibold text-gray-700">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {genderWiseData.map((colony, index) => (
+                      <tr key={colony.colony_id} className="border-b hover:bg-gray-50">
+                        <td className="px-4 py-3 text-gray-600">{index + 1}</td>
+                        <td className="px-4 py-3 font-medium text-gray-900">{colony.colony_name}</td>
+                        <td className="px-4 py-3 text-center">
+                          <button
+                            type="button"
+                            onClick={() => openGenderWiseModal(colony.colony_id, colony.colony_name, 'male')}
+                            className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-700 rounded hover:bg-blue-200 hover:underline cursor-pointer"
+                            disabled={colony.male_count === 0}
+                          >
+                            {colony.male_count}
+                          </button>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <button
+                            type="button"
+                            onClick={() => openGenderWiseModal(colony.colony_id, colony.colony_name, 'female')}
+                            className="px-2 py-1 text-xs font-medium bg-pink-100 text-pink-700 rounded hover:bg-pink-200 hover:underline cursor-pointer"
+                            disabled={colony.female_count === 0}
+                          >
+                            {colony.female_count}
+                          </button>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <button
+                            type="button"
+                            onClick={() => openGenderWiseModal(colony.colony_id, colony.colony_name, 'total')}
+                            className="px-2 py-1 text-xs font-semibold text-gray-900 hover:bg-gray-200 hover:underline cursor-pointer rounded"
+                            disabled={colony.total_count === 0}
+                          >
+                            {colony.total_count}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot className="bg-gray-50">
+                    <tr>
+                      <td colSpan={2} className="px-4 py-3 font-semibold text-gray-900 text-right">
+                        Total:
+                      </td>
+                      <td className="px-4 py-3 text-center font-semibold text-blue-700">
+                        {genderWiseData.reduce((sum, c) => sum + c.male_count, 0)}
+                      </td>
+                      <td className="px-4 py-3 text-center font-semibold text-pink-700">
+                        {genderWiseData.reduce((sum, c) => sum + c.female_count, 0)}
+                      </td>
+                      <td className="px-4 py-3 text-center font-semibold text-gray-900">
+                        {genderWiseData.reduce((sum, c) => sum + c.total_count, 0)}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Gender Wise Survey Modal */}
+      {genderWiseModalOpen && genderWiseModalData && (
+        <div
+          className="fixed inset-0 z-9999 flex items-center justify-center bg-black/50"
+          role="dialog"
+          aria-modal="true"
+          onClick={closeGenderWiseModal}
+        >
+          <div
+            className="relative w-[95vw] max-w-6xl max-h-[90vh] overflow-hidden rounded-xl bg-white shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b bg-gray-50">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-800">
+                  {genderWiseModalData.colony_name} - {
+                    genderWiseModalData.gender === 'male' ? 'Male' : 
+                    genderWiseModalData.gender === 'female' ? 'Female' : 
+                    'All'
+                  } Voters
+                </h3>
+                <p className="text-sm text-gray-500">
+                  Total Records: {genderWiseModalData.voters.length}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={exportGenderWiseModalToExcel}
+                  disabled={genderWiseModalLoading || genderWiseModalData.voters.length === 0}
+                  className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Export to Excel"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  Excel
+                </button>
+                <button
+                  onClick={exportGenderWiseModalToPDF}
+                  disabled={genderWiseModalLoading || genderWiseModalData.voters.length === 0}
+                  className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Export to PDF"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                  </svg>
+                  PDF
+                </button>
+                <button
+                  type="button"
+                  onClick={closeGenderWiseModal}
+                  className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg"
+                  aria-label="Close"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Search Bar */}
+            <div className="px-6 py-3 border-b bg-white">
+              <input
+                type="text"
+                placeholder="Search by Voter ID, Name, or Mobile..."
+                value={genderWiseModalSearch}
+                onChange={(e) => setGenderWiseModalSearch(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+              />
+              {genderWiseModalSearch && (
+                <p className="text-sm text-gray-600 mt-2">
+                  Showing {genderWiseModalData.voters.filter(voter => {
+                    if (!genderWiseModalSearch.trim()) return true;
+                    const search = genderWiseModalSearch.toLowerCase();
+                    return (
+                      voter.Voter_Id?.toLowerCase().includes(search) ||
+                      voter.full_name?.toLowerCase().includes(search) ||
+                      voter.ENG_Full_name?.toLowerCase().includes(search) ||
+                      voter.updated_mobile_no?.includes(search)
+                    );
+                  }).length} of {genderWiseModalData.voters.length} voters
+                </p>
+              )}
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
+              {genderWiseModalLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader />
+                </div>
+              ) : (
+                <table className="min-w-full text-sm">
+                  <thead className="bg-gray-50 sticky top-0">
+                    <tr>
+                      <th className="px-3 py-2 border text-left font-semibold">Sr</th>
+                      <th className="px-3 py-2 border text-left font-semibold">Voter ID</th>
+                      <th className="px-3 py-2 border text-left font-semibold">Full Name</th>
+                      <th className="px-3 py-2 border text-left font-semibold">English Name</th>
+                      <th className="px-3 py-2 border text-left font-semibold">Age</th>
+                      <th className="px-3 py-2 border text-left font-semibold">Gender</th>
+                      <th className="px-3 py-2 border text-left font-semibold">House No</th>
+                      <th className="px-3 py-2 border text-left font-semibold">Mobile</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(() => {
+                      const filteredVoters = genderWiseModalData.voters.filter(voter => {
+                        if (!genderWiseModalSearch.trim()) return true;
+                        const search = genderWiseModalSearch.toLowerCase();
+                        return (
+                          voter.Voter_Id?.toLowerCase().includes(search) ||
+                          voter.full_name?.toLowerCase().includes(search) ||
+                          voter.ENG_Full_name?.toLowerCase().includes(search) ||
+                          voter.updated_mobile_no?.includes(search)
+                        );
+                      });
+                      
+                      if (filteredVoters.length === 0) {
+                        return (
+                          <tr>
+                            <td className="px-3 py-2 border text-center" colSpan={8}>
+                              {genderWiseModalSearch ? "No voters found matching your search" : "No voters found"}
+                            </td>
+                          </tr>
+                        );
+                      }
+                      
+                      return filteredVoters.map((voter, idx) => (
+                        <tr key={voter.id} className="hover:bg-gray-50">
+                          <td className="px-3 py-2 border">{idx + 1}</td>
+                          <td className="px-3 py-2 border font-mono text-blue-600">{voter.Voter_Id || "N/A"}</td>
+                          <td className="px-3 py-2 border font-medium">{voter.full_name || "N/A"}</td>
+                          <td className="px-3 py-2 border">{voter.ENG_Full_name || "N/A"}</td>
+                          <td className="px-3 py-2 border">{voter.Age || "N/A"}</td>
+                          <td className="px-3 py-2 border">
+                            <span className={`px-2 py-0.5 rounded-full text-xs ${
+                              voter.Gender === 'पु' || voter.Gender === 'M' || voter.Gender === 'Male'
+                                ? "bg-blue-100 text-blue-700"
+                                : "bg-pink-100 text-pink-700"
+                            }`}>
+                              {voter.Gender || "N/A"}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 border">{voter.updated_house_number || voter.House_Number || "N/A"}</td>
+                          <td className="px-3 py-2 border font-mono">{voter.updated_mobile_no || "N/A"}</td>
+                        </tr>
+                      ));
+                    })()}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t bg-gray-50">
+              <button
+                type="button"
+                onClick={closeGenderWiseModal}
                 className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
               >
                 Close
