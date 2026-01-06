@@ -3738,25 +3738,30 @@ const VoterMaster: React.FC = () => {
                               <input
                                 type="checkbox"
                                 className="w-4 h-4"
-                                checked={filteredPersons.length > 0 && filteredPersons.every(p => {
-                                  const pid = String(p.id);
-                                  const assignedName = primaryPersonAssignments[pid];
-                                  const isOther = !!(assignedName && assignedName !== selectedVolunteerName);
-                                  return isOther || selectedPrimaryPersonIds.includes(pid);
-                                })}
+                                checked={(() => {
+                                  const selectablePersons = filteredPersons.filter(p => {
+                                    const pid = String(p.id);
+                                    const assignedName = primaryPersonAssignments[pid];
+                                    return !(assignedName && assignedName !== selectedVolunteerName);
+                                  });
+                                  return selectablePersons.length > 0 && selectablePersons.every(p => {
+                                    const pid = String(p.id);
+                                    return selectedPrimaryPersonIds.includes(pid);
+                                  });
+                                })()}
                                 onChange={e => {
+                                  const selectableIds = filteredPersons
+                                    .filter(p => {
+                                      const pid = String(p.id);
+                                      const assignedName = primaryPersonAssignments[pid];
+                                      return !(assignedName && assignedName !== selectedVolunteerName);
+                                    })
+                                    .map(p => String(p.id));
+                                  
                                   if (e.target.checked) {
-                                    const selectableIds = filteredPersons
-                                      .filter(p => {
-                                        const pid = String(p.id);
-                                        const assignedName = primaryPersonAssignments[pid];
-                                        return !(assignedName && assignedName !== selectedVolunteerName);
-                                      })
-                                      .map(p => String(p.id));
                                     setSelectedPrimaryPersonIds(prev => [...new Set([...prev, ...selectableIds])]);
                                   } else {
-                                    const filteredIds = filteredPersons.map(p => String(p.id));
-                                    setSelectedPrimaryPersonIds(prev => prev.filter(id => !filteredIds.includes(id)));
+                                    setSelectedPrimaryPersonIds(prev => prev.filter(id => !selectableIds.includes(id)));
                                   }
                                 }}
                               />

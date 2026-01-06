@@ -99,19 +99,43 @@ export async function GET(request: Request) {
         `;
         
         // Run count and data queries in parallel for better performance
-        const [rowsResult, countResult] = await Promise.all([
+        const [rowsResult, countResult, totalVotersCountResult, colonyWiseCountResult] = await Promise.all([
             connection.query<RowDataPacket[]>(query, [validLimit, offset]),
             connection.query<RowDataPacket[]>(
                 `SELECT COUNT(*) as total 
                  FROM tbl_voters_search v
                  ${baseWhere}`,
                 []
+            ),
+            // Get total count of all voters where updated_at IS NOT NULL
+            // This matches the actual database count (10680)
+            connection.query<RowDataPacket[]>(
+                `SELECT COUNT(*) as total 
+                 FROM tbl_voters_search v
+                 WHERE v.updated_at IS NOT NULL`,
+                []
+            ),
+            // Get colony-wise totals (all voters where updated_at IS NOT NULL)
+            connection.query<RowDataPacket[]>(
+                `SELECT 
+                    c.colony_id,
+                    c.colony_name,
+                    COUNT(*) as total_voters
+                FROM tbl_voters_search v
+                LEFT JOIN colony c ON v.Updated_colony = c.colony_id
+                WHERE v.updated_at IS NOT NULL
+                GROUP BY c.colony_id, c.colony_name
+                ORDER BY c.colony_name ASC`,
+                []
             )
         ]);
         
         const [rows] = rowsResult;
         const [countRows] = countResult;
+        const [totalVotersRows] = totalVotersCountResult;
+        const [colonyWiseRows] = colonyWiseCountResult;
         const totalRecords = Number(countRows[0]?.total || 0);
+        const totalVoters = Number(totalVotersRows[0]?.total || 0);
 
         return NextResponse.json({
             data: rows,
@@ -121,6 +145,12 @@ export async function GET(request: Request) {
                 totalRecords: totalRecords,
                 recordsPerPage: validLimit,
             },
+            totalVoters: totalVoters, // Total count of all voters where updated_at IS NOT NULL
+            colonyWiseTotals: colonyWiseRows.map((row: RowDataPacket) => ({
+                colony_id: String(row.colony_id || '0'),
+                colony_name: row.colony_name || `Colony ID: ${row.colony_id || '0'}`,
+                total_voters: Number(row.total_voters || 0)
+            }))
         });
     } catch (error) {
         console.error('Database query failed (GET):', error);

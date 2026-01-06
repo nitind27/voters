@@ -158,6 +158,8 @@ const Newdashboard: React.FC = () => {
   const [familyWiseSurveyData, setFamilyWiseSurveyData] = useState<FamilyWiseSurveyData[]>([]);
   const [filteredFamilyWiseData, setFilteredFamilyWiseData] = useState<FamilyWiseSurveyData[]>([]);
   const [familyWiseLoading, setFamilyWiseLoading] = useState(false);
+  const [familyWiseTotalVoters, setFamilyWiseTotalVoters] = useState<number>(0);
+  const [familyWiseColonyTotals, setFamilyWiseColonyTotals] = useState<Array<{colony_id: string; colony_name: string; total_voters: number}>>([]);
   const [userList, setUserList] = useState<UserData[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<string>(''); // '' means all users
@@ -822,6 +824,15 @@ const Newdashboard: React.FC = () => {
         // Check if there are more pages
         if (result.pagination) {
           hasMore = currentPage < result.pagination.totalPages;
+          // Store total voters and colony-wise totals from API on first page
+          if (currentPage === 1) {
+            if (result.totalVoters !== undefined) {
+              setFamilyWiseTotalVoters(result.totalVoters);
+            }
+            if (result.colonyWiseTotals && Array.isArray(result.colonyWiseTotals)) {
+              setFamilyWiseColonyTotals(result.colonyWiseTotals);
+            }
+          }
           currentPage++;
         } else {
           // If no pagination info, assume single page
@@ -903,11 +914,22 @@ const Newdashboard: React.FC = () => {
       const colony = colonyList.find(c => String(c.colony_id) === colonyId);
       const colonyName = colony?.colony_name || (colonyId === "0" ? "Not Assigned" : `Colony ID: ${colonyId}`);
       
-      // Calculate total voter count: primary persons + their family members
-      const totalVoterCount = primaryPersons.reduce((sum, person) => {
-        const familyCount = person.family_member_count || 0;
-        return sum + 1 + familyCount; // 1 for primary person + family members
-      }, 0);
+      // Get total voter count from API colony-wise totals if available, otherwise calculate
+      const colonyTotal = familyWiseColonyTotals.find(c => c.colony_id === colonyId);
+      let totalVoterCount = 0;
+      
+      if (colonyTotal) {
+        // Use the actual count from database (where updated_at IS NOT NULL)
+        totalVoterCount = colonyTotal.total_voters;
+      } else {
+        // Fallback: Calculate total voter count: primary persons + their family members
+        totalVoterCount = primaryPersons.reduce((sum, person) => {
+          const familyCount = typeof person.family_member_count === 'number' 
+            ? person.family_member_count 
+            : parseInt(String(person.family_member_count || 0), 10) || 0;
+          return sum + 1 + familyCount; // 1 for primary person + family members
+        }, 0);
+      }
 
       result.push({
         colony_id: colonyId,
@@ -920,7 +942,7 @@ const Newdashboard: React.FC = () => {
 
     // Sort by colony name
     return result.sort((a, b) => a.colony_name.localeCompare(b.colony_name));
-  }, [filteredFamilyWiseData, colonyList]);
+  }, [filteredFamilyWiseData, colonyList, familyWiseColonyTotals]);
 
   // Initial load - Fetch all 3 tab APIs in parallel for fast loading
   useEffect(() => {
@@ -2779,7 +2801,9 @@ const Newdashboard: React.FC = () => {
                           {familyWiseColonyGroupedData.reduce((sum, c) => sum + c.primaryPersonCount, 0)}
                         </td>
                         <td className="px-3 py-2 border text-center">
-                          {familyWiseColonyGroupedData.reduce((sum, c) => sum + c.totalVoterCount, 0)}
+                          {familyWiseTotalVoters > 0 
+                            ? familyWiseTotalVoters 
+                            : familyWiseColonyGroupedData.reduce((sum, c) => sum + c.totalVoterCount, 0)}
                         </td>
                         <td className="px-3 py-2 border"></td>
                       </tr>
