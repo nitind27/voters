@@ -1610,28 +1610,68 @@ const Newdashboard: React.FC = () => {
 
   // Print family members for a specific primary person
   const printFamilyMembers = async (person: FamilyWiseSurveyData) => {
+    const primaryPersonName = person.full_name || "Primary Person";
+
+    // Open print window immediately with loading message
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      toast.error('Please allow popups to print');
+      return;
+    }
+
+    // Initial loading content
+    const loadingHtml = `
+      <html>
+        <head>
+          <title>Family Members - ${primaryPersonName}</title>
+          <style>
+            @page { size: A4; margin: 20mm; orientation: portrait; }
+            * { margin: 0; padding: 0; box-sizing: border-box; border: none; outline: none; text-decoration: none; }
+            body { font-family: Arial, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 4px 2px; }
+            .loading-container { text-align: center; }
+            .loading-container p { margin: 10px 0; font-size: 16px; color: #6b7280; }
+          </style>
+        </head>
+        <body>
+          <div class="loading-container">
+            <p>Loading family members...</p>
+          </div>
+        </body>
+      </html>
+    `;
+
+    printWindow.document.write(loadingHtml);
+    printWindow.document.close();
+
+    // Trigger print immediately (user will see loading message first)
+    setTimeout(() => {
+      if (printWindow && !printWindow.closed) {
+        printWindow.focus();
+        printWindow.print();
+      }
+    }, 100);
+
+    toast.success('Print dialog opened! Loading family data...');
+
     try {
-      setLoading(true);
-      
-      // Fetch family members for this primary person
+      // Fetch family members asynchronously in background
       const response = await fetch(`/api/familywisesurvey?family_member_id=${person.Voter_Id}`);
       if (!response.ok) {
         throw new Error('Failed to fetch family members');
       }
-      
+
       const familyMembers: FamilyWiseSurveyData[] = await response.json();
-      
+
       // Create list items including primary person first (bold), then family members
-      const primaryPersonName = person.full_name || "Primary Person";
       const primaryPersonItem = `<p><strong>1. ${primaryPersonName}</strong></p>`;
-      
+
       const familyListItems = familyMembers
         .filter(member => member.full_name) // Only include members with Marathi name
         .map((member, idx) => `<p>${idx + 2}. ${member.full_name}</p>`).join('');
-      
+
       const allListItems = primaryPersonItem + familyListItems;
 
-      const htmlContent = `
+      const finalHtmlContent = `
         <html>
           <head>
             <title>Family Members - ${primaryPersonName}</title>
@@ -1656,33 +1696,37 @@ const Newdashboard: React.FC = () => {
         </html>
       `;
 
-      const printWindow = window.open('', '_blank');
-      if (printWindow) {
-        printWindow.document.write(htmlContent);
+      // Update the print window with actual data (if still open)
+      if (printWindow && !printWindow.closed) {
+        printWindow.document.open();
+        printWindow.document.write(finalHtmlContent);
         printWindow.document.close();
-
-        // printWindow.onload = () => {
-        //   setTimeout(() => {
-        //     printWindow.print();
-        //   }, 250);
-        // };
-
-        // setTimeout(() => {
-        //   if (printWindow && !printWindow.closed) {
-        //     printWindow.focus();
-        //     printWindow.print();
-        //   }
-        // }, 1000);
-
-        toast.success('Family members print dialog opened!');
-      } else {
-        toast.error('Please allow popups to print');
       }
+
     } catch (error) {
       console.error('Error printing family members:', error);
       toast.error('Failed to load family members for printing');
-    } finally {
-      setLoading(false);
+
+      // Show error in print window if still open
+      if (printWindow && !printWindow.closed) {
+        const errorHtml = `
+          <html>
+            <head>
+              <title>Error - Family Members</title>
+              <style>
+                body { font-family: Arial, sans-serif; text-align: center; padding: 50px; }
+                p { color: #dc2626; font-size: 16px; }
+              </style>
+            </head>
+            <body>
+              <p>Failed to load family members data</p>
+            </body>
+          </html>
+        `;
+        printWindow.document.open();
+        printWindow.document.write(errorHtml);
+        printWindow.document.close();
+      }
     }
   };
 

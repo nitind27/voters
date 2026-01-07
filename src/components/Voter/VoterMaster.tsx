@@ -687,8 +687,13 @@ const VoterMaster: React.FC = () => {
       if (!res.ok) throw new Error("Failed to load primary persons");
       const json = await res.json();
       setPrimaryPersons(json || []);
-      
+
+      // Auto-select all primary persons by default
+      const allPersonIds = (json || []).map((person: {id: number}) => String(person.id));
+      setSelectedPrimaryPersonIds(allPersonIds);
+
       // Load assignments after loading primary persons (only if volunteer is selected)
+      // But don't let it override our auto-selection - just load for display purposes
       if (selectedVolunteerId) {
         const selectedVolunteer = availableVolunteers.find(v => v.user_id === selectedVolunteerId);
         if (selectedVolunteer) {
@@ -698,6 +703,9 @@ const VoterMaster: React.FC = () => {
         // Just load all assignments if no volunteer selected
         await loadPrimaryPersonAssignments();
       }
+
+      // Ensure all primary persons remain selected after loading assignments
+      setSelectedPrimaryPersonIds(allPersonIds);
     } catch (e) {
       console.error(e);
       toast.error("Primary persons load होत नाही.");
@@ -2334,7 +2342,7 @@ const VoterMaster: React.FC = () => {
   const handleColonyChange = (colonyId: number, colonyName: string) => {
     setSelectedColonyId(colonyId);
     setSelectedColonyName(colonyName);
-    setSelectedPrimaryPersonIds([]);
+    // Don't clear selectedPrimaryPersonIds here - let loadPrimaryPersons handle auto-selection
     loadPrimaryPersons(colonyName);
   };
 
@@ -3739,25 +3747,17 @@ const VoterMaster: React.FC = () => {
                                 type="checkbox"
                                 className="w-4 h-4"
                                 checked={(() => {
-                                  const selectablePersons = filteredPersons.filter(p => {
-                                    const pid = String(p.id);
-                                    const assignedName = primaryPersonAssignments[pid];
-                                    return !(assignedName && assignedName !== selectedVolunteerName);
-                                  });
+                                  // All filtered persons are now selectable
+                                  const selectablePersons = filteredPersons;
                                   return selectablePersons.length > 0 && selectablePersons.every(p => {
                                     const pid = String(p.id);
                                     return selectedPrimaryPersonIds.includes(pid);
                                   });
                                 })()}
                                 onChange={e => {
-                                  const selectableIds = filteredPersons
-                                    .filter(p => {
-                                      const pid = String(p.id);
-                                      const assignedName = primaryPersonAssignments[pid];
-                                      return !(assignedName && assignedName !== selectedVolunteerName);
-                                    })
-                                    .map(p => String(p.id));
-                                  
+                                  // All filtered persons are now selectable
+                                  const selectableIds = filteredPersons.map(p => String(p.id));
+
                                   if (e.target.checked) {
                                     setSelectedPrimaryPersonIds(prev => [...new Set([...prev, ...selectableIds])]);
                                   } else {
@@ -3784,26 +3784,21 @@ const VoterMaster: React.FC = () => {
                             const assignedVolunteerName = primaryPersonAssignments[personId];
                             const isAssignedToCurrentVolunteer = assignedVolunteerName === selectedVolunteerName;
                             const isAssignedToOtherVolunteer = !!(assignedVolunteerName && assignedVolunteerName !== selectedVolunteerName);
-                            const isDisabled: boolean = isAssignedToOtherVolunteer;
                             const memberCount = person.member_count || 0;
                             
                             return (
                               <tr
                                 key={person.id}
                                 className={`${
-                                  isDisabled 
-                                    ? "bg-gray-200 opacity-60" 
-                                    : isChecked
+                                  isChecked
                                     ? "bg-blue-50 hover:bg-blue-100"
                                     : "hover:bg-gray-50"
-                                } ${isDisabled ? "cursor-not-allowed" : "cursor-pointer"}`}
+                                } cursor-pointer`}
                                 onClick={() => {
-                                  if (!isDisabled) {
-                                    if (isChecked) {
-                                      setSelectedPrimaryPersonIds(prev => prev.filter(id => id !== personId));
-                                    } else {
-                                      setSelectedPrimaryPersonIds(prev => [...prev, personId]);
-                                    }
+                                  if (isChecked) {
+                                    setSelectedPrimaryPersonIds(prev => prev.filter(id => id !== personId));
+                                  } else {
+                                    setSelectedPrimaryPersonIds(prev => [...prev, personId]);
                                   }
                                 }}
                               >
@@ -3812,11 +3807,10 @@ const VoterMaster: React.FC = () => {
                                     type="checkbox"
                                     className="w-4 h-4"
                                     checked={isChecked}
-                                    disabled={isDisabled}
                                     onChange={e => {
-                                      if (!isDisabled && e.target.checked) {
+                                      if (e.target.checked) {
                                         setSelectedPrimaryPersonIds(prev => [...prev, personId]);
-                                      } else if (!isDisabled) {
+                                      } else {
                                         setSelectedPrimaryPersonIds(prev => prev.filter(id => id !== personId));
                                       }
                                     }}
@@ -3851,12 +3845,12 @@ const VoterMaster: React.FC = () => {
                                   {person.updated_mobile_no ? highlightText(person.updated_mobile_no, searchTerm) : "-"}
                                 </td>
                                 <td className="px-3 py-2 border-b">
-                                  {isAssignedToOtherVolunteer && (
-                                    <span className="text-red-600 font-medium text-xs">
+                                  {assignedVolunteerName && (
+                                    <span className={`${assignedVolunteerName === selectedVolunteerName ? 'text-green-600' : 'text-blue-600'} font-medium text-xs`}>
                                       Assigned: <span className="font-bold">{assignedVolunteerName}</span>
                                     </span>
                                   )}
-                                  {isAssignedToCurrentVolunteer && (
+                                  {!assignedVolunteerName && (
                                     <span className="text-green-600 font-medium text-xs">
                                       ✓ Current
                                     </span>
