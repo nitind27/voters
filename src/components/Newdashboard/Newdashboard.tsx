@@ -1610,127 +1610,127 @@ const Newdashboard: React.FC = () => {
     }
   }, [familyWiseColonyGroupedData]);
 
-  // Print family members for a specific primary person
-  const printFamilyMembers = async (person: FamilyWiseSurveyData) => {
-    const primaryPersonName = person.full_name || "Primary Person";
+  // // Print family members for a specific primary person
+  // const printFamilyMembers = async (person: FamilyWiseSurveyData) => {
+  //   const primaryPersonName = person.full_name || "Primary Person";
 
-    // Open print window immediately with loading message
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) {
-      toast.error('Please allow popups to print');
-      return;
-    }
+  //   // Open print window immediately with loading message
+  //   const printWindow = window.open('', '_blank');
+  //   if (!printWindow) {
+  //     toast.error('Please allow popups to print');
+  //     return;
+  //   }
 
-    // Initial loading content
-    const loadingHtml = `
-      <html>
-        <head>
-          <title>Family Members - ${primaryPersonName}</title>
-          <style>
-            @page { size: A4; margin: 20mm; orientation: portrait; }
-            * { margin: 0; padding: 0; box-sizing: border-box; border: none; outline: none; text-decoration: none; }
-            body { font-family: Arial, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 4px 2px; }
-            .loading-container { text-align: center; }
-            .loading-container p { margin: 10px 0; font-size: 16px; color: #6b7280; }
-          </style>
-        </head>
-        <body>
-          <div class="loading-container">
-            <p>Loading family members...</p>
-          </div>
-        </body>
-      </html>
-    `;
+  //   // Initial loading content
+  //   const loadingHtml = `
+  //     <html>
+  //       <head>
+  //         <title>Family Members - ${primaryPersonName}</title>
+  //         <style>
+  //           @page { size: A4; margin: 20mm; orientation: portrait; }
+  //           * { margin: 0; padding: 0; box-sizing: border-box; border: none; outline: none; text-decoration: none; }
+  //           body { font-family: Arial, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 4px 2px; }
+  //           .loading-container { text-align: center; }
+  //           .loading-container p { margin: 10px 0; font-size: 16px; color: #6b7280; }
+  //         </style>
+  //       </head>
+  //       <body>
+  //         <div class="loading-container">
+  //           <p>Loading family members...</p>
+  //         </div>
+  //       </body>
+  //     </html>
+  //   `;
 
-    printWindow.document.write(loadingHtml);
-    printWindow.document.close();
+  //   printWindow.document.write(loadingHtml);
+  //   printWindow.document.close();
 
-    // Trigger print immediately (user will see loading message first)
-    setTimeout(() => {
-      if (printWindow && !printWindow.closed) {
-        printWindow.focus();
-        printWindow.print();
-      }
-    }, 100);
+  //   // Trigger print immediately (user will see loading message first)
+  //   setTimeout(() => {
+  //     if (printWindow && !printWindow.closed) {
+  //       printWindow.focus();
+  //       printWindow.print();
+  //     }
+  //   }, 100);
 
-    toast.success('Print dialog opened! Loading family data...');
+  //   toast.success('Print dialog opened! Loading family data...');
 
-    try {
-      // Fetch family members asynchronously in background
-      const response = await fetch(`/api/familywisesurvey?family_member_id=${person.Voter_Id}`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch family members');
-      }
+  //   try {
+  //     // Fetch family members asynchronously in background
+  //     const response = await fetch(`/api/familywisesurvey?family_member_id=${person.Voter_Id}`);
+  //     if (!response.ok) {
+  //       throw new Error('Failed to fetch family members');
+  //     }
 
-      const familyMembers: FamilyWiseSurveyData[] = await response.json();
+  //     const familyMembers: FamilyWiseSurveyData[] = await response.json();
 
-      // Create list items including primary person first (bold), then family members
-      const primaryPersonItem = `<p><strong>1. ${primaryPersonName}</strong></p>`;
+  //     // Create list items including primary person first (bold), then family members
+  //     const primaryPersonItem = `<p><strong>1. ${primaryPersonName}</strong></p>`;
 
-      const familyListItems = familyMembers
-        .filter(member => member.full_name) // Only include members with Marathi name
-        .map((member, idx) => `<p>${idx + 2}. ${member.full_name}</p>`).join('');
+  //     const familyListItems = familyMembers
+  //       .filter(member => member.full_name) // Only include members with Marathi name
+  //       .map((member, idx) => `<p>${idx + 2}. ${member.full_name}</p>`).join('');
 
-      const allListItems = primaryPersonItem + familyListItems;
+  //     const allListItems = primaryPersonItem + familyListItems;
 
-      const finalHtmlContent = `
-        <html>
-          <head>
-            <title>Family Members - ${primaryPersonName}</title>
-            <style>
-              @page { size: A4; margin: 20mm; orientation: portrait; }
-              * { margin: 0; padding: 0; box-sizing: border-box; border: none; outline: none; text-decoration: none; }
-              body { font-family: Arial, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 1vh; padding: 4px 2px; }
-              .family-list-container { display: flex; flex-direction: column; align-items: flex-start; width: 100%; max-width: 600px; }
-              .family-list-container p { margin: 0; padding: 8px 0; font-size: 16px; line-height: 1; color: #1f2937; text-align: left; }
-              .family-list-container p strong { font-weight: bold; }
-              @media print {
-                body { min-height: auto; padding: 2px; }
-                .family-list-container p { page-break-inside: avoid; }
-              }
-            </style>
-          </head>
-          <body>
-            <div class="family-list-container">
-              ${allListItems || '<p style="color: #6b7280;">No family members found</p>'}
-            </div>
-          </body>
-        </html>
-      `;
+  //     const finalHtmlContent = `
+  //       <html>
+  //         <head>
+  //           <title>Family Members - ${primaryPersonName}</title>
+  //           <style>
+  //             @page { size: A4; margin: 20mm; orientation: portrait; }
+  //             * { margin: 0; padding: 0; box-sizing: border-box; border: none; outline: none; text-decoration: none; }
+  //             body { font-family: Arial, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 1vh; padding: 4px 2px; }
+  //             .family-list-container { display: flex; flex-direction: column; align-items: flex-start; width: 100%; max-width: 600px; }
+  //             .family-list-container p { margin: 0; padding: 8px 0; font-size: 16px; line-height: 1; color: #1f2937; text-align: left; }
+  //             .family-list-container p strong { font-weight: bold; }
+  //             @media print {
+  //               body { min-height: auto; padding: 2px; }
+  //               .family-list-container p { page-break-inside: avoid; }
+  //             }
+  //           </style>
+  //         </head>
+  //         <body>
+  //           <div class="family-list-container">
+  //             ${allListItems || '<p style="color: #6b7280;">No family members found</p>'}
+  //           </div>
+  //         </body>
+  //       </html>
+  //     `;
 
-      // Update the print window with actual data (if still open)
-      if (printWindow && !printWindow.closed) {
-        printWindow.document.open();
-        printWindow.document.write(finalHtmlContent);
-        printWindow.document.close();
-      }
+  //     // Update the print window with actual data (if still open)
+  //     if (printWindow && !printWindow.closed) {
+  //       printWindow.document.open();
+  //       printWindow.document.write(finalHtmlContent);
+  //       printWindow.document.close();
+  //     }
 
-    } catch (error) {
-      console.error('Error printing family members:', error);
-      toast.error('Failed to load family members for printing');
+  //   } catch (error) {
+  //     console.error('Error printing family members:', error);
+  //     toast.error('Failed to load family members for printing');
 
-      // Show error in print window if still open
-      if (printWindow && !printWindow.closed) {
-        const errorHtml = `
-          <html>
-            <head>
-              <title>Error - Family Members</title>
-              <style>
-                body { font-family: Arial, sans-serif; text-align: center; padding: 50px; }
-                p { color: #dc2626; font-size: 16px; }
-              </style>
-            </head>
-            <body>
-              <p>Failed to load family members data</p>
-            </body>
-          </html>
-        `;
-        printWindow.document.open();
-        printWindow.document.write(errorHtml);
-        printWindow.document.close();
-      }
-    }
-  };
+  //     // Show error in print window if still open
+  //     if (printWindow && !printWindow.closed) {
+  //       const errorHtml = `
+  //         <html>
+  //           <head>
+  //             <title>Error - Family Members</title>
+  //             <style>
+  //               body { font-family: Arial, sans-serif; text-align: center; padding: 50px; }
+  //               p { color: #dc2626; font-size: 16px; }
+  //             </style>
+  //           </head>
+  //           <body>
+  //             <p>Failed to load family members data</p>
+  //           </body>
+  //         </html>
+  //       `;
+  //       printWindow.document.open();
+  //       printWindow.document.write(errorHtml);
+  //       printWindow.document.close();
+  //     }
+  //   }
+  // };
 
   // Export family wise survey colony data to Excel
   const exportFamilyWiseColonyToExcel = async (colonyData: FamilyWiseColonyData) => {
@@ -3908,7 +3908,7 @@ const Newdashboard: React.FC = () => {
                             <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-blue-100 text-blue-700 rounded-full whitespace-nowrap">
                               {person.family_member_count || 0}
                             </span>
-                            {(person.family_member_count || 0) > 0 && (
+                            {/* {(person.family_member_count || 0) > 0 && (
                               <button
                                 onClick={() => printFamilyMembers(person)}
                                 disabled={loading}
@@ -3919,7 +3919,7 @@ const Newdashboard: React.FC = () => {
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
                                 </svg>
                               </button>
-                            )}
+                            )} */}
                           </div>
                         </td>
                         <td className="px-3 py-2 border text-blue-600">{person.user_name || "N/A"}</td>
