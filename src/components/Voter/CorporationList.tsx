@@ -37,6 +37,9 @@ interface BaseVoterData {
   voting_in_transit: string;
   voting_status: string;
   colony_name: string;
+  Booth_Number: string;
+  Booth_Address: string;
+  Sr_No: string;
 }
 
 type CorporationListData = BaseVoterData;
@@ -136,6 +139,30 @@ const CorporationList: React.FC = () => {
       accessor: 'updated_mobile_no',
       render: (data) => (
         <span className="font-mono text-sm">{data.updated_mobile_no || 'N/A'}</span>
+      ),
+    },
+    {
+      key: 'Sr_No',
+      label: 'Sr No',
+      accessor: 'Sr_No',
+      render: (data) => (
+        <span className="font-mono text-sm">{data.Sr_No || 'N/A'}</span>
+      ),
+    },
+    {
+      key: 'Booth_Address',
+      label: 'Booth Address',
+      accessor: 'Booth_Address',
+      render: (data) => (
+        <span className="font-mono text-sm">{data.Booth_Address || 'N/A'}</span>
+      ),
+    },
+    {
+      key: 'Booth_Number',
+      label: 'Booth Number',
+      accessor: 'Booth_Number',
+      render: (data) => (
+        <span className="font-mono text-sm">{data.Booth_Number || 'N/A'}</span>
       ),
     },
     // {
