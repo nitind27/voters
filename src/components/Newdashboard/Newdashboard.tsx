@@ -183,6 +183,8 @@ const Newdashboard: React.FC = () => {
   const [primaryPersonsModalOpen, setPrimaryPersonsModalOpen] = useState(false);
   const [selectedPrimaryPersonsColonyData, setSelectedPrimaryPersonsColonyData] = useState<FamilyWiseColonyData | null>(null);
   const [primaryPersonsSearchTerm, setPrimaryPersonsSearchTerm] = useState("");
+  const [primaryPersonsFamilyData, setPrimaryPersonsFamilyData] = useState<Record<string, FamilyWiseSurveyData[]>>({});
+  const [loadingPrimaryPersonsFamilyData, setLoadingPrimaryPersonsFamilyData] = useState(false);
 
   // Gender Wise Survey state
   interface GenderWiseColonyData {
@@ -1608,127 +1610,127 @@ const Newdashboard: React.FC = () => {
     }
   }, [familyWiseColonyGroupedData]);
 
-  // Print family members for a specific primary person
-  const printFamilyMembers = async (person: FamilyWiseSurveyData) => {
-    const primaryPersonName = person.full_name || "Primary Person";
+  // // Print family members for a specific primary person
+  // const printFamilyMembers = async (person: FamilyWiseSurveyData) => {
+  //   const primaryPersonName = person.full_name || "Primary Person";
 
-    // Open print window immediately with loading message
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) {
-      toast.error('Please allow popups to print');
-      return;
-    }
+  //   // Open print window immediately with loading message
+  //   const printWindow = window.open('', '_blank');
+  //   if (!printWindow) {
+  //     toast.error('Please allow popups to print');
+  //     return;
+  //   }
 
-    // Initial loading content
-    const loadingHtml = `
-      <html>
-        <head>
-          <title>Family Members - ${primaryPersonName}</title>
-          <style>
-            @page { size: A4; margin: 20mm; orientation: portrait; }
-            * { margin: 0; padding: 0; box-sizing: border-box; border: none; outline: none; text-decoration: none; }
-            body { font-family: Arial, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 4px 2px; }
-            .loading-container { text-align: center; }
-            .loading-container p { margin: 10px 0; font-size: 16px; color: #6b7280; }
-          </style>
-        </head>
-        <body>
-          <div class="loading-container">
-            <p>Loading family members...</p>
-          </div>
-        </body>
-      </html>
-    `;
+  //   // Initial loading content
+  //   const loadingHtml = `
+  //     <html>
+  //       <head>
+  //         <title>Family Members - ${primaryPersonName}</title>
+  //         <style>
+  //           @page { size: A4; margin: 20mm; orientation: portrait; }
+  //           * { margin: 0; padding: 0; box-sizing: border-box; border: none; outline: none; text-decoration: none; }
+  //           body { font-family: Arial, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 4px 2px; }
+  //           .loading-container { text-align: center; }
+  //           .loading-container p { margin: 10px 0; font-size: 16px; color: #6b7280; }
+  //         </style>
+  //       </head>
+  //       <body>
+  //         <div class="loading-container">
+  //           <p>Loading family members...</p>
+  //         </div>
+  //       </body>
+  //     </html>
+  //   `;
 
-    printWindow.document.write(loadingHtml);
-    printWindow.document.close();
+  //   printWindow.document.write(loadingHtml);
+  //   printWindow.document.close();
 
-    // Trigger print immediately (user will see loading message first)
-    setTimeout(() => {
-      if (printWindow && !printWindow.closed) {
-        printWindow.focus();
-        printWindow.print();
-      }
-    }, 100);
+  //   // Trigger print immediately (user will see loading message first)
+  //   setTimeout(() => {
+  //     if (printWindow && !printWindow.closed) {
+  //       printWindow.focus();
+  //       printWindow.print();
+  //     }
+  //   }, 100);
 
-    toast.success('Print dialog opened! Loading family data...');
+  //   toast.success('Print dialog opened! Loading family data...');
 
-    try {
-      // Fetch family members asynchronously in background
-      const response = await fetch(`/api/familywisesurvey?family_member_id=${person.Voter_Id}`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch family members');
-      }
+  //   try {
+  //     // Fetch family members asynchronously in background
+  //     const response = await fetch(`/api/familywisesurvey?family_member_id=${person.Voter_Id}`);
+  //     if (!response.ok) {
+  //       throw new Error('Failed to fetch family members');
+  //     }
 
-      const familyMembers: FamilyWiseSurveyData[] = await response.json();
+  //     const familyMembers: FamilyWiseSurveyData[] = await response.json();
 
-      // Create list items including primary person first (bold), then family members
-      const primaryPersonItem = `<p><strong>1. ${primaryPersonName}</strong></p>`;
+  //     // Create list items including primary person first (bold), then family members
+  //     const primaryPersonItem = `<p><strong>1. ${primaryPersonName}</strong></p>`;
 
-      const familyListItems = familyMembers
-        .filter(member => member.full_name) // Only include members with Marathi name
-        .map((member, idx) => `<p>${idx + 2}. ${member.full_name}</p>`).join('');
+  //     const familyListItems = familyMembers
+  //       .filter(member => member.full_name) // Only include members with Marathi name
+  //       .map((member, idx) => `<p>${idx + 2}. ${member.full_name}</p>`).join('');
 
-      const allListItems = primaryPersonItem + familyListItems;
+  //     const allListItems = primaryPersonItem + familyListItems;
 
-      const finalHtmlContent = `
-        <html>
-          <head>
-            <title>Family Members - ${primaryPersonName}</title>
-            <style>
-              @page { size: A4; margin: 20mm; orientation: portrait; }
-              * { margin: 0; padding: 0; box-sizing: border-box; border: none; outline: none; text-decoration: none; }
-              body { font-family: Arial, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 1vh; padding: 4px 2px; }
-              .family-list-container { display: flex; flex-direction: column; align-items: flex-start; width: 100%; max-width: 600px; }
-              .family-list-container p { margin: 0; padding: 8px 0; font-size: 16px; line-height: 1; color: #1f2937; text-align: left; }
-              .family-list-container p strong { font-weight: bold; }
-              @media print {
-                body { min-height: auto; padding: 2px; }
-                .family-list-container p { page-break-inside: avoid; }
-              }
-            </style>
-          </head>
-          <body>
-            <div class="family-list-container">
-              ${allListItems || '<p style="color: #6b7280;">No family members found</p>'}
-            </div>
-          </body>
-        </html>
-      `;
+  //     const finalHtmlContent = `
+  //       <html>
+  //         <head>
+  //           <title>Family Members - ${primaryPersonName}</title>
+  //           <style>
+  //             @page { size: A4; margin: 20mm; orientation: portrait; }
+  //             * { margin: 0; padding: 0; box-sizing: border-box; border: none; outline: none; text-decoration: none; }
+  //             body { font-family: Arial, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 1vh; padding: 4px 2px; }
+  //             .family-list-container { display: flex; flex-direction: column; align-items: flex-start; width: 100%; max-width: 600px; }
+  //             .family-list-container p { margin: 0; padding: 8px 0; font-size: 16px; line-height: 1; color: #1f2937; text-align: left; }
+  //             .family-list-container p strong { font-weight: bold; }
+  //             @media print {
+  //               body { min-height: auto; padding: 2px; }
+  //               .family-list-container p { page-break-inside: avoid; }
+  //             }
+  //           </style>
+  //         </head>
+  //         <body>
+  //           <div class="family-list-container">
+  //             ${allListItems || '<p style="color: #6b7280;">No family members found</p>'}
+  //           </div>
+  //         </body>
+  //       </html>
+  //     `;
 
-      // Update the print window with actual data (if still open)
-      if (printWindow && !printWindow.closed) {
-        printWindow.document.open();
-        printWindow.document.write(finalHtmlContent);
-        printWindow.document.close();
-      }
+  //     // Update the print window with actual data (if still open)
+  //     if (printWindow && !printWindow.closed) {
+  //       printWindow.document.open();
+  //       printWindow.document.write(finalHtmlContent);
+  //       printWindow.document.close();
+  //     }
 
-    } catch (error) {
-      console.error('Error printing family members:', error);
-      toast.error('Failed to load family members for printing');
+  //   } catch (error) {
+  //     console.error('Error printing family members:', error);
+  //     toast.error('Failed to load family members for printing');
 
-      // Show error in print window if still open
-      if (printWindow && !printWindow.closed) {
-        const errorHtml = `
-          <html>
-            <head>
-              <title>Error - Family Members</title>
-              <style>
-                body { font-family: Arial, sans-serif; text-align: center; padding: 50px; }
-                p { color: #dc2626; font-size: 16px; }
-              </style>
-            </head>
-            <body>
-              <p>Failed to load family members data</p>
-            </body>
-          </html>
-        `;
-        printWindow.document.open();
-        printWindow.document.write(errorHtml);
-        printWindow.document.close();
-      }
-    }
-  };
+  //     // Show error in print window if still open
+  //     if (printWindow && !printWindow.closed) {
+  //       const errorHtml = `
+  //         <html>
+  //           <head>
+  //             <title>Error - Family Members</title>
+  //             <style>
+  //               body { font-family: Arial, sans-serif; text-align: center; padding: 50px; }
+  //               p { color: #dc2626; font-size: 16px; }
+  //             </style>
+  //           </head>
+  //           <body>
+  //             <p>Failed to load family members data</p>
+  //           </body>
+  //         </html>
+  //       `;
+  //       printWindow.document.open();
+  //       printWindow.document.write(errorHtml);
+  //       printWindow.document.close();
+  //     }
+  //   }
+  // };
 
   // Export family wise survey colony data to Excel
   const exportFamilyWiseColonyToExcel = async (colonyData: FamilyWiseColonyData) => {
@@ -1810,10 +1812,43 @@ const Newdashboard: React.FC = () => {
   };
 
   // Open primary persons modal
-  const openPrimaryPersonsModal = (colonyData: FamilyWiseColonyData) => {
+  const openPrimaryPersonsModal = async (colonyData: FamilyWiseColonyData) => {
     setSelectedPrimaryPersonsColonyData(colonyData);
     setPrimaryPersonsSearchTerm("");
     setPrimaryPersonsModalOpen(true);
+    setLoadingPrimaryPersonsFamilyData(true);
+
+    try {
+      // Pre-load all family data in parallel for faster PDF generation
+      const familyDataPromises = colonyData.primaryPersons.map(async (person) => {
+        try {
+          const response = await fetch(`/api/familywisesurvey?family_member_id=${person.Voter_Id}`);
+          if (response.ok) {
+            const familyMembers = await response.json();
+            return { voterId: person.Voter_Id, familyMembers };
+          }
+          return { voterId: person.Voter_Id, familyMembers: [] };
+        } catch (error) {
+          console.error(`Error loading family data for ${person.Voter_Id}:`, error);
+          return { voterId: person.Voter_Id, familyMembers: [] };
+        }
+      });
+
+      const familyDataResults = await Promise.all(familyDataPromises);
+
+      // Store family data in state for fast PDF generation
+      const familyDataMap: Record<string, FamilyWiseSurveyData[]> = {};
+      familyDataResults.forEach(({ voterId, familyMembers }) => {
+        familyDataMap[voterId] = familyMembers;
+      });
+
+      setPrimaryPersonsFamilyData(familyDataMap);
+    } catch (error) {
+      console.error('Error pre-loading family data:', error);
+      toast.error('Failed to load family data');
+    } finally {
+      setLoadingPrimaryPersonsFamilyData(false);
+    }
   };
 
   // Close primary persons modal
@@ -1821,6 +1856,8 @@ const Newdashboard: React.FC = () => {
     setPrimaryPersonsModalOpen(false);
     setSelectedPrimaryPersonsColonyData(null);
     setPrimaryPersonsSearchTerm("");
+    setPrimaryPersonsFamilyData({});
+    setLoadingPrimaryPersonsFamilyData(false);
   };
 
   // Filtered primary persons in modal
@@ -3453,6 +3490,14 @@ const Newdashboard: React.FC = () => {
                 <p className="text-sm text-gray-500">
                   Total Primary Persons: {selectedPrimaryPersonsColonyData.primaryPersonCount}
                 </p>
+                {loadingPrimaryPersonsFamilyData && (
+                  <p className="text-sm text-blue-600 mt-1 flex items-center gap-2">
+                    <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    Loading family data for fast PDF generation...
+                  </p>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 <button
@@ -3596,6 +3641,170 @@ const Newdashboard: React.FC = () => {
                   PDF
                 </button>
                 <button
+                  onClick={async () => {
+                    try {
+                      if (loadingPrimaryPersonsFamilyData) {
+                        toast.info('Family data is still loading... Please wait.');
+                        return;
+                      }
+
+                      if (Object.keys(primaryPersonsFamilyData).length === 0) {
+                        toast.error('Family data not loaded. Please try reopening the modal.');
+                        return;
+                      }
+
+                      toast.success('Generating member PDF...');
+
+                      const primaryPersons = filteredPrimaryPersons.length > 0 ? filteredPrimaryPersons : selectedPrimaryPersonsColonyData.primaryPersons;
+
+                      // Collect all family data from cached data
+                      const allFamilyPages = [];
+
+                      for (let i = 0; i < primaryPersons.length; i++) {
+                        const person = primaryPersons[i];
+                        const primaryPersonName = person.full_name || "Primary Person";
+
+                        // Get family members from cached data
+                        const familyMembers = primaryPersonsFamilyData[person.Voter_Id] || [];
+
+                        // Create list items including primary person first (bold), then family members
+                        const primaryPersonItem = `<p><strong>1. ${primaryPersonName}</strong></p>`;
+
+                        const familyListItems = familyMembers
+                          .filter(member => member.full_name) // Only include members with Marathi name
+                          .map((member, idx) => `<p>${idx + 2}. ${member.full_name}</p>`).join('');
+
+                        const allListItems = primaryPersonItem + familyListItems;
+
+                        // Create a page for this family
+                        const familyPage = `
+                          <div class="family-page" style="page-break-after: always;">
+                           
+                            <div class="family-list-container">
+                              ${allListItems || '<p style="color: #6b7280;">No family members found</p>'}
+                            </div>
+                          </div>
+                        `;
+
+                        allFamilyPages.push(familyPage);
+                      }
+
+                      // Create single multi-page HTML document
+                      const htmlContent = `
+                        <html>
+                          <head>
+                            <title>${selectedPrimaryPersonsColonyData.colony_name} - Family Members Report</title>
+                            <style>
+                              @page {
+                                size: A4;
+                                margin: 20mm;
+                                orientation: portrait;
+                              }
+                              * {
+                                margin: 0;
+                                padding: 0;
+                                box-sizing: border-box;
+                                border: none;
+                                outline: none;
+                                text-decoration: none;
+                              }
+                              body {
+                                font-family: Arial, sans-serif;
+                                line-height: 1.4;
+                              }
+                              .family-page {
+                                min-height: 100vh;
+                                padding: 20px;
+                                display: flex;
+                                flex-direction: column;
+                                align-items: flex-start;
+                                justify-content: flex-start;
+                              }
+                              .header-info {
+                                margin-bottom: 30px;
+                                padding-bottom: 15px;
+                                border-bottom: 2px solid #e5e7eb;
+                                width: 100%;
+                              }
+                              .header-info p {
+                                margin: 3px 0;
+                                font-size: 14px;
+                                color: #374151;
+                              }
+                              .family-list-container {
+                                display: flex;
+                                flex-direction: column;
+                                align-items: flex-start;
+                                width: 100%;
+                                max-width: 600px;
+                              }
+                              .family-list-container p {
+                                margin: 0;
+                                padding: 6px 0;
+                                font-size: 16px;
+                                line-height: 1.3;
+                                color: #1f2937;
+                                text-align: left;
+                              }
+                              .family-list-container p strong {
+                                font-weight: bold;
+                                font-size: 18px;
+                              }
+                              @media print {
+                                .family-page {
+                                  page-break-after: always;
+                                }
+                                .family-page:last-child {
+                                  page-break-after: auto;
+                                }
+                              }
+                            </style>
+                          </head>
+                          <body>
+                            ${allFamilyPages.join('')}
+                          </body>
+                        </html>
+                      `;
+
+                      // Create print window with all families
+                      const printWindow = window.open('', '_blank');
+                      if (printWindow) {
+                        printWindow.document.write(htmlContent);
+                        printWindow.document.close();
+
+                        printWindow.onload = () => {
+                          setTimeout(() => {
+                            printWindow.print();
+                          }, 500);
+                        };
+
+                        // Fallback print trigger
+                        setTimeout(() => {
+                          if (printWindow && !printWindow.closed) {
+                            printWindow.focus();
+                            printWindow.print();
+                          }
+                        }, 1500);
+
+                        toast.success(`${selectedPrimaryPersonsColonyData.colony_name} - Family Members PDF generated! ${primaryPersons.length} families included.`);
+                      } else {
+                        toast.error('Please allow popups to generate PDF');
+                      }
+
+                    } catch (error) {
+                      console.error('Error generating member PDF:', error);
+                      toast.error('Failed to generate member PDF');
+                    }
+                  }}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700"
+                  title="Export Member PDF (Multi-page - One per Family)"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  Member PDF
+                </button>
+                <button
                   type="button"
                   className="p-2 rounded-lg hover:bg-gray-200 transition-colors"
                   onClick={closePrimaryPersonsModal}
@@ -3645,12 +3854,13 @@ const Newdashboard: React.FC = () => {
                     <th className="px-3 py-2 border text-left">Mobile</th>
                     <th className="px-3 py-2 border text-left">Family Members</th>
                     <th className="px-3 py-2 border text-left">User</th>
+                    <th className="px-3 py-2 border text-left">Export</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredPrimaryPersons.length === 0 ? (
                     <tr>
-                      <td className="px-3 py-2 border text-center" colSpan={11}>
+                      <td className="px-3 py-2 border text-center" colSpan={12}>
                         {primaryPersonsSearchTerm ? "No primary persons found matching your search" : "No primary persons found"}
                       </td>
                     </tr>
@@ -3698,7 +3908,7 @@ const Newdashboard: React.FC = () => {
                             <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-blue-100 text-blue-700 rounded-full whitespace-nowrap">
                               {person.family_member_count || 0}
                             </span>
-                            {(person.family_member_count || 0) > 0 && (
+                            {/* {(person.family_member_count || 0) > 0 && (
                               <button
                                 onClick={() => printFamilyMembers(person)}
                                 disabled={loading}
@@ -3709,10 +3919,87 @@ const Newdashboard: React.FC = () => {
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
                                 </svg>
                               </button>
-                            )}
+                            )} */}
                           </div>
                         </td>
                         <td className="px-3 py-2 border text-blue-600">{person.user_name || "N/A"}</td>
+                        <td className="px-3 py-2 border">
+                          <button
+                            onClick={() => {
+                              try {
+                                // Get family members from cached data
+                                const familyMembers = primaryPersonsFamilyData[person.Voter_Id] || [];
+
+                                // Create list items including primary person first (bold), then family members
+                                const primaryPersonName = person.full_name || "Primary Person";
+                                const primaryPersonItem = `<p><strong>1. ${primaryPersonName}</strong></p>`;
+
+                                const familyListItems = familyMembers
+                                  .filter(member => member.full_name) // Only include members with Marathi name
+                                  .map((member, idx) => `<p>${idx + 2}. ${member.full_name}</p>`).join('');
+
+                                const allListItems = primaryPersonItem + familyListItems;
+
+                                const htmlContent = `
+                                  <html>
+                                    <head>
+                                      <title>Family Members - ${primaryPersonName}</title>
+                                      <style>
+                                        @page { size: A4; margin: 20mm; orientation: portrait; }
+                                        * { margin: 0; padding: 0; box-sizing: border-box; border: none; outline: none; text-decoration: none; }
+                                        body { font-family: Arial, sans-serif; display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start; min-height: 100vh; padding: 20px; }
+                                        .family-list-container { display: flex; flex-direction: column; align-items: flex-start; width: 100%; max-width: 600px; }
+                                        .family-list-container p { margin: 0; padding: 8px 0; font-size: 16px; line-height: 1.2; color: #1f2937; text-align: left; }
+                                        .family-list-container p strong { font-weight: bold; }
+                                        @media print {
+                                          body { min-height: auto; padding: 20px; }
+                                          .family-list-container p { page-break-inside: avoid; }
+                                        }
+                                      </style>
+                                    </head>
+                                    <body>
+                                      <div class="family-list-container">
+                                        ${allListItems || '<p style="color: #6b7280;">No family members found</p>'}
+                                      </div>
+                                    </body>
+                                  </html>
+                                `;
+
+                                const printWindow = window.open('', '_blank');
+                                if (printWindow) {
+                                  printWindow.document.write(htmlContent);
+                                  printWindow.document.close();
+
+                                  printWindow.onload = () => {
+                                    setTimeout(() => {
+                                      printWindow.print();
+                                    }, 250);
+                                  };
+
+                                  setTimeout(() => {
+                                    if (printWindow && !printWindow.closed) {
+                                      printWindow.focus();
+                                      printWindow.print();
+                                    }
+                                  }, 1000);
+
+                                  toast.success(`${primaryPersonName} family member PDF generated!`);
+                                } else {
+                                  toast.error('Please allow popups to generate PDF');
+                                }
+                              } catch (error) {
+                                console.error('Error generating individual PDF:', error);
+                                toast.error('Failed to generate PDF');
+                              }
+                            }}
+                            className="inline-flex items-center justify-center p-1.5 text-purple-600 hover:text-purple-800 hover:bg-purple-50 rounded transition-colors"
+                            title="Export Individual Family PDF"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                          </button>
+                        </td>
                       </tr>
                     ))
                   )}
