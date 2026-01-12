@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { toast } from "react-toastify";
 import Label from "../form/Label";
 import { Modal } from "../ui/modal";
+import { getVoterIdColorClass } from "@/lib/utils";
 
 type ColonyOption = { colony_id: number; colony_name: string };
 
@@ -821,7 +822,7 @@ const PollingData: React.FC = () => {
                   return (
                     <tr key={member.id} className="border-b hover:bg-gray-50">
                       <td className="px-4 py-3 text-gray-600">{index + 1}</td>
-                      <td className="px-4 py-3 text-gray-400">{member.Voter_Id || "-"}</td>
+                      <td className={`px-4 py-3 ${getVoterIdColorClass(member.inst_1_paid, member.inst_2_paid, member.inst_3_paid)}`}>{member.Voter_Id || "-"}</td>
                       <td className="px-4 py-3 font-medium text-gray-900">{member.full_name || "-"}</td>
                       <td className="px-4 py-3 text-gray-500">{member.ENG_Full_name || "-"}</td>
                       <td className="px-4 py-3 text-gray-600">{member.Age || "-"}</td>

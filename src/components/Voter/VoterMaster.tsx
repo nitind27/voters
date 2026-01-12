@@ -11,6 +11,7 @@ import { Withoutbtn } from "../tables/Withoutbtn";
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { FaEdit, FaPowerOff, FaKey } from 'react-icons/fa';
+import { getVoterIdColorClass } from "@/lib/utils";
 
 type VoterMasterRow = {
   id: number;
@@ -143,6 +144,9 @@ const VoterMaster: React.FC = () => {
     updated_house_number?: string | null;
     House_Number?: string | null;
     colony_name?: string | null;
+    inst_1_paid?: string | number | null;
+    inst_2_paid?: string | number | null;
+    inst_3_paid?: string | number | null;
     member_count?: number;
   }>>([]);
   const [loadingPrimaryPersons, setLoadingPrimaryPersons] = useState(false);
@@ -173,6 +177,9 @@ const VoterMaster: React.FC = () => {
     House_Number?: string | null;
     colony_name?: string | null;
     member_count?: number;
+    inst_1_paid?: string | number | null;
+    inst_2_paid?: string | number | null;
+    inst_3_paid?: string | number | null;
   }>>([]);
   const [loadingModalPrimaryPersons, setLoadingModalPrimaryPersons] = useState(false);
   const [selectedVolunteerForModal, setSelectedVolunteerForModal] = useState<string>("");
@@ -203,6 +210,9 @@ const VoterMaster: React.FC = () => {
     House_Number?: string | null;
     colony_name?: string | null;
     member_count?: number;
+    inst_1_paid?: string | number | null;
+    inst_2_paid?: string | number | null;
+    inst_3_paid?: string | number | null;
   }>>([]);
   const [loadingFinancialPrimaryPersons, setLoadingFinancialPrimaryPersons] = useState(false);
   const [selectedFinancialPrimaryPersonIds, setSelectedFinancialPrimaryPersonIds] = useState<string[]>([]);
@@ -312,6 +322,10 @@ const VoterMaster: React.FC = () => {
     House_Number?: string | null;
     colony_name?: string | null;
     member_count?: number;
+    inst_1_paid?: string | number | null;
+    inst_2_paid?: string | number | null;
+    inst_3_paid?: string | number | null;
+    updated_mobile_no?: string | null;
   }>>([]);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [loadingVotingPrimaryPersons, setLoadingVotingPrimaryPersons] = useState(false);
@@ -4019,7 +4033,7 @@ const VoterMaster: React.FC = () => {
                                 <td className="px-4 py-3 text-gray-600">{index + 1}</td>
                                 <td className="px-4 py-3 font-medium text-gray-900">{person.full_name || "-"}</td>
                                 <td className="px-4 py-3 text-gray-500">{person.ENG_Full_name || "-"}</td>
-                                <td className="px-4 py-3 text-gray-400">{person.Voter_Id || "-"}</td>
+                                <td className={`px-4 py-3 ${getVoterIdColorClass(person.inst_1_paid, person.inst_2_paid, person.inst_3_paid)}`}>{person.Voter_Id || "-"}</td>
                                 <td className="px-4 py-3 text-gray-600 font-medium">{houseNumber}</td>
                                 <td className="px-4 py-3 text-gray-400">{person.updated_mobile_no || "-"}</td>
                                 <td className="px-4 py-3 text-gray-500">{person.colony_name || "-"}</td>
@@ -4170,7 +4184,7 @@ const VoterMaster: React.FC = () => {
                           {filteredVoters.map((voter, index) => (
                             <tr key={voter.id} className="border-b hover:bg-gray-50">
                               <td className="px-4 py-3 text-gray-600">{index + 1}</td>
-                              <td className="px-4 py-3 text-gray-900">{voter.Voter_Id || "-"}</td>
+                              <td className={`px-4 py-3 ${getVoterIdColorClass(voter.inst_1_paid, voter.inst_2_paid, voter.inst_3_paid)}`}>{voter.Voter_Id || "-"}</td>
                               <td className="px-4 py-3 text-gray-900">{voter.full_name || "-"}</td>
                               <td className="px-4 py-3 text-gray-600">{voter.ENG_Full_name || "-"}</td>
                               <td className="px-4 py-3 text-gray-600 text-center">{voter.Age || "-"}</td>
@@ -4257,7 +4271,7 @@ const VoterMaster: React.FC = () => {
                               <td className="px-4 py-3 text-gray-600">{index + 1}</td>
                               <td className="px-4 py-3 font-medium text-gray-900">{member.full_name || "-"}</td>
                               <td className="px-4 py-3 text-gray-500">{member.ENG_Full_name || "-"}</td>
-                              <td className="px-4 py-3 text-gray-400">{member.Voter_Id || "-"}</td>
+                              <td className={`px-4 py-3 ${getVoterIdColorClass(member.inst_1_paid, member.inst_2_paid, member.inst_3_paid)}`}>{member.Voter_Id || "-"}</td>
                               <td className="px-4 py-3 text-gray-600">{member.Age || "-"}</td>
                               <td className="px-4 py-3 text-gray-600">{member.Gender || "-"}</td>
                               <td className="px-4 py-3 text-gray-400">{member.updated_mobile_no || "-"}</td>
@@ -4667,7 +4681,7 @@ const VoterMaster: React.FC = () => {
                           return (
                             <tr key={member.id} className="border-b hover:bg-gray-50">
                               <td className="px-4 py-3 text-gray-600">{index + 1}</td>
-                              <td className="px-4 py-3 text-gray-400">{member.Voter_Id || "-"}</td>
+                              <td className={`px-4 py-3 ${getVoterIdColorClass(member.inst_1_paid, member.inst_2_paid, member.inst_3_paid)}`}>{member.Voter_Id || "-"}</td>
                               <td className="px-4 py-3 font-medium text-gray-900">{member.full_name || "-"}</td>
                               <td className="px-4 py-3 text-gray-500">{member.ENG_Full_name || "-"}</td>
                               <td className="px-4 py-3 text-gray-600">{member.Age || "-"}</td>
@@ -5242,7 +5256,7 @@ const VoterMaster: React.FC = () => {
                                 {filteredData.map((member, index) => (
                                   <tr key={member.id} className="border-b hover:bg-gray-50">
                                     <td className="px-4 py-3 text-gray-600">{index + 1}</td>
-                                    <td className="px-4 py-3 text-gray-400">{member.Voter_Id || "-"}</td>
+                                    <td className={`px-4 py-3 ${getVoterIdColorClass(member.inst_1_paid, member.inst_2_paid, member.inst_3_paid)}`}>{member.Voter_Id || "-"}</td>
                                     <td className="px-4 py-3 font-medium text-gray-900">{member.full_name || "-"}</td>
                                     <td className="px-4 py-3 text-gray-500">{member.ENG_Full_name || "-"}</td>
                                     <td className="px-4 py-3 text-gray-600">{member.Age || "-"}</td>
@@ -5364,7 +5378,7 @@ const VoterMaster: React.FC = () => {
                               {statusListData.map((member, index) => (
                                 <tr key={member.id} className="border-b hover:bg-gray-50">
                                   <td className="px-4 py-3 text-gray-600">{index + 1}</td>
-                                  <td className="px-4 py-3 text-gray-400">{member.Voter_Id || "-"}</td>
+                                  <td className={`px-4 py-3 ${getVoterIdColorClass(member.inst_1_paid, member.inst_2_paid, member.inst_3_paid)}`}>{member.Voter_Id || "-"}</td>
                                   <td className="px-4 py-3 font-medium text-gray-900">{member.full_name || "-"}</td>
                                   <td className="px-4 py-3 text-gray-500">{member.ENG_Full_name || "-"}</td>
                                   <td className="px-4 py-3 text-gray-600">{member.Age || "-"}</td>
