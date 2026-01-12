@@ -15,7 +15,7 @@ import { useToggleContext } from '@/context/ToggleContext';
 import { UserCategory } from '../usercategory/userCategory';
 
 import DefaultModal from '../example/ModalExample/DefaultModal';
-import { FaEdit } from 'react-icons/fa';
+import { FaEdit, FaRedo } from 'react-icons/fa';
 // import { Grampanchayattype } from '../grampanchayat/gptype';
 
 // Update Colony interface to match database schema
@@ -251,6 +251,39 @@ const Usersdatas = ({ users, datausercategorycrud, colonies }: Props) => {
     // setVillage(item.village_id)
     setgp(Number(item.gp_id))
   };
+
+  const handleResetDeviceUid = async (userId: number, userName: string) => {
+    const confirmReset = window.confirm(
+      `Are you sure you want to reset the device UID for user "${userName}"? This action cannot be undone.`
+    );
+
+    if (!confirmReset) return;
+
+    setLoading(true);
+    try {
+      const response = await fetch('/api/users/insert', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: userId,
+          reset_device_uid: true
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      toast.success('Device UID reset successfully!');
+      fetchData(); // Refresh the data
+    } catch (error) {
+      console.error('Error resetting device UID:', error);
+      toast.error('Failed to reset device UID. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // const handleDownloadExcel = () => {
   //   // Prepare data for Excel (remove unwanted fields if needed)
   //   const exportData = data.map(({ ...rest }) => rest); // Example: exclude password
@@ -313,6 +346,12 @@ const Usersdatas = ({ users, datausercategorycrud, colonies }: Props) => {
       accessor: 'status',
       render: (data) => <span>{data.status}</span>
     },
+    {
+      key: 'device_uid',
+      label: 'Device UID',
+      accessor: 'device_uid',
+      render: (data) => <span>{data.device_uid || 'Not Set'}</span>
+    },
 
     {
       key: 'actions',
@@ -322,10 +361,18 @@ const Usersdatas = ({ users, datausercategorycrud, colonies }: Props) => {
           <span
             onClick={() => handleEdit(data)}
             className="cursor-pointer text-blue-600 hover:text-blue-800 transition-colors duration-200"
+            title="Edit User"
           >
             <FaEdit className="inline-block align-middle text-lg" />
           </span>
 
+          <span
+            onClick={() => handleResetDeviceUid(data.user_id, data.name)}
+            className="cursor-pointer text-orange-600 hover:text-orange-800 transition-colors duration-200"
+            title="Reset Device UID"
+          >
+            <FaRedo className="inline-block align-middle text-sm" />
+          </span>
 
           <span>
             <DefaultModal id={data.user_id} fetchData={fetchData} endpoint={"users/insert"} bodyname='user_id' newstatus={data.status} />

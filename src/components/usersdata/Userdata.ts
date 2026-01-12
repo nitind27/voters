@@ -5,7 +5,7 @@ export interface UserData {
   user_category_id: number;
   username: string;
   password: string;
-  
+
   colonies: string; // Changed from address to colonies
   taluka_id: number;
   taluka_name: string;
@@ -18,5 +18,6 @@ export interface UserData {
   colony_names: string;
   category_name: string;
   colony_id?: string; // add: comma-separated ids ("1,2,3")
+  device_uid?: string | null; // Device UID field
 }
   

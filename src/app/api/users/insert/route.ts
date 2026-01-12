@@ -79,6 +79,7 @@ SELECT
   u.category_id,
   u.colony_id,
   u.status,
+  u.device_uid,
   CONVERT(
     GROUP_CONCAT(DISTINCT c.colony_name ORDER BY c.colony_name SEPARATOR ', ')
     USING 'utf8mb4'
@@ -88,11 +89,11 @@ FROM users u
 LEFT JOIN colony c
   ON FIND_IN_SET(c.colony_id, REPLACE(u.colony_id, ' ', '')) > 0
 LEFT JOIN category cat
-  ON cat.category_id = u.category_id 
+  ON cat.category_id = u.category_id
 WHERE u.status = 'Active'
 GROUP BY
   u.user_id, u.name, u.contact_no, u.username, u.password,
-  u.category_id, u.colony_id, u.status, cat.name;
+  u.category_id, u.colony_id, u.status, u.device_uid, cat.name;
 
 
 
@@ -184,17 +185,33 @@ export async function DELETE(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const { user_id, status } = await request.json();
+  const { user_id, status, reset_device_uid } = await request.json();
 
-  if (!user_id || !status) {
-    return NextResponse.json({ error: 'User ID and status are required' }, { status: 400 });
-  }
+  if (reset_device_uid) {
+    // Handle device_uid reset
+    if (!user_id) {
+      return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
+    }
 
-  try {
-    await pool.query('UPDATE users SET status = ? WHERE user_id = ?', [status, user_id]);
-    return NextResponse.json({ message: `User ${status === 'Active' ? 'activated' : 'deactivated'}` });
-  } catch (error) {
-    console.error('Status update error:', error);
-    return NextResponse.json({ error: 'Failed to update status' }, { status: 500 });
+    try {
+      await pool.query('UPDATE users SET device_uid = NULL WHERE user_id = ?', [user_id]);
+      return NextResponse.json({ message: 'Device UID reset successfully' });
+    } catch (error) {
+      console.error('Device UID reset error:', error);
+      return NextResponse.json({ error: 'Failed to reset device UID' }, { status: 500 });
+    }
+  } else {
+    // Handle status update
+    if (!user_id || !status) {
+      return NextResponse.json({ error: 'User ID and status are required' }, { status: 400 });
+    }
+
+    try {
+      await pool.query('UPDATE users SET status = ? WHERE user_id = ?', [status, user_id]);
+      return NextResponse.json({ message: `User ${status === 'Active' ? 'activated' : 'deactivated'}` });
+    } catch (error) {
+      console.error('Status update error:', error);
+      return NextResponse.json({ error: 'Failed to update status' }, { status: 500 });
+    }
   }
 }
