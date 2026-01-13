@@ -10,8 +10,8 @@ import { Modal } from "../ui/modal";
 import { Withoutbtn } from "../tables/Withoutbtn";
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
-import { FaEdit, FaPowerOff, FaKey } from 'react-icons/fa';
-import { getVoterIdColorClass } from "@/lib/utils";
+import { FaEdit, FaPowerOff, FaKey, FaRedo } from 'react-icons/fa';
+import { getVoterRowBgClass } from "@/lib/utils";
 
 type VoterMasterRow = {
   id: number;
@@ -72,6 +72,7 @@ const VoterMaster: React.FC = () => {
     colony_ids: number[];
     category_id?: number | null;
     primary_person_id?: string | null;
+    device_uid?: string | null;
   };
   type AssignRow = {
     id: number;
@@ -86,6 +87,7 @@ const VoterMaster: React.FC = () => {
     password: string;
     category_id?: number | null;
     category_name?: string | null;
+    device_uid?: string | null;
   };
   const [colonies, setColonies] = useState<ColonyOption[]>([]);
   // const [loadingColonies, setLoadingColonies] = useState(false);
@@ -113,6 +115,7 @@ const VoterMaster: React.FC = () => {
   // const [deletingVolunteerId, setDeletingVolunteerId] = useState<number | null>(null);
   const [updatingStatusId, setUpdatingStatusId] = useState<number | null>(null);
   const [resettingPasswordId, setResettingPasswordId] = useState<number | null>(null);
+  const [resettingDeviceUidId, setResettingDeviceUidId] = useState<number | null>(null);
   
   // Category state
   type CategoryOption = {
@@ -575,6 +578,7 @@ const VoterMaster: React.FC = () => {
             password: item.password || "",
             category_id: item.category_id || null,
             category_name: categoryName,
+            device_uid: item.device_uid || null,
           };
         });
       setVolunteerMasterRows(processedData);
@@ -3075,12 +3079,49 @@ const VoterMaster: React.FC = () => {
     }
   };
 
+  const handleResetDeviceUid = async (userId: number, volunteerName: string) => {
+    if (!confirm(`Are you sure you want to reset the device UID for volunteer "${volunteerName}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      setResettingDeviceUidId(userId);
+
+      const res = await fetch("/api/volunteermaster", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: userId,
+          reset_device_uid: true
+        })
+      });
+
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
+
+      toast.success("Device UID reset successfully.");
+      // Reload volunteer master data
+      await fetchVolunteerMasterData("");
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to reset device UID.");
+    } finally {
+      setResettingDeviceUidId(null);
+    }
+  };
+
   // Tab A - Volunteer Master columns (only volunteer_name and contact_no with actions)
   const volunteerMasterColumns: Column<AssignRow>[] = [
     {
       key: "volunteer_name",
       label: "Volunteer Name",
       accessor: "volunteer_name",
+    },
+    {
+      key: "username",
+      label: "Username",
+      accessor: "username",
     },
     {
       key: "contact_no",
@@ -3110,14 +3151,20 @@ const VoterMaster: React.FC = () => {
       render: (row: AssignRow) => (
         <span
           className={`px-3 py-1 text-xs rounded font-medium ${
-            row.status === "Active" 
-              ? "bg-green-100 text-green-800" 
+            row.status === "Active"
+              ? "bg-green-100 text-green-800"
               : "bg-red-100 text-red-800"
           }`}
         >
           {row.status || "Active"}
         </span>
       ),
+    },
+    {
+      key: "device_uid",
+      label: "Device UID",
+      accessor: "device_uid",
+      render: (row: AssignRow) => <span>{row.device_uid || "Not Set"}</span>
     },
     {
       key: "actions",
@@ -3127,8 +3174,9 @@ const VoterMaster: React.FC = () => {
         const isActive = row.status === "Active";
         const isUpdating = updatingStatusId === row.id;
         const isResetting = resettingPasswordId === row.id;
+        const isResettingDeviceUid = resettingDeviceUidId === row.id;
         return (
-          <div className="flex flex-wrap gap-1 sm:gap-2 min-w-0">
+          <div className="flex gap-1 sm:gap-1 min-w-0">
             <button
               type="button"
               onClick={() => handleEditVolunteer(row)}
@@ -3163,6 +3211,16 @@ const VoterMaster: React.FC = () => {
               aria-label="Reset Password"
             >
               <FaKey className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => handleResetDeviceUid(row.id, row.volunteer_name)}
+              disabled={isResettingDeviceUid}
+              className="px-2 py-1 sm:px-2.5 text-xs rounded bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-60 flex-shrink-0 flex items-center justify-center"
+              title={isResettingDeviceUid ? "Resetting Device UID..." : "Reset Device UID"}
+              aria-label="Reset Device UID"
+            >
+              <FaRedo className="w-3.5 h-3.5" />
             </button>
           </div>
         );
@@ -4029,11 +4087,11 @@ const VoterMaster: React.FC = () => {
                             const houseNumber = person.updated_house_number || person.House_Number || "N/A";
                             const memberCount = person.member_count || 0;
                             return (
-                              <tr key={person.id} className="border-b hover:bg-gray-50">
+                              <tr key={person.id} className={`border-b hover:bg-gray-50 ${getVoterRowBgClass(person.inst_1_paid, person.inst_2_paid, person.inst_3_paid)}`}>
                                 <td className="px-4 py-3 text-gray-600">{index + 1}</td>
                                 <td className="px-4 py-3 font-medium text-gray-900">{person.full_name || "-"}</td>
                                 <td className="px-4 py-3 text-gray-500">{person.ENG_Full_name || "-"}</td>
-                                <td className={`px-4 py-3 ${getVoterIdColorClass(person.inst_1_paid, person.inst_2_paid, person.inst_3_paid)}`}>{person.Voter_Id || "-"}</td>
+                                <td className="px-4 py-3">{person.Voter_Id || "-"}</td>
                                 <td className="px-4 py-3 text-gray-600 font-medium">{houseNumber}</td>
                                 <td className="px-4 py-3 text-gray-400">{person.updated_mobile_no || "-"}</td>
                                 <td className="px-4 py-3 text-gray-500">{person.colony_name || "-"}</td>
@@ -4182,9 +4240,9 @@ const VoterMaster: React.FC = () => {
                         </thead>
                         <tbody>
                           {filteredVoters.map((voter, index) => (
-                            <tr key={voter.id} className="border-b hover:bg-gray-50">
+                            <tr key={voter.id} className={`border-b hover:bg-gray-50 ${getVoterRowBgClass(voter.inst_1_paid, voter.inst_2_paid, voter.inst_3_paid)}`}>
                               <td className="px-4 py-3 text-gray-600">{index + 1}</td>
-                              <td className={`px-4 py-3 ${getVoterIdColorClass(voter.inst_1_paid, voter.inst_2_paid, voter.inst_3_paid)}`}>{voter.Voter_Id || "-"}</td>
+                              <td className="px-4 py-3">{voter.Voter_Id || "-"}</td>
                               <td className="px-4 py-3 text-gray-900">{voter.full_name || "-"}</td>
                               <td className="px-4 py-3 text-gray-600">{voter.ENG_Full_name || "-"}</td>
                               <td className="px-4 py-3 text-gray-600 text-center">{voter.Age || "-"}</td>
@@ -4271,7 +4329,7 @@ const VoterMaster: React.FC = () => {
                               <td className="px-4 py-3 text-gray-600">{index + 1}</td>
                               <td className="px-4 py-3 font-medium text-gray-900">{member.full_name || "-"}</td>
                               <td className="px-4 py-3 text-gray-500">{member.ENG_Full_name || "-"}</td>
-                              <td className={`px-4 py-3 ${getVoterIdColorClass(member.inst_1_paid, member.inst_2_paid, member.inst_3_paid)}`}>{member.Voter_Id || "-"}</td>
+                              <td className="px-4 py-3">{member.Voter_Id || "-"}</td>
                               <td className="px-4 py-3 text-gray-600">{member.Age || "-"}</td>
                               <td className="px-4 py-3 text-gray-600">{member.Gender || "-"}</td>
                               <td className="px-4 py-3 text-gray-400">{member.updated_mobile_no || "-"}</td>
@@ -4679,9 +4737,9 @@ const VoterMaster: React.FC = () => {
                         {financialMembers.map((member, index) => {
                           const installments = memberInstallments[member.id] || { inst_1_paid: 0, inst_2_paid: 0, inst_3_paid: 0 };
                           return (
-                            <tr key={member.id} className="border-b hover:bg-gray-50">
+                            <tr key={member.id} className={`border-b hover:bg-gray-50 ${getVoterRowBgClass(member.inst_1_paid, member.inst_2_paid, member.inst_3_paid)}`}>
                               <td className="px-4 py-3 text-gray-600">{index + 1}</td>
-                              <td className={`px-4 py-3 ${getVoterIdColorClass(member.inst_1_paid, member.inst_2_paid, member.inst_3_paid)}`}>{member.Voter_Id || "-"}</td>
+                              <td className="px-4 py-3">{member.Voter_Id || "-"}</td>
                               <td className="px-4 py-3 font-medium text-gray-900">{member.full_name || "-"}</td>
                               <td className="px-4 py-3 text-gray-500">{member.ENG_Full_name || "-"}</td>
                               <td className="px-4 py-3 text-gray-600">{member.Age || "-"}</td>
@@ -5273,9 +5331,9 @@ const VoterMaster: React.FC = () => {
                               </thead>
                               <tbody>
                                 {filteredData.map((member, index) => (
-                                  <tr key={member.id} className="border-b hover:bg-gray-50">
+                                  <tr key={member.id} className={`border-b hover:bg-gray-50 ${getVoterRowBgClass(member.inst_1_paid, member.inst_2_paid, member.inst_3_paid)}`}>
                                     <td className="px-4 py-3 text-gray-600">{index + 1}</td>
-                                    <td className={`px-4 py-3 ${getVoterIdColorClass(member.inst_1_paid, member.inst_2_paid, member.inst_3_paid)}`}>{member.Voter_Id || "-"}</td>
+                                    <td className="px-4 py-3">{member.Voter_Id || "-"}</td>
                                     <td className="px-4 py-3 font-medium text-gray-900">{member.full_name || "-"}</td>
                                     <td className="px-4 py-3 text-gray-500">{member.ENG_Full_name || "-"}</td>
                                     <td className="px-4 py-3 text-gray-600">{member.Age || "-"}</td>
@@ -5395,9 +5453,9 @@ const VoterMaster: React.FC = () => {
                             </thead>
                             <tbody>
                               {statusListData.map((member, index) => (
-                                <tr key={member.id} className="border-b hover:bg-gray-50">
+                                <tr key={member.id} className={`border-b hover:bg-gray-50 ${getVoterRowBgClass(member.inst_1_paid, member.inst_2_paid, member.inst_3_paid)}`}>
                                   <td className="px-4 py-3 text-gray-600">{index + 1}</td>
-                                  <td className={`px-4 py-3 ${getVoterIdColorClass(member.inst_1_paid, member.inst_2_paid, member.inst_3_paid)}`}>{member.Voter_Id || "-"}</td>
+                                  <td className="px-4 py-3">{member.Voter_Id || "-"}</td>
                                   <td className="px-4 py-3 font-medium text-gray-900">{member.full_name || "-"}</td>
                                   <td className="px-4 py-3 text-gray-500">{member.ENG_Full_name || "-"}</td>
                                   <td className="px-4 py-3 text-gray-600">{member.Age || "-"}</td>

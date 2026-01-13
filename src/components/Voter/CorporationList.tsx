@@ -5,7 +5,7 @@ import { Column } from "../tables/tabletype";
 import { Withoutbtn } from "../tables/Withoutbtn";
 import { toast } from "react-toastify";
 import Loader from "@/common/Loader";
-import { getVoterIdColorClass } from "@/lib/utils";
+// import { getVoterRowBgClass } from "@/lib/utils";
 
 // Base interface with all fields from tbl_voters_search
 interface BaseVoterData {
@@ -78,7 +78,7 @@ const CorporationList: React.FC = () => {
       label: 'Voter ID',
       accessor: 'Voter_Id',
       render: (data) => (
-        <span className={`font-mono text-sm font-medium ${getVoterIdColorClass(data.inst_1_paid, data.inst_2_paid, data.inst_3_paid)}`}>{data.Voter_Id || 'N/A'}</span>
+        <span className="font-mono text-sm font-medium">{data.Voter_Id || 'N/A'}</span>
       ),
     },
     {

@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
     // Fetch data from volunteer_master table
     // Join with colony table to get colony names from colony_id (comma-separated)
     const [rows] = await pool.query<RowDataPacket[]>(
-      `SELECT 
+      `SELECT
         vm.user_id,
         vm.volunteer_name,
         vm.contact_no,
@@ -30,6 +30,7 @@ export async function GET(request: NextRequest) {
         vm.username,
         vm.password,
         vm.category_id,
+        vm.device_uid,
         vm.created_at,
         vm.updated_at
       FROM volunteer_master vm
@@ -170,6 +171,7 @@ export async function PUT(request: NextRequest) {
       status,
       category_id,
       password: providedPassword,
+      device_uid,
     } = body as {
       user_id: number;
       volunteer_name?: string;
@@ -177,6 +179,7 @@ export async function PUT(request: NextRequest) {
       status?: 'Active' | 'Inactive';
       category_id?: number | null;
       password?: string;
+      device_uid?: string | null;
     };
 
     if (!user_id) {
@@ -222,16 +225,17 @@ export async function PUT(request: NextRequest) {
 
     // Update volunteer
     const [result] = await pool.query<ResultSetHeader>(
-      `UPDATE volunteer_master 
+      `UPDATE volunteer_master
        SET volunteer_name = ?,
            contact_no = ?,
            username = ?,
            password = ?,
            status = ?,
            category_id = ?,
+           device_uid = ?,
            updated_at = NOW()
        WHERE user_id = ?`,
-      [volunteer_name, mobile, username, password, volunteerStatus, categoryId, user_id],
+      [volunteer_name, mobile, username, password, volunteerStatus, categoryId, device_uid, user_id],
     );
 
     if (result.affectedRows === 0) {
@@ -255,6 +259,27 @@ export async function PUT(request: NextRequest) {
       { status: 500 },
     );
   }
+}
+
+export async function PATCH(request: NextRequest) {
+  const { user_id, reset_device_uid } = await request.json();
+
+  if (reset_device_uid) {
+    // Handle device_uid reset
+    if (!user_id) {
+      return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
+    }
+
+    try {
+      await pool.query('UPDATE volunteer_master SET device_uid = NULL WHERE user_id = ?', [user_id]);
+      return NextResponse.json({ message: 'Device UID reset successfully' });
+    } catch (error) {
+      console.error('Device UID reset error:', error);
+      return NextResponse.json({ error: 'Failed to reset device UID' }, { status: 500 });
+    }
+  }
+
+  return NextResponse.json({ error: 'Invalid operation' }, { status: 400 });
 }
 
 export async function DELETE(request: NextRequest) {

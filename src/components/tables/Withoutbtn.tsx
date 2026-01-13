@@ -4,6 +4,14 @@ import React, { useState, useMemo } from "react";
 import DataTable from "react-data-table-component";
 import { Column, FilterOption } from "./tabletype";
 
+// Interface for finance-related data with installment fields
+interface FinanceRow {
+  inst_1_paid?: string | number | boolean | null;
+  inst_2_paid?: string | number | boolean | null;
+  inst_3_paid?: string | number | boolean | null;
+  [key: string]: unknown;
+}
+
 type Props<T> = {
   data: T[];
   columns: Column<T>[];
@@ -123,6 +131,32 @@ export function Withoutbtn<T extends object>({
         persistTableHead
         subHeader
         subHeaderComponent={SubHeaderComponent}
+        conditionalRowStyles={[
+          {
+            when: (row: T) => {
+              // Check if row has installment payment fields and any is paid
+              const hasInstFields = 'inst_1_paid' in row || 'inst_2_paid' in row || 'inst_3_paid' in row;
+              if (!hasInstFields) return false;
+              
+              const financeRow = row as FinanceRow;
+              const inst1 = financeRow.inst_1_paid;
+              const inst2 = financeRow.inst_2_paid;
+              const inst3 = financeRow.inst_3_paid;
+
+              const isPaid = (value: string | number | boolean | null | undefined): boolean => {
+                if (value === null || value === undefined) return false;
+                if (typeof value === 'boolean') return value === true;
+                const str = String(value).trim();
+                return str === '1' || str === 'true' || str === 'True' || value === 1;
+              };
+              
+              return isPaid(inst1) || isPaid(inst2) || isPaid(inst3);
+            },
+            style: {
+              backgroundColor: '#f0fdf4', // bg-green-50 equivalent
+            },
+          },
+        ]}
         customStyles={{
           rows: {
             style: {

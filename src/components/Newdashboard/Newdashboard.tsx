@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 // import { formatDate } from "@/lib/utils";
-import { getVoterIdColorClass } from "@/lib/utils";
+import { getVoterRowBgClass } from "@/lib/utils";
 import { Column } from "../tables/tabletype";
 import { Withoutbtn } from "../tables/Withoutbtn";
 import { toast } from "react-toastify";
@@ -2161,7 +2161,7 @@ const Newdashboard: React.FC = () => {
       label: 'Voter ID',
       accessor: 'Voter_Id',
       render: (data) => (
-        <span className={`font-mono text-sm ${getVoterIdColorClass(data.inst_1_paid, data.inst_2_paid, data.inst_3_paid)} dark:text-blue-400`}>
+        <span className="font-mono text-sm dark:text-blue-400">
           {data.Voter_Id || "N/A"}
         </span>
       ),
@@ -3001,9 +3001,9 @@ const Newdashboard: React.FC = () => {
                     </tr>
                   ) : (
                     filteredColonyVoters.map((voter, idx) => (
-                      <tr key={voter.id} className="hover:bg-gray-50">
+                      <tr key={voter.id} className={`hover:bg-gray-50 ${getVoterRowBgClass(voter.inst_1_paid, voter.inst_2_paid, voter.inst_3_paid)}`}>
                         <td className="px-3 py-2 border">{idx + 1}</td>
-                        <td className={`px-3 py-2 border font-mono ${getVoterIdColorClass(voter.inst_1_paid, voter.inst_2_paid, voter.inst_3_paid)}`}>{voter.Voter_Id || "N/A"}</td>
+                        <td className="px-3 py-2 border font-mono">{voter.Voter_Id || "N/A"}</td>
                         <td className="px-3 py-2 border font-medium">{voter.full_name || "N/A"}</td>
                         <td className="px-3 py-2 border">{voter.Father_name || "N/A"}</td>
                         <td className="px-3 py-2 border">{voter.updated_house_number || voter.House_Number || "N/A"}</td>
@@ -3249,7 +3249,7 @@ const Newdashboard: React.FC = () => {
                       </tr>
                     ) : (
                       familyMemberDetails.map((member, idx) => (
-                        <tr key={member.id} className="hover:bg-gray-50">
+                        <tr key={member.id} className={`hover:bg-gray-50 ${getVoterRowBgClass(member.inst_1_paid, member.inst_2_paid, member.inst_3_paid)}`}>
                           <td className="px-3 py-2 border">{idx + 1}</td>
                           <td className="px-3 py-2 border">
                             {member.Updated_photo ? (
@@ -3272,7 +3272,7 @@ const Newdashboard: React.FC = () => {
                               />
                             )}
                           </td>
-                          <td className={`px-3 py-2 border font-mono ${getVoterIdColorClass(member.inst_1_paid, member.inst_2_paid, member.inst_3_paid)}`}>{member.Voter_Id || "N/A"}</td>
+                          <td className="px-3 py-2 border font-mono">{member.Voter_Id || "N/A"}</td>
                           <td className="px-3 py-2 border font-medium">{member.full_name || "N/A"}</td>
                           <td className="px-3 py-2 border">{member.ENG_Full_name || "N/A"}</td>
                           <td className="px-3 py-2 border">{member.Age || "N/A"}</td>
@@ -3418,7 +3418,7 @@ const Newdashboard: React.FC = () => {
                       </tr>
                     ) : (
                       filteredFamilyWiseColonyVoters.map((voter, idx) => (
-                        <tr key={voter.id} className="hover:bg-gray-50">
+                        <tr key={voter.id} className={`hover:bg-gray-50 ${getVoterRowBgClass(voter.inst_1_paid, voter.inst_2_paid, voter.inst_3_paid)}`}>
                           <td className="px-3 py-2 border">{idx + 1}</td>
                           <td className="px-3 py-2 border">
                             {voter.Updated_photo ? (
@@ -3441,7 +3441,7 @@ const Newdashboard: React.FC = () => {
                               />
                             )}
                           </td>
-                          <td className={`px-3 py-2 border font-mono ${getVoterIdColorClass(voter.inst_1_paid, voter.inst_2_paid, voter.inst_3_paid)}`}>{voter.Voter_Id || "N/A"}</td>
+                          <td className="px-3 py-2 border font-mono">{voter.Voter_Id || "N/A"}</td>
                           <td className="px-3 py-2 border font-medium">{voter.full_name || "N/A"}</td>
                           <td className="px-3 py-2 border">{voter.ENG_Full_name || "N/A"}</td>
                           <td className="px-3 py-2 border">{voter.Age || "N/A"}</td>
@@ -3455,7 +3455,7 @@ const Newdashboard: React.FC = () => {
                           </td>
                           <td className="px-3 py-2 border">{voter.updated_house_number || voter.House_Number || "N/A"}</td>
                           <td className="px-3 py-2 border font-mono">{voter.updated_mobile_no || "N/A"}</td>
-                          <td className={`px-3 py-2 border font-mono ${getVoterIdColorClass(voter.inst_1_paid, voter.inst_2_paid, voter.inst_3_paid)}`}>{voter.family_member || voter.Voter_Id || "N/A"}</td>
+                          <td className="px-3 py-2 border font-mono">{voter.family_member || voter.Voter_Id || "N/A"}</td>
                           <td className="px-3 py-2 border text-purple-600">{voter.user_name || "N/A"}</td>
                         </tr>
                       ))
@@ -3876,7 +3876,7 @@ const Newdashboard: React.FC = () => {
                     </tr>
                   ) : (
                     filteredPrimaryPersons.map((person, idx) => (
-                      <tr key={person.id} className="hover:bg-gray-50">
+                      <tr key={person.id} className={`hover:bg-gray-50 ${getVoterRowBgClass(person.inst_1_paid, person.inst_2_paid, person.inst_3_paid)}`}>
                         <td className="px-3 py-2 border">{idx + 1}</td>
                         <td className="px-3 py-2 border">
                           {person.Updated_photo ? (
@@ -3899,7 +3899,7 @@ const Newdashboard: React.FC = () => {
                             />
                           )}
                         </td>
-                        <td className={`px-3 py-2 border font-mono ${getVoterIdColorClass(person.inst_1_paid, person.inst_2_paid, person.inst_3_paid)}`}>{person.Voter_Id || "N/A"}</td>
+                        <td className="px-3 py-2 border font-mono">{person.Voter_Id || "N/A"}</td>
                         <td className="px-3 py-2 border font-medium">{person.full_name || "N/A"}</td>
                         <td className="px-3 py-2 border">{person.ENG_Full_name || "N/A"}</td>
                         <td className="px-3 py-2 border">{person.Age || "N/A"}</td>
@@ -4286,7 +4286,7 @@ const Newdashboard: React.FC = () => {
                       return filteredVoters.map((voter, idx) => (
                         <tr key={voter.id} className="hover:bg-gray-50">
                           <td className="px-3 py-2 border">{idx + 1}</td>
-                          <td className={`px-3 py-2 border font-mono ${getVoterIdColorClass(voter.inst_1_paid, voter.inst_2_paid, voter.inst_3_paid)}`}>{voter.Voter_Id || "N/A"}</td>
+                          <td className="px-3 py-2 border font-mono">{voter.Voter_Id || "N/A"}</td>
                           <td className="px-3 py-2 border font-medium">{voter.full_name || "N/A"}</td>
                           <td className="px-3 py-2 border">{voter.ENG_Full_name || "N/A"}</td>
                           <td className="px-3 py-2 border">{voter.Age || "N/A"}</td>

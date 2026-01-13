@@ -6,7 +6,6 @@ import { toast } from "react-toastify";
 import Loader from "@/common/Loader";
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
-import { getVoterIdColorClass } from "@/lib/utils";
 
 // Base interface with all fields from tbl_voters_search
 interface BaseVoterData {
@@ -470,7 +469,7 @@ const VoterStatusDashboard: React.FC = () => {
           {data.family_member ? (
             <span className="text-sm font-medium">{data.family_member}</span>
           ) : (
-            <span className={`text-sm font-medium ${getVoterIdColorClass(data.inst_1_paid, data.inst_2_paid, data.inst_3_paid)}`}>{data.Voter_Id || 'N/A'}</span>
+            <span className="text-sm font-medium">{data.Voter_Id || 'N/A'}</span>
           )}
           {data.full_name && <span className="text-xs text-gray-500">{data.full_name}</span>}
         </div>
@@ -536,7 +535,7 @@ const VoterStatusDashboard: React.FC = () => {
           {data.family_member ? (
             <span className="text-sm font-medium">{data.family_member}</span>
           ) : (
-            <span className={`text-sm font-medium ${getVoterIdColorClass(data.inst_1_paid, data.inst_2_paid, data.inst_3_paid)}`}>{data.Voter_Id || 'N/A'}</span>
+            <span className="text-sm font-medium">{data.Voter_Id || 'N/A'}</span>
           )}
           {data.full_name && <span className="text-xs text-gray-500">{data.full_name}</span>}
           {data.ENG_Full_name && <span className="text-xs text-gray-400">({data.ENG_Full_name})</span>}
@@ -675,7 +674,7 @@ const VoterStatusDashboard: React.FC = () => {
           {data.family_member ? (
             <span className="text-sm font-medium">{data.family_member}</span>
           ) : (
-            <span className={`text-sm font-medium ${getVoterIdColorClass(data.inst_1_paid, data.inst_2_paid, data.inst_3_paid)}`}>{data.Voter_Id || 'N/A'}</span>
+            <span className="text-sm font-medium">{data.Voter_Id || 'N/A'}</span>
           )}
           {data.full_name && <span className="text-xs text-gray-500">{data.full_name}</span>}
         </div>
@@ -779,7 +778,7 @@ const VoterStatusDashboard: React.FC = () => {
           {data.family_member ? (
             <span className="text-sm font-medium">{data.family_member}</span>
           ) : (
-            <span className={`text-sm font-medium ${getVoterIdColorClass(data.inst_1_paid, data.inst_2_paid, data.inst_3_paid)}`}>{data.Voter_Id || 'N/A'}</span>
+            <span className="text-sm font-medium">{data.Voter_Id || 'N/A'}</span>
           )}
           {data.full_name && <span className="text-xs text-gray-500">{data.full_name}</span>}
         </div>
@@ -817,7 +816,7 @@ const VoterStatusDashboard: React.FC = () => {
           {data.family_member ? (
             <span className="text-sm font-medium">{data.family_member}</span>
           ) : (
-            <span className={`text-sm font-medium ${getVoterIdColorClass(data.inst_1_paid, data.inst_2_paid, data.inst_3_paid)}`}>{data.Voter_Id || 'N/A'}</span>
+            <span className="text-sm font-medium">{data.Voter_Id || 'N/A'}</span>
           )}
           {data.full_name && <span className="text-xs text-gray-500">{data.full_name}</span>}
         </div>

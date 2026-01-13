@@ -26,14 +26,14 @@ export const formatDate = (dateString: string): string => {
 };
 
 /**
- * Get the text color class for Voter ID based on installment payment status
+ * Get the background color class for table row based on installment payment status
  * Priority: inst_3_paid > inst_2_paid > inst_1_paid
  * @param inst_1_paid - First installment payment status (string, number, or null)
  * @param inst_2_paid - Second installment payment status (string, number, or null)
  * @param inst_3_paid - Third installment payment status (string, number, or null)
- * @returns Tailwind CSS text color class
+ * @returns Tailwind CSS background color class
  */
-export const getVoterIdColorClass = (
+export const getVoterRowBgClass = (
     inst_1_paid: string | number | null | undefined,
     inst_2_paid: string | number | null | undefined,
     inst_3_paid: string | number | null | undefined
@@ -46,17 +46,11 @@ export const getVoterIdColorClass = (
         return str === '1' || str === 'true' || str === 'True' || value === 1;
     };
 
-    // Priority: inst_3_paid > inst_2_paid > inst_1_paid
-    if (isPaid(inst_3_paid)) {
-        return 'text-green-600'; // Green for inst_3_paid
-    }
-    if (isPaid(inst_2_paid)) {
-        return 'text-blue-600'; // Blue for inst_2_paid
-    }
-    if (isPaid(inst_1_paid)) {
-        return 'text-orange-600'; // Orange for inst_1_paid
+    // If any installment is paid, return light green background
+    if (isPaid(inst_1_paid) || isPaid(inst_2_paid) || isPaid(inst_3_paid)) {
+        return 'bg-green-50'; // Light green background for any paid installment
     }
     
-    // Default color if no installment is paid
-    return 'text-black'; // Default black color
+    // Default: no background color
+    return '';
 };
