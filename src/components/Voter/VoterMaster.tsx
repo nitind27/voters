@@ -4798,15 +4798,34 @@ const VoterMaster: React.FC = () => {
                     );
                   });
 
-                  const totals = filteredData.reduce(
-                    (acc, row) => ({
-                      totalVoters: acc.totalVoters + (row.total_voters || 0),
-                      inTransit: acc.inTransit + (row.in_transit_count || 0),
-                      votingDone: acc.votingDone + (row.voting_done_count || 0),
-                      pending: acc.pending + (row.pending_count || 0),
-                    }),
-                    { totalVoters: 0, inTransit: 0, votingDone: 0, pending: 0 }
-                  );
+                  // Calculate totals using same logic as modal (with duplicate removal)
+                  const getUniqueCount = (type: "total_voters" | "in_transit" | "voting_done" | "pending") => {
+                    let allMembers: FamilyMember[] = [];
+                    filteredData.forEach((row) => {
+                      const members = row._allMembers || [];
+                      let filteredMembers: FamilyMember[] = [];
+                      if (type === "total_voters") {
+                        filteredMembers = members;
+                      } else if (type === "in_transit") {
+                        filteredMembers = members.filter((m: FamilyMember) => m.voting_status === "In Transit");
+                      } else if (type === "voting_done") {
+                        filteredMembers = members.filter((m: FamilyMember) => m.voting_status === "Completed" || m.voting_status === "Direct");
+                      } else if (type === "pending") {
+                        filteredMembers = members.filter((m: FamilyMember) => !m.voting_status || m.voting_status === "" || m.voting_status === "Pending");
+                      }
+                      allMembers = [...allMembers, ...filteredMembers];
+                    });
+                    // Remove duplicates based on id
+                    const uniqueMembers = Array.from(new Map(allMembers.map(m => [m.id, m])).values());
+                    return uniqueMembers.length;
+                  };
+
+                  const totals = {
+                    totalVoters: getUniqueCount("total_voters"),
+                    inTransit: getUniqueCount("in_transit"),
+                    votingDone: getUniqueCount("voting_done"),
+                    pending: getUniqueCount("pending"),
+                  };
 
                   const overallPercentage = totals.totalVoters > 0 
                     ? Math.round((totals.votingDone / totals.totalVoters) * 100) 
