@@ -153,7 +153,7 @@ export function Withoutbtn<T extends object>({
               return isPaid(inst1) || isPaid(inst2) || isPaid(inst3);
             },
             style: {
-              backgroundColor: '#f0fdf4', // bg-green-50 equivalent
+              backgroundColor: '#beebcc', // bg-green-50 equivalent
             },
           },
         ]}

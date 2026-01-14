@@ -90,13 +90,21 @@ export async function POST(request: NextRequest) {
             const allColonyIds = [...new Set([...existingColonyIds, ...colonyIds])].sort((a, b) => a - b);
             const updatedColonyIdString = allColonyIds.join(',');
 
-            // Replace primary_person_ids with new selection (not merge - this allows removal of unchecked items)
+            // Merge primary_person_ids with existing ones (avoid duplicates) - allows accumulation when same volunteer assigned to multiple colonies
             const newPrimaryPersonIds = primary_person_ids
               ? primary_person_ids.split(',').map((id: string) => id.trim()).filter(Boolean)
               : [];
-            
+
+            // Get existing primary_person_ids
+            const existingPrimaryPersonIds = existingVolunteer[0].primary_person_id
+              ? existingVolunteer[0].primary_person_id.split(',').map((id: string) => id.trim())
+              : [];
+
+            // Combine and remove duplicates
+            const allPrimaryPersonIds = [...new Set([...existingPrimaryPersonIds, ...newPrimaryPersonIds])];
+
             // Sort the IDs
-            const sortedPrimaryPersonIds = newPrimaryPersonIds.sort((a, b) => {
+            const sortedPrimaryPersonIds = allPrimaryPersonIds.sort((a, b) => {
               const numA = parseInt(a, 10);
               const numB = parseInt(b, 10);
               if (!isNaN(numA) && !isNaN(numB)) {
