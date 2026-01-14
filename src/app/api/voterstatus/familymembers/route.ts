@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
     // Get all family members including primary person (where family_member IN (...))
     // Optimized: Simplified ORDER BY for better performance with large batches
     const [rows] = await pool.query<RowDataPacket[]>(
-      `SELECT 
+      `SELECT
          v.id,
          v.Voter_Id,
          v.full_name,
@@ -50,6 +50,10 @@ export async function GET(request: NextRequest) {
          v.inst_1_paid,
          v.inst_2_paid,
          v.inst_3_paid,
+         v.Sr_No,
+         v.Booth_Number,
+         v.Booth_Name,
+         v.Booth_Address,
          c.colony_name
        FROM tbl_voters_search v
        LEFT JOIN colony c ON v.Updated_colony = c.colony_id

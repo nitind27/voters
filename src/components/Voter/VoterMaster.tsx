@@ -240,6 +240,10 @@ const VoterMaster: React.FC = () => {
     inst_1_paid?: number;
     inst_2_paid?: number;
     inst_3_paid?: number;
+    Sr_No?: number;
+    Booth_Number?: number;
+    Booth_Name?: number;
+    Booth_Address?: number;
   };
 
   // Extended FamilyMember with volunteer information
@@ -306,12 +310,18 @@ const VoterMaster: React.FC = () => {
   const [statusListModalType, setStatusListModalType] = useState<"in_transit" | "voting_done" | "pending" | null>(null);
   const [statusListData, setStatusListData] = useState<FamilyMember[]>([]);
   const [statusListVolunteerName, setStatusListVolunteerName] = useState<string>("");
+  // Pagination for Status List Modal
+  const [statusListCurrentPage, setStatusListCurrentPage] = useState(1);
+  const [statusListItemsPerPage] = useState(50);
   
   // Tab D - Summary Card Modal
   const [isSummaryCardModalOpen, setIsSummaryCardModalOpen] = useState(false);
   const [summaryCardModalType, setSummaryCardModalType] = useState<"total_voters" | "in_transit" | "voting_done" | "pending" | null>(null);
   const [summaryCardModalData, setSummaryCardModalData] = useState<FamilyMemberWithVolunteer[]>([]);
   const [summaryCardModalSearch, setSummaryCardModalSearch] = useState<string>("");
+  // Pagination for Summary Card Modal
+  const [summaryCardCurrentPage, setSummaryCardCurrentPage] = useState(1);
+  const [summaryCardItemsPerPage] = useState(50);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [loadingStatusList, setLoadingStatusList] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -636,6 +646,11 @@ const VoterMaster: React.FC = () => {
       setSelectedColonyName("");
     }
   }, [selectedVolunteerId, activeTab, availableVolunteers]);
+
+  // Reset summary card pagination when search changes
+  useEffect(() => {
+    setSummaryCardCurrentPage(1);
+  }, [summaryCardModalSearch]);
 
   // Load available volunteers for Tab B select box
   const loadAvailableVolunteers = async (searchText = "") => {
@@ -1501,6 +1516,9 @@ const VoterMaster: React.FC = () => {
       const exportData = filteredData.map((member, idx) => ({
         'Sr No': idx + 1,
         'Voter ID': member.Voter_Id || 'N/A',
+        'Sr No (DB)': member.Sr_No || 'N/A',
+        'Booth Address': member.Booth_Address || 'N/A',
+        'Booth Name': member.Booth_Name || 'N/A',
         'Name': member.full_name || 'N/A',
         'English Name': member.ENG_Full_name || 'N/A',
         'Age': member.Age || 'N/A',
@@ -1515,7 +1533,7 @@ const VoterMaster: React.FC = () => {
       const wb = XLSX.utils.book_new();
       const ws = XLSX.utils.json_to_sheet(exportData);
       ws['!cols'] = [
-        { wch: 8 }, { wch: 15 }, { wch: 25 }, { wch: 25 }, { wch: 8 }, { wch: 10 }, { wch: 12 }, { wch: 20 }, { wch: 20 }, { wch: 15 }, { wch: 15 }
+        { wch: 8 }, { wch: 15 }, { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 25 }, { wch: 25 }, { wch: 8 }, { wch: 10 }, { wch: 12 }, { wch: 20 }, { wch: 20 }, { wch: 15 }, { wch: 15 }
       ];
       XLSX.utils.book_append_sheet(wb, ws, typeLabel);
       const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
@@ -1558,6 +1576,9 @@ const VoterMaster: React.FC = () => {
         <tr>
           <td style="padding: 8px; border: 1px solid #000; font-size: 11px; text-align: center;">${index + 1}</td>
           <td style="padding: 8px; border: 1px solid #000; font-size: 11px;">${member.Voter_Id || "-"}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 11px;">${member.Sr_No || "-"}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 11px;">${member.Booth_Address || "-"}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 11px;">${member.Booth_Name || "-"}</td>
           <td style="padding: 8px; border: 1px solid #000; font-size: 11px;">${member.full_name || "-"}</td>
           <td style="padding: 8px; border: 1px solid #000; font-size: 11px;">${member.ENG_Full_name || "-"}</td>
           <td style="padding: 8px; border: 1px solid #000; font-size: 11px;">${member.Age || "-"}</td>
@@ -1592,12 +1613,17 @@ const VoterMaster: React.FC = () => {
                 <tr>
                   <th style="text-align: center;">Sr No</th>
                   <th>Voter ID</th>
+                  <th>Sr No</th>
+                  <th>Booth Address</th>
+                  <th>Booth Name</th>
                   <th>Name</th>
                   <th>English Name</th>
                   <th>Age</th>
                   <th>Gender</th>
                   <th>Contact No</th>
                   <th>Colony</th>
+                  <th>Volunteer Name</th>
+                  <th>Volunteer Contact</th>
                   <th>Voting Status</th>
                 </tr>
               </thead>
@@ -1638,6 +1664,9 @@ const VoterMaster: React.FC = () => {
       const exportData = statusListData.map((member, idx) => ({
         'Sr No': idx + 1,
         'Voter ID': member.Voter_Id || 'N/A',
+        'Sr No (DB)': member.Sr_No || 'N/A',
+        'Booth Address': member.Booth_Address || 'N/A',
+        'Booth Name': member.Booth_Name || 'N/A',
         'Name': member.full_name || 'N/A',
         'English Name': member.ENG_Full_name || 'N/A',
         'Age': member.Age || 'N/A',
@@ -1650,7 +1679,7 @@ const VoterMaster: React.FC = () => {
       const wb = XLSX.utils.book_new();
       const ws = XLSX.utils.json_to_sheet(exportData);
       ws['!cols'] = [
-        { wch: 8 }, { wch: 15 }, { wch: 25 }, { wch: 25 }, { wch: 8 }, { wch: 10 }, { wch: 12 }, { wch: 20 }, { wch: 15 }
+        { wch: 8 }, { wch: 15 }, { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 25 }, { wch: 25 }, { wch: 8 }, { wch: 10 }, { wch: 12 }, { wch: 20 }, { wch: 15 }
       ];
       XLSX.utils.book_append_sheet(wb, ws, statusLabel);
       const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
@@ -1675,6 +1704,9 @@ const VoterMaster: React.FC = () => {
       const exportData = volunteerRow._allMembers.map((member: FamilyMember, idx: number) => ({
         'Sr No': idx + 1,
         'Voter ID': member.Voter_Id || 'N/A',
+        'Sr No (DB)': member.Sr_No || 'N/A',
+        'Booth Address': member.Booth_Address || 'N/A',
+        'Booth Name': member.Booth_Name || 'N/A',
         'Name': member.full_name || 'N/A',
         'English Name': member.ENG_Full_name || 'N/A',
         'Age': member.Age || 'N/A',
@@ -1687,7 +1719,7 @@ const VoterMaster: React.FC = () => {
       const wb = XLSX.utils.book_new();
       const ws = XLSX.utils.json_to_sheet(exportData);
       ws['!cols'] = [
-        { wch: 8 }, { wch: 15 }, { wch: 25 }, { wch: 25 }, { wch: 8 }, { wch: 10 }, { wch: 12 }, { wch: 20 }, { wch: 15 }
+        { wch: 8 }, { wch: 15 }, { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 25 }, { wch: 25 }, { wch: 8 }, { wch: 10 }, { wch: 12 }, { wch: 20 }, { wch: 15 }
       ];
       XLSX.utils.book_append_sheet(wb, ws, volunteerRow.volunteer_name);
       const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
@@ -1712,6 +1744,9 @@ const VoterMaster: React.FC = () => {
         <tr>
           <td style="padding: 8px; border: 1px solid #000; font-size: 11px; text-align: center;">${index + 1}</td>
           <td style="padding: 8px; border: 1px solid #000; font-size: 11px;">${member.Voter_Id || "-"}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 11px;">${member.Sr_No || "-"}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 11px;">${member.Booth_Address || "-"}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 11px;">${member.Booth_Name || "-"}</td>
           <td style="padding: 8px; border: 1px solid #000; font-size: 11px;">${member.full_name || "-"}</td>
           <td style="padding: 8px; border: 1px solid #000; font-size: 11px;">${member.ENG_Full_name || "-"}</td>
           <td style="padding: 8px; border: 1px solid #000; font-size: 11px;">${member.Age || "-"}</td>
@@ -1744,6 +1779,9 @@ const VoterMaster: React.FC = () => {
                 <tr>
                   <th style="text-align: center;">Sr No</th>
                   <th>Voter ID</th>
+                  <th>Sr No</th>
+                  <th>Booth Address</th>
+                  <th>Booth Name</th>
                   <th>Name</th>
                   <th>English Name</th>
                   <th>Age</th>
@@ -1901,6 +1939,9 @@ const VoterMaster: React.FC = () => {
         <tr>
           <td style="padding: 8px; border: 1px solid #000; font-size: 11px; text-align: center;">${index + 1}</td>
           <td style="padding: 8px; border: 1px solid #000; font-size: 11px;">${member.Voter_Id || "-"}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 11px;">${member.Sr_No || "-"}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 11px;">${member.Booth_Address || "-"}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 11px;">${member.Booth_Name || "-"}</td>
           <td style="padding: 8px; border: 1px solid #000; font-size: 11px;">${member.full_name || "-"}</td>
           <td style="padding: 8px; border: 1px solid #000; font-size: 11px;">${member.ENG_Full_name || "-"}</td>
           <td style="padding: 8px; border: 1px solid #000; font-size: 11px;">${member.Age || "-"}</td>
@@ -1938,6 +1979,9 @@ const VoterMaster: React.FC = () => {
                 <tr>
                   <th>Sr No</th>
                   <th>Voter ID</th>
+                  <th>Sr No</th>
+                  <th>Booth Address</th>
+                  <th>Booth Name</th>
                   <th>Name</th>
                   <th>English Name</th>
                   <th>Age</th>
@@ -5241,6 +5285,7 @@ const VoterMaster: React.FC = () => {
                     setSummaryCardModalData([]);
                     setSummaryCardModalType(null);
                     setSummaryCardModalSearch("");
+                    setSummaryCardCurrentPage(1);
                   }}
                   className="max-w-6xl p-6 h-[80vh] overflow-y-auto"
                 >
@@ -5311,65 +5356,92 @@ const VoterMaster: React.FC = () => {
                           return <div className="text-center py-8 text-gray-500">No records found matching your search.</div>;
                         }
 
+                        // Pagination logic
+                        const totalPages = Math.ceil(filteredData.length / summaryCardItemsPerPage);
+                        const startIndex = (summaryCardCurrentPage - 1) * summaryCardItemsPerPage;
+                        const endIndex = startIndex + summaryCardItemsPerPage;
+                        const paginatedData = filteredData.slice(startIndex, endIndex);
+
                         return (
-                          <div className="overflow-x-auto">
-                            <table className="min-w-full text-sm">
-                              <thead className="sticky top-0 bg-gray-100 border-b">
-                                <tr>
-                                  <th className="px-4 py-3 text-left font-semibold text-gray-700">Sr No</th>
-                                  <th className="px-4 py-3 text-left font-semibold text-gray-700">Voter ID</th>
-                                  <th className="px-4 py-3 text-left font-semibold text-gray-700">Name</th>
-                                  <th className="px-4 py-3 text-left font-semibold text-gray-700">English Name</th>
-                                  <th className="px-4 py-3 text-left font-semibold text-gray-700">Age</th>
-                                  <th className="px-4 py-3 text-left font-semibold text-gray-700">Gender</th>
-                                  <th className="px-4 py-3 text-left font-semibold text-gray-700">Contact No</th>
-                                  <th className="px-4 py-3 text-left font-semibold text-gray-700">Colony</th>
-                                  <th className="px-4 py-3 text-left font-semibold text-gray-700">Volunteer Name</th>
-                                  <th className="px-4 py-3 text-left font-semibold text-gray-700">Volunteer Contact</th>
-                                  <th className="px-4 py-3 text-left font-semibold text-gray-700">Voting Status</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {filteredData.map((member, index) => (
-                                  <tr key={member.id} className={`border-b hover:bg-gray-50 ${getVoterRowBgClass(member.inst_1_paid, member.inst_2_paid, member.inst_3_paid)}`}>
-                                    <td className="px-4 py-3 text-gray-600">{index + 1}</td>
-                                    <td className="px-4 py-3">{member.Voter_Id || "-"}</td>
-                                    <td className="px-4 py-3 font-medium text-gray-900">{member.full_name || "-"}</td>
-                                    <td className="px-4 py-3 text-gray-500">{member.ENG_Full_name || "-"}</td>
-                                    <td className="px-4 py-3 text-gray-600">{member.Age || "-"}</td>
-                                    <td className="px-4 py-3 text-gray-600">{member.Gender || "-"}</td>
-                                    <td className="px-4 py-3 text-gray-400">{member.updated_mobile_no || "-"}</td>
-                                    <td className="px-4 py-3 text-gray-500">{member.colony_name || "-"}</td>
-                                    <td className="px-4 py-3 text-gray-700 font-medium">{member.volunteer_name || "-"}</td>
-                                    <td className="px-4 py-3 text-gray-600">{member.volunteer_contact || "-"}</td>
-                                    <td className="px-4 py-3 text-gray-600">{member.voting_status || "-"}</td>
+                          <div>
+                            <div className="overflow-x-auto">
+                              <table className="min-w-full text-sm">
+                                <thead className="sticky top-0 bg-gray-100 border-b">
+                                  <tr>
+                                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Sr No</th>
+                                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Voter ID</th>
+                                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Sr No</th>
+                                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Booth Address</th>
+                                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Booth Name</th>
+                                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Name</th>
+                                    <th className="px-4 py-3 text-left font-semibold text-gray-700">English Name</th>
+                                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Age</th>
+                                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Gender</th>
+                                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Contact No</th>
+                                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Colony</th>
+                                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Volunteer Name</th>
+                                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Volunteer Contact</th>
+                                    {/* <th className="px-4 py-3 text-left font-semibold text-gray-700">Voting Status</th> */}
                                   </tr>
-                                ))}
-                              </tbody>
-                            </table>
+                                </thead>
+                                <tbody>
+                                  {paginatedData.map((member, index) => (
+                                    <tr key={member.id} className={`border-b hover:bg-gray-50 ${getVoterRowBgClass(member.inst_1_paid, member.inst_2_paid, member.inst_3_paid)}`}>
+                                      <td className="px-4 py-3 text-gray-600">{startIndex + index + 1}</td>
+                                      <td className="px-4 py-3">{member.Voter_Id || "-"}</td>
+                                      <td className="px-4 py-3">{member.Sr_No || "-"}</td>
+                                      <td className="px-4 py-3">{member.Booth_Address || "-"}</td>
+                                      <td className="px-4 py-3">{member.Booth_Name || "-"}</td>
+                                      <td className="px-4 py-3 font-medium text-gray-900">{member.full_name || "-"}</td>
+                                      <td className="px-4 py-3 text-gray-500">{member.ENG_Full_name || "-"}</td>
+                                      <td className="px-4 py-3 text-gray-600">{member.Age || "-"}</td>
+                                      <td className="px-4 py-3 text-gray-600">{member.Gender || "-"}</td>
+                                      <td className="px-4 py-3 text-gray-400">{member.updated_mobile_no || "-"}</td>
+                                      <td className="px-4 py-3 text-gray-500">{member.colony_name || "-"}</td>
+                                      <td className="px-4 py-3 text-gray-700 font-medium">{member.volunteer_name || "-"}</td>
+                                      <td className="px-4 py-3 text-gray-600">{member.volunteer_contact || "-"}</td>
+                                      {/* <td className="px-4 py-3 text-gray-600">{member.voting_status || "-"}</td> */}
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+
+                            {/* Pagination Controls */}
+                            {totalPages > 1 && (
+                              <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                                <div className="flex items-center space-x-2">
+                                  <button
+                                    onClick={() => setSummaryCardCurrentPage(Math.max(1, summaryCardCurrentPage - 1))}
+                                    disabled={summaryCardCurrentPage === 1}
+                                    className="px-3 py-1 text-sm border border-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                                  >
+                                    Previous
+                                  </button>
+                                  <span className="text-sm text-gray-600">
+                                    Page {summaryCardCurrentPage} of {totalPages}
+                                  </span>
+                                  <button
+                                    onClick={() => setSummaryCardCurrentPage(Math.min(totalPages, summaryCardCurrentPage + 1))}
+                                    disabled={summaryCardCurrentPage === totalPages}
+                                    className="px-3 py-1 text-sm border border-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                                  >
+                                    Next
+                                  </button>
+                                </div>
+                                <div className="text-sm text-gray-600">
+                                  Showing {startIndex + 1}-{Math.min(endIndex, filteredData.length)} of {filteredData.length} records
+                                </div>
+                              </div>
+                            )}
                           </div>
                         );
                       })()}
                     </div>
-                    <div className="flex justify-between items-center mt-4 pt-4 border-t">
-                      <div className="text-sm text-gray-600">
-                        Showing {(() => {
-                          const filtered = summaryCardModalData.filter((member: FamilyMemberWithVolunteer) => {
-                            if (!summaryCardModalSearch.trim()) return true;
-                            const searchLower = summaryCardModalSearch.toLowerCase();
-                            return (
-                              member.Voter_Id?.toLowerCase().includes(searchLower) ||
-                              member.full_name?.toLowerCase().includes(searchLower) ||
-                              member.ENG_Full_name?.toLowerCase().includes(searchLower) ||
-                              member.updated_mobile_no?.toLowerCase().includes(searchLower) ||
-                              member.colony_name?.toLowerCase().includes(searchLower) ||
-                              member.volunteer_name?.toLowerCase().includes(searchLower) ||
-                              member.volunteer_contact?.toLowerCase().includes(searchLower)
-                            );
-                          });
-                          return filtered.length;
-                        })()} of {summaryCardModalData.length} records
-                      </div>
+                      <div className="flex justify-between items-center mt-4 pt-4 border-t">
+                        <div className="text-sm text-gray-600">
+                          Total: {summaryCardModalData.length} records
+                        </div>
                       <button
                         type="button"
                         onClick={() => {
@@ -5377,6 +5449,7 @@ const VoterMaster: React.FC = () => {
                           setSummaryCardModalData([]);
                           setSummaryCardModalType(null);
                           setSummaryCardModalSearch("");
+                          setSummaryCardCurrentPage(1);
                         }}
                         className="px-4 py-2 text-sm rounded border border-gray-300 hover:bg-gray-50"
                       >
@@ -5396,6 +5469,7 @@ const VoterMaster: React.FC = () => {
                     setStatusListData([]);
                     setStatusListModalType(null);
                     setStatusListVolunteerName("");
+                    setStatusListCurrentPage(1);
                   }}
                   className="max-w-6xl p-6"
                 >
@@ -5435,40 +5509,78 @@ const VoterMaster: React.FC = () => {
                         <div className="text-center py-8 text-gray-500">Loading...</div>
                       ) : statusListData.length === 0 ? (
                         <div className="text-center py-8 text-gray-500">No records found</div>
-                      ) : (
-                        <div className="overflow-x-auto">
-                          <table className="min-w-full text-sm">
-                            <thead className="sticky top-0 bg-gray-100 border-b">
-                              <tr>
-                                <th className="px-4 py-3 text-left font-semibold text-gray-700">Sr No</th>
-                                <th className="px-4 py-3 text-left font-semibold text-gray-700">Voter ID</th>
-                                <th className="px-4 py-3 text-left font-semibold text-gray-700">Name</th>
-                                <th className="px-4 py-3 text-left font-semibold text-gray-700">English Name</th>
-                                <th className="px-4 py-3 text-left font-semibold text-gray-700">Age</th>
-                                <th className="px-4 py-3 text-left font-semibold text-gray-700">Gender</th>
-                                <th className="px-4 py-3 text-left font-semibold text-gray-700">Contact No</th>
-                                <th className="px-4 py-3 text-left font-semibold text-gray-700">Colony</th>
-                                <th className="px-4 py-3 text-left font-semibold text-gray-700">Voting Status</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {statusListData.map((member, index) => (
-                                <tr key={member.id} className={`border-b hover:bg-gray-50 ${getVoterRowBgClass(member.inst_1_paid, member.inst_2_paid, member.inst_3_paid)}`}>
-                                  <td className="px-4 py-3 text-gray-600">{index + 1}</td>
-                                  <td className="px-4 py-3">{member.Voter_Id || "-"}</td>
-                                  <td className="px-4 py-3 font-medium text-gray-900">{member.full_name || "-"}</td>
-                                  <td className="px-4 py-3 text-gray-500">{member.ENG_Full_name || "-"}</td>
-                                  <td className="px-4 py-3 text-gray-600">{member.Age || "-"}</td>
-                                  <td className="px-4 py-3 text-gray-600">{member.Gender || "-"}</td>
-                                  <td className="px-4 py-3 text-gray-400">{member.updated_mobile_no || "-"}</td>
-                                  <td className="px-4 py-3 text-gray-500">{member.colony_name || "-"}</td>
-                                  <td className="px-4 py-3 text-gray-600">{member.voting_status || "-"}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
+                      ) : (() => {
+                        // Pagination logic
+                        const totalPages = Math.ceil(statusListData.length / statusListItemsPerPage);
+                        const startIndex = (statusListCurrentPage - 1) * statusListItemsPerPage;
+                        const endIndex = startIndex + statusListItemsPerPage;
+                        const paginatedData = statusListData.slice(startIndex, endIndex);
+
+                        return (
+                          <div>
+                            <div className="overflow-x-auto">
+                              <table className="min-w-full text-sm">
+                                <thead className="sticky top-0 bg-gray-100 border-b">
+                                  <tr>
+                                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Sr No</th>
+                                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Voter ID</th>
+                                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Name</th>
+                                    <th className="px-4 py-3 text-left font-semibold text-gray-700">English Name</th>
+                                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Age</th>
+                                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Gender</th>
+                                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Contact No</th>
+                                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Colony</th>
+                                    <th className="px-4 py-3 text-left font-semibold text-gray-700">Voting Status</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {paginatedData.map((member, index) => (
+                                    <tr key={member.id} className={`border-b hover:bg-gray-50 ${getVoterRowBgClass(member.inst_1_paid, member.inst_2_paid, member.inst_3_paid)}`}>
+                                      <td className="px-4 py-3 text-gray-600">{startIndex + index + 1}</td>
+                                      <td className="px-4 py-3">{member.Voter_Id || "-"}</td>
+                                      <td className="px-4 py-3 font-medium text-gray-900">{member.full_name || "-"}</td>
+                                      <td className="px-4 py-3 text-gray-500">{member.ENG_Full_name || "-"}</td>
+                                      <td className="px-4 py-3 text-gray-600">{member.Age || "-"}</td>
+                                      <td className="px-4 py-3 text-gray-600">{member.Gender || "-"}</td>
+                                      <td className="px-4 py-3 text-gray-400">{member.updated_mobile_no || "-"}</td>
+                                      <td className="px-4 py-3 text-gray-500">{member.colony_name || "-"}</td>
+                                      <td className="px-4 py-3 text-gray-600">{member.voting_status || "-"}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+
+                            {/* Pagination Controls */}
+                            {totalPages > 1 && (
+                              <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                                <div className="flex items-center space-x-2">
+                                  <button
+                                    onClick={() => setStatusListCurrentPage(Math.max(1, statusListCurrentPage - 1))}
+                                    disabled={statusListCurrentPage === 1}
+                                    className="px-3 py-1 text-sm border border-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                                  >
+                                    Previous
+                                  </button>
+                                  <span className="text-sm text-gray-600">
+                                    Page {statusListCurrentPage} of {totalPages}
+                                  </span>
+                                  <button
+                                    onClick={() => setStatusListCurrentPage(Math.min(totalPages, statusListCurrentPage + 1))}
+                                    disabled={statusListCurrentPage === totalPages}
+                                    className="px-3 py-1 text-sm border border-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                                  >
+                                    Next
+                                  </button>
+                                </div>
+                                <div className="text-sm text-gray-600">
+                                  Showing {startIndex + 1}-{Math.min(endIndex, statusListData.length)} of {statusListData.length} records
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
                     <div className="flex justify-end mt-4 pt-4 border-t">
                       <button
@@ -5478,6 +5590,7 @@ const VoterMaster: React.FC = () => {
                           setStatusListData([]);
                           setStatusListModalType(null);
                           setStatusListVolunteerName("");
+                          setStatusListCurrentPage(1);
                         }}
                         className="px-4 py-2 text-sm rounded border border-gray-300 hover:bg-gray-50"
                       >
