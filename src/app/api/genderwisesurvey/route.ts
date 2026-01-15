@@ -5,7 +5,7 @@ import type { RowDataPacket } from 'mysql2';
 
 // Get gender wise survey data - count male and female per colony
 // Gender = 'पु' → Male, Gender != 'पु' → Female
-// WHERE updated_at IS NOT NULL
+// WHERE updated_at = 1
 
 interface GenderWiseSurveyRow extends RowDataPacket {
     colony_id: number | null;
@@ -24,7 +24,7 @@ export async function GET() {
         // Matches exact database queries:
         // - Gender = 'पु' → Male (5490 total)
         // - Gender != 'पु' → Female (5190 total)
-        // WHERE updated_at IS NOT NULL
+        // WHERE updated_at = 1
         const query = `
             SELECT 
                 v.Updated_colony as colony_id,
@@ -34,7 +34,7 @@ export async function GET() {
                 COUNT(*) as total_count
             FROM tbl_voters_search v
             LEFT JOIN colony c ON v.Updated_colony = c.colony_id
-            WHERE v.updated_at IS NOT NULL
+            WHERE v.updated_at = 1
                 AND v.Updated_colony IS NOT NULL
             GROUP BY v.Updated_colony, c.colony_name
             ORDER BY c.colony_name ASC

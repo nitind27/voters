@@ -2,12 +2,12 @@ import pool from '@/lib/db';
 import { NextResponse } from 'next/server';
 import type { RowDataPacket } from 'mysql2';
 
-// Get count of voter details where updated_at is NOT NULL
+// Get count of voter details where updated_at = 1
 // Optimized: Using direct query without connection overhead
 export async function GET() {
     try {
         const [countResult] = await pool.query<RowDataPacket[]>(
-            `SELECT COUNT(*) as total FROM tbl_voters_search WHERE updated_at IS NOT NULL`
+            `SELECT COUNT(*) as total FROM tbl_voters_search WHERE updated_at = 1`
         );
         
         return NextResponse.json({

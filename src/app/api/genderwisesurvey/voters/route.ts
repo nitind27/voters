@@ -5,7 +5,7 @@ import type { RowDataPacket } from 'mysql2';
 
 // Get voters by colony and gender for Gender Wise Survey modal
 // Gender = 'पु' → Male, Gender != 'पु' → Female
-// WHERE updated_at IS NOT NULL
+// WHERE updated_at = 1
 export async function GET(request: NextRequest) {
     let connection;
     try {
@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
                 c.colony_name
             FROM tbl_voters_search v
             LEFT JOIN colony c ON v.Updated_colony = c.colony_id
-            WHERE v.updated_at IS NOT NULL
+            WHERE v.updated_at = 1
                 AND v.Updated_colony = ?
                 AND ${genderCondition}
             ORDER BY v.full_name ASC

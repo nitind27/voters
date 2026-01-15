@@ -113,15 +113,15 @@ export async function GET(request: Request) {
                  ${baseWhere}`,
                 []
             ),
-            // Get total count of all voters where updated_at IS NOT NULL
+            // Get total count of all voters where updated_at = 1
             // This matches the actual database count (10680)
             connection.query<RowDataPacket[]>(
                 `SELECT COUNT(*) as total 
                  FROM tbl_voters_search v
-                 WHERE v.updated_at IS NOT NULL`,
+                 WHERE v.updated_at = 1`,
                 []
             ),
-            // Get colony-wise totals (all voters where updated_at IS NOT NULL)
+            // Get colony-wise totals (all voters where updated_at = 1)
             connection.query<RowDataPacket[]>(
                 `SELECT 
                     c.colony_id,
@@ -129,7 +129,7 @@ export async function GET(request: Request) {
                     COUNT(*) as total_voters
                 FROM tbl_voters_search v
                 LEFT JOIN colony c ON v.Updated_colony = c.colony_id
-                WHERE v.updated_at IS NOT NULL
+                WHERE v.updated_at = 1
                 GROUP BY c.colony_id, c.colony_name
                 ORDER BY c.colony_name ASC`,
                 []
@@ -151,7 +151,7 @@ export async function GET(request: Request) {
                 totalRecords: totalRecords,
                 recordsPerPage: validLimit,
             },
-            totalVoters: totalVoters, // Total count of all voters where updated_at IS NOT NULL
+            totalVoters: totalVoters, // Total count of all voters where updated_at = 1
             colonyWiseTotals: colonyWiseRows.map((row: RowDataPacket) => ({
                 colony_id: String(row.colony_id || '0'),
                 colony_name: row.colony_name || `Colony ID: ${row.colony_id || '0'}`,

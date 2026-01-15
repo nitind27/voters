@@ -400,7 +400,7 @@ const Newdashboard: React.FC = () => {
   // Fetch gender wise survey data - count male and female per colony
   // Uses dedicated API endpoint that counts directly in database
   // Gender = 'पु' → Male, Gender != 'पु' → Female
-  // WHERE updated_at IS NOT NULL
+  // WHERE updated_at = 1
   const fetchGenderWiseSurveyData = useCallback(async () => {
     setGenderWiseLoading(true);
     try {
@@ -935,7 +935,7 @@ const Newdashboard: React.FC = () => {
       let totalVoterCount = 0;
       
       if (colonyTotal) {
-        // Use the actual count from database (where updated_at IS NOT NULL)
+        // Use the actual count from database (where updated_at = 1)
         totalVoterCount = colonyTotal.total_voters;
       } else {
         // Fallback: Calculate total voter count: primary persons + their family members
@@ -1010,7 +1010,7 @@ const Newdashboard: React.FC = () => {
 
     const colonyMap = new Map<string, VoterDetailsData[]>();
 
-    // Use all voter data (API already filters by updated_at IS NOT NULL)
+    // Use all voter data (API already filters by updated_at = 1)
     voterData.forEach(voter => {
       const colonyId = voter.Updated_colony || "0";
       if (!colonyMap.has(colonyId)) {

@@ -4,7 +4,7 @@ import type { RowDataPacket } from 'mysql2';
 
 const ITEMS_PER_PAGE = 50;
 
-// Get voter details where updated_at IS NOT NULL with pagination and search filters
+// Get voter details where updated_at = 1 with pagination and search filters
 export async function GET(request: NextRequest) {
     try {
         const { searchParams } = new URL(request.url);
@@ -22,8 +22,8 @@ export async function GET(request: NextRequest) {
         const validLimit = Math.min(Math.max(1, limit), 50000);
         const offset = (validPage - 1) * validLimit;
 
-        // Build WHERE clause dynamically - note: updated_at IS NOT NULL
-        const conditions: string[] = ['updated_at IS NOT NULL'];
+        // Build WHERE clause dynamically - note: updated_at = 1
+        const conditions: string[] = ['updated_at = 1'];
         const queryParams: (string | number)[] = [];
 
         // If general search is provided, search in both voter_id and full_name

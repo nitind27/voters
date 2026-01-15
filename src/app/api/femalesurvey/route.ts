@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import pool from '@/lib/db';
 import type { RowDataPacket } from 'mysql2';
 
-// -------------------- GET Method - Only Female Voters (Gender = 'F' or 'स्त्री' or 'Female') where updated_at IS NOT NULL --------------------
+// -------------------- GET Method - Only Female Voters (Gender = 'F' or 'स्त्री' or 'Female') where updated_at = 1 --------------------
 export async function GET() {
     let connection;
     try {
