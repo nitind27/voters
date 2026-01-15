@@ -91,12 +91,11 @@ export async function GET() {
             const boothNumbers = schoolInfo.boothNumbers.map(bn => String(bn));
             const placeholders = boothNumbers.map(() => '?').join(',');
             
-            // Get total voters, voting done, and voting pending for these booth numbers
+            // Get total voters and voting done for these booth numbers
             const [statsRows] = await connection.query<RowDataPacket[]>(
                 `SELECT 
                     COUNT(*) as total_voters,
-                    SUM(CASE WHEN voting_status = 'Completed' OR voting_status = 'Direct' THEN 1 ELSE 0 END) as voting_done,
-                    SUM(CASE WHEN voting_status IS NULL OR voting_status = '' OR voting_status = 'Pending' THEN 1 ELSE 0 END) as voting_pending
+                    SUM(CASE WHEN voting_status = 'Completed' OR voting_status = 'Direct' THEN 1 ELSE 0 END) as voting_done
                 FROM tbl_voters_search
                 WHERE Booth_Number IN (${placeholders})
                     AND Booth_Number IS NOT NULL
@@ -105,15 +104,19 @@ export async function GET() {
                 boothNumbers
             );
             
-            const stats = statsRows[0] || { total_voters: 0, voting_done: 0, voting_pending: 0 };
+            const stats = statsRows[0] || { total_voters: 0, voting_done: 0 };
+            const totalVoters = Number(stats.total_voters) || 0;
+            const votingDone = Number(stats.voting_done) || 0;
+            // Calculate voting pending as Total Voters - Voting Done
+            const votingPending = totalVoters - votingDone;
             
             // Use the minimum booth number as school number for display
             schoolStats.push({
                 school_number: schoolInfo.minBooth,
                 school_name: schoolName,
-                total_voters: Number(stats.total_voters) || 0,
-                voting_done: Number(stats.voting_done) || 0,
-                voting_pending: Number(stats.voting_pending) || 0
+                total_voters: totalVoters,
+                voting_done: votingDone,
+                voting_pending: votingPending
             });
         }
         
