@@ -1,5 +1,6 @@
 "use client";
 import React, { useEffect, useState } from 'react';
+import SchoolVotersModal from './SchoolVotersModal';
 
 interface SchoolStats {
     school_number: number;
@@ -7,12 +8,15 @@ interface SchoolStats {
     total_voters: number;
     voting_done: number;
     voting_pending: number;
+    booth_numbers: number[];
 }
 
 const SchoolWiseData: React.FC = () => {
     const [data, setData] = useState<SchoolStats[]>([]);
     const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
+    const [modalOpen, setModalOpen] = useState<boolean>(false);
+    const [selectedSchool, setSelectedSchool] = useState<{ name: string; boothNumbers: number[]; filterType: 'all' | 'total' | 'done' | 'pending'; title: string } | null>(null);
 
     useEffect(() => {
         fetchData();
@@ -105,12 +109,34 @@ const SchoolWiseData: React.FC = () => {
                                             {row.school_name || 'Unknown'}
                                         </td>
                                         <td className="border border-gray-300 px-4 py-4 text-right">
-                                            <span className="text-xl font-bold text-blue-600">
+                                            <span 
+                                                className="text-xl font-bold text-blue-600 cursor-pointer hover:text-blue-800 hover:underline"
+                                                onClick={() => {
+                                                    setSelectedSchool({
+                                                        name: row.school_name,
+                                                        boothNumbers: row.booth_numbers || [],
+                                                        filterType: 'total',
+                                                        title: 'Total Voters'
+                                                    });
+                                                    setModalOpen(true);
+                                                }}
+                                            >
                                                 {row.total_voters.toLocaleString()}
                                             </span>
                                         </td>
                                         <td className="border border-gray-300 px-4 py-4 text-right bg-green-50">
-                                            <div className="flex flex-col items-end">
+                                            <div 
+                                                className="flex flex-col items-end cursor-pointer hover:bg-green-100 rounded px-2 py-1"
+                                                onClick={() => {
+                                                    setSelectedSchool({
+                                                        name: row.school_name,
+                                                        boothNumbers: row.booth_numbers || [],
+                                                        filterType: 'done',
+                                                        title: 'Voting Done'
+                                                    });
+                                                    setModalOpen(true);
+                                                }}
+                                            >
                                                 <span className="text-xl font-bold text-green-600">
                                                     {row.voting_done.toLocaleString()}
                                                 </span>
@@ -120,7 +146,18 @@ const SchoolWiseData: React.FC = () => {
                                             </div>
                                         </td>
                                         <td className="border border-gray-300 px-4 py-4 text-right bg-red-50">
-                                            <div className="flex flex-col items-end">
+                                            <div 
+                                                className="flex flex-col items-end cursor-pointer hover:bg-red-100 rounded px-2 py-1"
+                                                onClick={() => {
+                                                    setSelectedSchool({
+                                                        name: row.school_name,
+                                                        boothNumbers: row.booth_numbers || [],
+                                                        filterType: 'pending',
+                                                        title: 'Voting Pending'
+                                                    });
+                                                    setModalOpen(true);
+                                                }}
+                                            >
                                                 <span className="text-xl font-bold text-red-600">
                                                     {row.voting_pending.toLocaleString()}
                                                 </span>
@@ -136,12 +173,36 @@ const SchoolWiseData: React.FC = () => {
                                 <tr className="bg-gradient-to-r from-gray-100 to-gray-200 font-semibold border-t-2 border-gray-400">
                                     <td className="border border-gray-300 px-4 py-4 text-center font-bold text-gray-900 text-base" colSpan={2}>Total</td>
                                     <td className="border border-gray-300 px-4 py-4 text-right">
-                                        <span className="text-2xl font-bold text-blue-700">
+                                        <span 
+                                            className="text-2xl font-bold text-blue-700 cursor-pointer hover:text-blue-900 hover:underline"
+                                            onClick={() => {
+                                                const allBoothNumbers = data.flatMap(row => row.booth_numbers || []);
+                                                setSelectedSchool({
+                                                    name: 'All Schools',
+                                                    boothNumbers: [...new Set(allBoothNumbers)],
+                                                    filterType: 'total',
+                                                    title: 'Total Voters - All Schools'
+                                                });
+                                                setModalOpen(true);
+                                            }}
+                                        >
                                             {totals.totalVoters.toLocaleString()}
                                         </span>
                                     </td>
                                     <td className="border border-gray-300 px-4 py-4 text-right bg-green-100">
-                                        <div className="flex flex-col items-end">
+                                        <div 
+                                            className="flex flex-col items-end cursor-pointer hover:bg-green-200 rounded px-2 py-1"
+                                            onClick={() => {
+                                                const allBoothNumbers = data.flatMap(row => row.booth_numbers || []);
+                                                setSelectedSchool({
+                                                    name: 'All Schools',
+                                                    boothNumbers: [...new Set(allBoothNumbers)],
+                                                    filterType: 'done',
+                                                    title: 'Voting Done - All Schools'
+                                                });
+                                                setModalOpen(true);
+                                            }}
+                                        >
                                             <span className="text-2xl font-bold text-green-700">
                                                 {totals.totalVotingDone.toLocaleString()}
                                             </span>
@@ -151,7 +212,19 @@ const SchoolWiseData: React.FC = () => {
                                         </div>
                                     </td>
                                     <td className="border border-gray-300 px-4 py-4 text-right bg-red-100">
-                                        <div className="flex flex-col items-end">
+                                        <div 
+                                            className="flex flex-col items-end cursor-pointer hover:bg-red-200 rounded px-2 py-1"
+                                            onClick={() => {
+                                                const allBoothNumbers = data.flatMap(row => row.booth_numbers || []);
+                                                setSelectedSchool({
+                                                    name: 'All Schools',
+                                                    boothNumbers: [...new Set(allBoothNumbers)],
+                                                    filterType: 'pending',
+                                                    title: 'Voting Pending - All Schools'
+                                                });
+                                                setModalOpen(true);
+                                            }}
+                                        >
                                             <span className="text-2xl font-bold text-red-700">
                                                 {totals.totalVotingPending.toLocaleString()}
                                             </span>
@@ -184,6 +257,21 @@ const SchoolWiseData: React.FC = () => {
                     </tbody>
                 </table>
             </div>
+            
+            {/* Modal */}
+            {selectedSchool && (
+                <SchoolVotersModal
+                    isOpen={modalOpen}
+                    onClose={() => {
+                        setModalOpen(false);
+                        setSelectedSchool(null);
+                    }}
+                    schoolName={selectedSchool.name}
+                    boothNumbers={selectedSchool.boothNumbers}
+                    filterType={selectedSchool.filterType}
+                    title={selectedSchool.title}
+                />
+            )}
         </div>
     );
 };

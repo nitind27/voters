@@ -22,6 +22,7 @@ interface SchoolData {
     total_voters: number;
     voting_done: number;
     voting_pending: number;
+    booth_numbers: number[];
 }
 
 export async function GET() {
@@ -116,7 +117,8 @@ export async function GET() {
                 school_name: schoolName,
                 total_voters: totalVoters,
                 voting_done: votingDone,
-                voting_pending: votingPending
+                voting_pending: votingPending,
+                booth_numbers: schoolInfo.boothNumbers
             });
         }
         
