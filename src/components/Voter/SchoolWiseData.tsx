@@ -110,14 +110,24 @@ const SchoolWiseData: React.FC = () => {
                                             </span>
                                         </td>
                                         <td className="border border-gray-300 px-4 py-4 text-right bg-green-50">
-                                            <span className="text-xl font-bold text-green-600">
-                                                {row.voting_done.toLocaleString()}
-                                            </span>
+                                            <div className="flex flex-col items-end">
+                                                <span className="text-xl font-bold text-green-600">
+                                                    {row.voting_done.toLocaleString()}
+                                                </span>
+                                                <span className="text-sm font-semibold text-green-700 mt-1">
+                                                    ({row.total_voters > 0 ? Math.round((row.voting_done / row.total_voters) * 100) : 0}%)
+                                                </span>
+                                            </div>
                                         </td>
                                         <td className="border border-gray-300 px-4 py-4 text-right bg-red-50">
-                                            <span className="text-xl font-bold text-red-600">
-                                                {row.voting_pending.toLocaleString()}
-                                            </span>
+                                            <div className="flex flex-col items-end">
+                                                <span className="text-xl font-bold text-red-600">
+                                                    {row.voting_pending.toLocaleString()}
+                                                </span>
+                                                <span className="text-sm font-semibold text-red-700 mt-1">
+                                                    ({row.total_voters > 0 ? Math.round((row.voting_pending / row.total_voters) * 100) : 0}%)
+                                                </span>
+                                            </div>
                                         </td>
                                     </tr>
                                 ))}
@@ -131,14 +141,24 @@ const SchoolWiseData: React.FC = () => {
                                         </span>
                                     </td>
                                     <td className="border border-gray-300 px-4 py-4 text-right bg-green-100">
-                                        <span className="text-2xl font-bold text-green-700">
-                                            {totals.totalVotingDone.toLocaleString()}
-                                        </span>
+                                        <div className="flex flex-col items-end">
+                                            <span className="text-2xl font-bold text-green-700">
+                                                {totals.totalVotingDone.toLocaleString()}
+                                            </span>
+                                            <span className="text-base font-semibold text-green-800 mt-1">
+                                                ({totals.votingDonePercent}%)
+                                            </span>
+                                        </div>
                                     </td>
                                     <td className="border border-gray-300 px-4 py-4 text-right bg-red-100">
-                                        <span className="text-2xl font-bold text-red-700">
-                                            {totals.totalVotingPending.toLocaleString()}
-                                        </span>
+                                        <div className="flex flex-col items-end">
+                                            <span className="text-2xl font-bold text-red-700">
+                                                {totals.totalVotingPending.toLocaleString()}
+                                            </span>
+                                            <span className="text-base font-semibold text-red-800 mt-1">
+                                                ({totals.votingPendingPercent}%)
+                                            </span>
+                                        </div>
                                     </td>
                                 </tr>
                                 
