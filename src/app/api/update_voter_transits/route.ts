@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
     const placeholders = ids.map(() => '?').join(',');
     const query = `
       UPDATE tbl_voters_search 
-      SET voting_status = ?, updated_at = NOW() 
+      SET voting_status = ?
       WHERE id IN (${placeholders})
     `;
 
