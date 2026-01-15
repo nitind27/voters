@@ -68,6 +68,7 @@ export async function POST(request: NextRequest) {
 
     const voterPlaceholders = primaryVoterIds.map(() => '?').join(',');
     const familyCondition = `(id IN (${idPlaceholders}) OR family_member IN (${voterPlaceholders})) AND ${colonyFilter}`;
+    const familyConditionWithAlias = `(tvs.id IN (${idPlaceholders}) OR tvs.family_member IN (${voterPlaceholders})) AND ${getColonyFilter('tvs')}`;
 
     // Build params for family condition
     const familyParams = [
@@ -75,7 +76,7 @@ export async function POST(request: NextRequest) {
       ...primaryVoterIds,
     ];
 
-    // Count queries
+    // Count queries (without alias)
     const [allRows] = await pool.query<RowDataPacket[]>(
       `SELECT COUNT(*) AS c FROM tbl_voters_search WHERE ${familyCondition}`,
       familyParams
@@ -100,30 +101,30 @@ export async function POST(request: NextRequest) {
     );
     const doneVoter = Number(doneRows[0]?.c || 0);
 
-    // Build WHERE conditions for main query
-    const conditions = [familyCondition];
+    // Build WHERE conditions for main query (with alias)
+    const conditions = [familyConditionWithAlias];
     const params: (string | number)[] = [...familyParams];
 
     if (colonyId > 0) {
-      conditions.push('Updated_colony = ?');
+      conditions.push('tvs.Updated_colony = ?');
       params.push(colonyId);
     }
 
     if (votingCount === 1) {
-      conditions.push("voting_status = 'Pending'");
+      conditions.push("tvs.voting_status = 'Pending'");
     } else if (votingCount === 2) {
-      conditions.push("voting_status = 'In Transit'");
+      conditions.push("tvs.voting_status = 'In Transit'");
     } else if (votingCount === 3) {
-      conditions.push("(voting_status = 'Completed' OR voting_status = 'Direct')");
+      conditions.push("(tvs.voting_status = 'Completed' OR tvs.voting_status = 'Direct')");
     }
 
     if (search) {
       const searchWords = search.split(' ').filter((word) => word.trim());
-      const nameParts = searchWords.map(() => 'full_name LIKE ?');
+      const nameParts = searchWords.map(() => 'tvs.full_name LIKE ?');
       const searchParams = searchWords.map((word) => `%${word.trim()}%`);
 
       if (nameParts.length > 0) {
-        conditions.push(`((${nameParts.join(' AND ')}) OR Voter_Id LIKE ?)`);
+        conditions.push(`((${nameParts.join(' AND ')}) OR tvs.Voter_Id LIKE ?)`);
         params.push(...searchParams, `%${search}%`);
       }
     }
@@ -134,14 +135,14 @@ export async function POST(request: NextRequest) {
     let colonyWhere = familyCondition;
     const colonyParams = [...familyParams];
 
-    if (votingCount === 1) colonyWhere += " AND voting_status='Pending'";
-    else if (votingCount === 2) colonyWhere += " AND voting_status='In Transit'";
-    else if (votingCount === 3) colonyWhere += " AND (voting_status='Completed' OR voting_status='Direct')";
+    if (votingCount === 1) colonyWhere += " AND tbl_voters_search.voting_status='Pending'";
+    else if (votingCount === 2) colonyWhere += " AND tbl_voters_search.voting_status='In Transit'";
+    else if (votingCount === 3) colonyWhere += " AND (tbl_voters_search.voting_status='Completed' OR tbl_voters_search.voting_status='Direct')";
 
     const [colonyRows] = await pool.query<RowDataPacket[]>(
-      `SELECT Updated_colony AS colony_id, COUNT(*) AS total_voters 
+      `SELECT tbl_voters_search.Updated_colony AS colony_id, COUNT(*) AS total_voters 
        FROM tbl_voters_search WHERE ${colonyWhere} 
-       GROUP BY Updated_colony`,
+       GROUP BY tbl_voters_search.Updated_colony`,
       colonyParams
     );
 
