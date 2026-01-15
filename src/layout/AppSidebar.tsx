@@ -104,6 +104,11 @@ const allNavItems: NavItem[] = [
     name: "Corporation list voting status",
     path: "/voterstatus",
   },
+  {
+    icon: <TbCategoryPlus />,
+    name: "Booth Address Wise Statistics",
+    path: "/boothaddresswise",
+  },
   // {
   //   icon: <TbCategoryPlus />,
   //   name: "Pending Voting Data",
