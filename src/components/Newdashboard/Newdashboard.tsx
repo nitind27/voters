@@ -123,6 +123,10 @@ interface FamilyWiseSurveyData {
   inst_1_paid?: string | number | null;
   inst_2_paid?: string | number | null;
   inst_3_paid?: string | number | null;
+  Booth_Number?: string | number;
+  Booth_Address?: string;
+  Sr_No?: string | number;
+  Room_Number?: string | number;
 }
 
 // Family member detail type (for modal)
@@ -2059,6 +2063,277 @@ const Newdashboard: React.FC = () => {
     }
   };
 
+  // Export Members data grouped by family (primary person first, then members)
+  const getGroupedMembersData = async (): Promise<Array<{
+    srNo: number | string;
+    voterList: string;
+    colonyName: string;
+    boothNumber: string | number;
+    boothAddress: string;
+    roomNumber: string | number;
+    srNoDb: string | number;
+    isPrimary: boolean;
+  }>> => {
+    try {
+      const groupedData: Array<{
+        srNo: number | string;
+        voterList: string;
+        colonyName: string;
+        boothNumber: string | number;
+        boothAddress: string;
+        roomNumber: string | number;
+        srNoDb: string | number;
+        isPrimary: boolean;
+      }> = [];
+      
+      let primaryPersonCounter = 0;
+      
+      if (!familyWiseColonyGroupedData || familyWiseColonyGroupedData.length === 0) {
+        console.warn('No colony data available for grouping');
+        return groupedData;
+      }
+      
+      // Process each colony
+      for (const colony of familyWiseColonyGroupedData) {
+        if (!colony.primaryPersons || colony.primaryPersons.length === 0) {
+          continue;
+        }
+
+        // Group members by family_member (primary person Voter_Id)
+        const familyGroups: Record<string, { primary: FamilyWiseSurveyData | null; members: FamilyWiseSurveyData[] }> = {};
+        
+        // Process primary persons first
+        colony.primaryPersons.forEach(primaryPerson => {
+          const familyKey = primaryPerson.Voter_Id;
+          if (!familyGroups[familyKey]) {
+            familyGroups[familyKey] = { primary: null, members: [] };
+          }
+          familyGroups[familyKey].primary = primaryPerson;
+        });
+        
+        // Fetch and add family members for each primary person
+        for (const primaryPerson of colony.primaryPersons) {
+          try {
+            const response = await fetch(`/api/familywisesurvey?family_member_id=${encodeURIComponent(primaryPerson.Voter_Id)}`);
+            if (response.ok) {
+              const familyMembers = await response.json();
+              const familyKey = primaryPerson.Voter_Id;
+              if (familyGroups[familyKey]) {
+                familyGroups[familyKey].members = Array.isArray(familyMembers) ? familyMembers : [];
+              }
+            } else {
+              console.warn(`Failed to fetch family members for ${primaryPerson.Voter_Id}:`, response.status);
+            }
+          } catch (error) {
+            console.error(`Error fetching family members for ${primaryPerson.Voter_Id}:`, error);
+          }
+        }
+        
+        // Process each family group
+        Object.values(familyGroups).forEach(familyGroup => {
+          if (familyGroup.primary) {
+            primaryPersonCounter++;
+            // Add primary person with Sr. No.
+            groupedData.push({
+              srNo: primaryPersonCounter,
+              voterList: familyGroup.primary.full_name || "N/A",
+              colonyName: familyGroup.primary.colony_name || colony.colony_name || "N/A",
+              boothNumber: familyGroup.primary.Booth_Number || "N/A",
+              boothAddress: familyGroup.primary.Booth_Address || "N/A",
+              roomNumber: familyGroup.primary.Room_Number || "N/A",
+              srNoDb: familyGroup.primary.Sr_No || "N/A",
+              isPrimary: true,
+            });
+            
+            // Add family members without Sr. No. (empty)
+            if (Array.isArray(familyGroup.members)) {
+              familyGroup.members.forEach(member => {
+                groupedData.push({
+                  srNo: "",
+                  voterList: member.full_name || "N/A",
+                  colonyName: member.colony_name || colony.colony_name || "N/A",
+                  boothNumber: member.Booth_Number || "N/A",
+                  boothAddress: member.Booth_Address || "N/A",
+                  roomNumber: member.Room_Number || "N/A",
+                  srNoDb: member.Sr_No || "N/A",
+                  isPrimary: false,
+                });
+              });
+            }
+          }
+        });
+      }
+      
+      console.log(`Grouped ${groupedData.length} members for export`);
+      return groupedData;
+    } catch (error) {
+      console.error('Error in getGroupedMembersData:', error);
+      return [];
+    }
+  };
+
+  // Export Members to Excel
+  const exportMembersToExcel = async () => {
+    try {
+      console.log('Export Members to Excel clicked');
+      
+      if (familyWiseColonyGroupedData.length === 0) {
+        toast.error('No data available to export');
+        return;
+      }
+
+      toast.info('Preparing Members data for Excel export...');
+      console.log('Fetching grouped data...');
+      const groupedData = await getGroupedMembersData();
+      console.log('Grouped data received:', groupedData.length, 'records');
+      
+      if (!groupedData || groupedData.length === 0) {
+        toast.error('No members data found to export');
+        return;
+      }
+      
+      const exportData = groupedData.map((row) => ({
+        'Sr. No.': row.srNo === "" ? "" : row.srNo,
+        'Voter List': row.voterList || "N/A",
+        'Colony Name': row.colonyName || "N/A",
+        'Booth Number': row.boothNumber || "N/A",
+        'Booth Address': row.boothAddress || "N/A",
+        'Room Number': row.roomNumber || "N/A",
+        'Sr No.': row.srNoDb || "N/A",
+      }));
+
+      if (exportData.length === 0) {
+        toast.error('No data to export');
+        return;
+      }
+
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(exportData);
+
+      ws['!cols'] = [
+        { wch: 10 },  // Sr. No.
+        { wch: 30 },  // Voter List
+        { wch: 25 },  // Colony Name
+        { wch: 15 },  // Booth Number
+        { wch: 25 },  // Booth Address
+        { wch: 15 },  // Room Number
+        { wch: 12 },  // Sr No.
+      ];
+
+      XLSX.utils.book_append_sheet(wb, ws, 'Members');
+
+      const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      const data = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+
+      const fileName = `Members_FamilyWiseSurvey_${new Date().toISOString().split('T')[0]}.xlsx`;
+      
+      try {
+        saveAs(data, fileName);
+        console.log('File download initiated:', fileName);
+        toast.success(`Members Excel file downloaded successfully with ${groupedData.length} records!`);
+      } catch (saveError) {
+        console.error('Error saving file:', saveError);
+        // Fallback: create download link
+        const url = window.URL.createObjectURL(data);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+        toast.success(`Members Excel file downloaded successfully with ${groupedData.length} records!`);
+      }
+    } catch (error) {
+      console.error('Error exporting Members to Excel:', error);
+      toast.error(`Failed to export Members Excel file: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  // Export Members to PDF
+  const exportMembersToPDF = async () => {
+    try {
+      toast.info('Preparing Members data for PDF export...');
+      const groupedData = await getGroupedMembersData();
+      
+      const tableRows = groupedData.map((row) => `
+        <tr>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 11px; text-align: center;">${row.srNo || ""}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 11px;">${row.voterList}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 11px;">${row.colonyName}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 11px; text-align: center;">${row.boothNumber}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 11px;">${row.boothAddress}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 11px; text-align: center;">${row.roomNumber}</td>
+          <td style="padding: 8px; border: 1px solid #000; font-size: 11px; text-align: center;">${row.srNoDb}</td>
+        </tr>
+      `).join('');
+
+      const htmlContent = `
+        <html>
+          <head>
+            <title>Members - Family Wise Survey Report</title>
+            <style>
+              @page { size: A4 landscape; margin: 10mm; }
+              body { font-family: Arial, sans-serif; margin: 0; padding: 10px; }
+              h1 { text-align: center; margin-bottom: 10px; font-size: 18px; font-weight: bold; }
+              .info { text-align: center; margin-bottom: 15px; font-size: 12px; color: #666; }
+              table { width: 100%; border-collapse: collapse; font-size: 11px; }
+              th { background-color: #4a5568; color: white; padding: 10px; border: 1px solid #000; font-weight: bold; text-align: center; }
+              td { padding: 8px; border: 1px solid #000; }
+            </style>
+          </head>
+          <body>
+            <h1>Members - Family Wise Survey Report</h1>
+            <div class="info">
+              <p>Generated on: ${new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
+              <p>Total Records: ${groupedData.length}</p>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th style="width: 8%;">Sr. No.</th>
+                  <th style="width: 25%;">Voter List</th>
+                  <th style="width: 20%;">Colony Name</th>
+                  <th style="width: 12%;">Booth Number</th>
+                  <th style="width: 20%;">Booth Address</th>
+                  <th style="width: 10%;">Room Number</th>
+                  <th style="width: 5%;">Sr No.</th>
+                </tr>
+              </thead>
+              <tbody>${tableRows}</tbody>
+            </table>
+          </body>
+        </html>
+      `;
+
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.write(htmlContent);
+        printWindow.document.close();
+
+        printWindow.onload = () => {
+          setTimeout(() => {
+            printWindow.print();
+          }, 250);
+        };
+
+        setTimeout(() => {
+          if (printWindow && !printWindow.closed) {
+            printWindow.focus();
+            printWindow.print();
+          }
+        }, 1000);
+
+        toast.success('Members PDF print dialog opened! Click print to save as PDF.');
+      } else {
+        toast.error('Please allow popups to download PDF');
+      }
+    } catch (error) {
+      console.error('Error exporting Members to PDF:', error);
+      toast.error('Failed to export Members PDF file');
+    }
+  };
+
   // Export family wise survey colony data to PDF
   const exportFamilyWiseColonyToPDF = async (colonyData: FamilyWiseColonyData) => {
     try {
@@ -2796,6 +3071,30 @@ const Newdashboard: React.FC = () => {
                   </svg>
                   PDF All
                 </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={exportMembersToExcel}
+                    disabled={familyWiseLoading || familyWiseColonyGroupedData.length === 0}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Export Members to Excel"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Members Excel
+                  </button>
+                  <button
+                    onClick={exportMembersToPDF}
+                    disabled={familyWiseLoading || familyWiseColonyGroupedData.length === 0}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-orange-600 rounded-lg hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Export Members to PDF"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                    </svg>
+                    Members PDF
+                  </button>
+                </div>
                 <button
                   onClick={fetchFamilyWiseSurveyData}
                   disabled={familyWiseLoading}

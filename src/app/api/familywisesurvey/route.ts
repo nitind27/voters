@@ -32,6 +32,9 @@ export async function GET(request: Request) {
                     v.status,
                     v.created_at,
                     v.updated_at,
+                    v.Booth_Number,
+                    v.Booth_Address,
+                    v.Sr_No,
                     c.colony_name,
                     u.name as user_name
                 FROM tbl_voters_search v
@@ -79,6 +82,9 @@ export async function GET(request: Request) {
                 v.status,
                 v.created_at,
                 v.updated_at,
+                v.Booth_Number,
+                v.Booth_Address,
+                v.Sr_No,
                 c.colony_name,
                 u.name as user_name,
                 COALESCE(fm_counts.family_member_count, 0) as family_member_count
